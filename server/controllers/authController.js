@@ -139,13 +139,6 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    console.log('🔍 Login request body:', {
-      email,
-      passwordLength: password?.length,
-      passwordFirstChar: password?.[0],
-      passwordLastChar: password?.[password.length - 1],
-    });
-
     // Find user
     // Use generic error message to prevent user enumeration
     const user = await User.findOne({ email });
@@ -161,12 +154,9 @@ const login = async (req, res) => {
     }
 
     // Check password
-    console.log('🔍 Login attempt for:', email, '(role:', user.role, ')');
     const isMatch = await user.comparePassword(password);
-    console.log('🔍 Password match result:', isMatch);
 
     if (!isMatch) {
-      console.log('❌ Password mismatch for:', email);
       logger.authAttempt(false, {
         userId: user._id,
         email,
