@@ -1,0 +1,72 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+    - banner [ref=e4]:
+        - generic [ref=e5]:
+            - link "Casual Coding Meetup Group Logo CodeCollabProj Casual Coding Meetup Group" [ref=e6] [cursor=pointer]:
+                - /url: /
+                - img "Casual Coding Meetup Group Logo" [ref=e7]
+                - generic [ref=e8]:
+                    - heading "CodeCollabProj" [level=6] [ref=e9]
+                    - generic [ref=e10]: Casual Coding Meetup Group
+            - generic [ref=e11]:
+                - link "Projects" [ref=e12] [cursor=pointer]:
+                    - /url: /projects
+                    - text: Projects
+                - link "Login" [ref=e13] [cursor=pointer]:
+                    - /url: /login
+                    - text: Login
+                - link "Register" [ref=e14] [cursor=pointer]:
+                    - /url: /register
+                    - text: Register
+    - main [ref=e15]:
+        - generic [ref=e18]:
+            - heading "Register" [level=1] [ref=e19]
+            - generic [ref=e20]:
+                - generic [ref=e21]:
+                    - generic [ref=e22]:
+                        - text: Username
+                        - generic [ref=e23]: '*'
+                    - generic [ref=e24]:
+                        - textbox "Username" [ref=e25]: testuser
+                        - group:
+                            - generic: Username *
+                - generic [ref=e26]:
+                    - generic [ref=e27]:
+                        - text: Email
+                        - generic [ref=e28]: '*'
+                    - generic [ref=e29]:
+                        - textbox "Email" [ref=e30]: test@example.com
+                        - group:
+                            - generic: Email *
+                - generic [ref=e31]:
+                    - generic [ref=e32]:
+                        - text: Password
+                        - generic [ref=e33]: '*'
+                    - generic [ref=e34]:
+                        - textbox "Password" [active] [ref=e35]: weak
+                        - group:
+                            - generic: Password *
+                - generic [ref=e36]:
+                    - generic:
+                        - text: Confirm Password
+                        - generic: '*'
+                    - generic [ref=e37]:
+                        - textbox "Confirm Password" [ref=e38]
+                        - group:
+                            - generic: Confirm Password *
+                - button "Register" [ref=e39] [cursor=pointer]: Register
+            - paragraph [ref=e41]:
+                - text: Already have an account?
+                - link "Login here" [ref=e42] [cursor=pointer]:
+                    - /url: /login
+    - contentinfo [ref=e43]:
+        - generic [ref=e45]:
+            - generic [ref=e46]:
+                - img "Casual Coding Meetup Group Logo" [ref=e47]
+                - generic [ref=e48]:
+                    - heading "CodeCollabProj" [level=6] [ref=e49]
+                    - generic [ref=e50]: Casual Coding Meetup Group
+            - paragraph [ref=e51]: © 2026 CodeCollabProj. All rights reserved.
+```

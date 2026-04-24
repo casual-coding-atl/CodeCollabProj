@@ -100,7 +100,7 @@ api.interceptors.request.use(
           config.headers.Authorization = `Bearer ${token}`;
         }
         // If no token in localStorage, httpOnly cookies will handle authentication
-      } catch (error) {
+      } catch (_error) {
         // If token retrieval fails, that's okay - cookies will handle auth
       }
     }

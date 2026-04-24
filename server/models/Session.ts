@@ -2,7 +2,6 @@ import mongoose, { Schema, HydratedDocument, Types } from 'mongoose';
 import {
   ISession,
   ISessionMethods,
-  ISessionStatics,
   SessionDocument,
   SessionModel,
   SessionRevokedReason,

@@ -1,6 +1,5 @@
 const { validationResult } = require('express-validator');
 const Project = require('../models/Project');
-const User = require('../models/User');
 const logger = require('../utils/logger');
 
 // Create new project
@@ -45,7 +44,7 @@ const createProject = async (req, res) => {
     if (technologies) {
       try {
         parsedTechnologies = JSON.parse(technologies);
-      } catch (e) {
+      } catch (_e) {
         parsedTechnologies = Array.isArray(technologies) ? technologies : [technologies];
       }
     }

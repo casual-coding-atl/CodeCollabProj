@@ -1,4 +1,4 @@
-import mongoose, { Connection, Types } from 'mongoose';
+import mongoose, { Connection } from 'mongoose';
 import { GridFSBucket, GridFSBucketReadStream, ObjectId } from 'mongodb';
 
 /**

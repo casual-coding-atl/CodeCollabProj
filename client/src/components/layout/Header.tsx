@@ -187,7 +187,7 @@ const Header: FC = () => {
                 <MenuItem component={RouterLink} to="/profile" onClick={handleClose}>
                   Profile
                 </MenuItem>
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                <MenuItem onClick={handleLogout} data-testid="logout-button">Logout</MenuItem>
               </Menu>
             </>
           ) : (

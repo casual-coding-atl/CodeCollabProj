@@ -22,7 +22,7 @@ const uploadPath = global.uploadPath || path.join(__dirname, '../uploads');
 
 // Multer 2.x uses async functions instead of callbacks
 const storage = multer.diskStorage({
-  destination: function (req, file) {
+  destination: function (_req, _file) {
     return uploadPath;
   },
   filename: function (req, file) {

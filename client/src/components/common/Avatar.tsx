@@ -123,6 +123,7 @@ const Avatar: FC<AvatarProps> = ({
       }}
     >
       <MuiAvatar
+        data-testid="avatar"
         src={imageUrl || undefined}
         alt={user?.username || 'User'}
         onClick={onClick}

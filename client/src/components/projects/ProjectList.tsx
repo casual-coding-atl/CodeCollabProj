@@ -20,10 +20,10 @@ import {
   type SelectChangeEvent,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { useProjects, useProjectSearch } from '../../hooks/projects';
 import type { ProjectFilters } from '../../services/projectsService';
-import type { Project, ProjectStatus } from '../../types';
+import type { Project } from '../../types';
 
 // Extended Project type for API responses
 interface ProjectApiResponse extends Omit<Project, 'id'> {
@@ -31,8 +31,6 @@ interface ProjectApiResponse extends Omit<Project, 'id'> {
 }
 
 const ProjectList: React.FC = () => {
-  const navigate = useNavigate();
-
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [skillFilter, setSkillFilter] = useState<string>('');

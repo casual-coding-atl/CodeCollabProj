@@ -26,7 +26,7 @@ import {
 import { Search, Message, Visibility, FilterList } from '@mui/icons-material';
 import { useAuth } from '../hooks/auth';
 import { useUserSearch, useSendMessage } from '../hooks/users';
-import type { User, ExperienceLevel, Availability } from '../types';
+import type { User } from '../types';
 
 interface SearchParams {
   query: string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, ChangeEvent, MutableRefObject } from 'react';
+import React, { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Container,
@@ -19,7 +19,6 @@ import { Search, Add, People, CalendarToday } from '@mui/icons-material';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
 import { ProjectListSkeleton } from '../components/common/Skeletons';
-import type { Project, User } from '../types';
 
 // API response types - standalone interfaces to handle _id fields
 interface ProjectWithId {
@@ -155,7 +154,7 @@ const ProjectList: React.FC = () => {
           sx={{ mb: 4 }}
         />
 
-        <Grid container spacing={3}>
+        <Grid container spacing={3} data-testid="project-list">
           {filteredProjects.map((project) => (
             <Grid
               item
@@ -167,7 +166,7 @@ const ProjectList: React.FC = () => {
                 projectRefs.current[project._id] = el;
               }}
             >
-              <Card>
+              <Card data-testid="project-card">
                 {project.image && (
                   <CardMedia
                     component="img"

@@ -15,7 +15,6 @@ const { RATE_LIMITS } = require('./config/constants');
 const {
   trackFailedAuth,
   trackSuspiciousActivity,
-  trackFileUploads,
   trackAccessViolations,
 } = require('./middleware/securityMonitoring');
 
@@ -350,11 +349,17 @@ const gracefulShutdown = (signal) => {
 
   server.close(() => {
     logger.info('Server closed');
-    mongoose.connection.close(false, () => {
-      logger.info('MongoDB connection closed');
-      logger.info('Server shutdown completed', { signal });
-      process.exit(0);
-    });
+    mongoose.connection
+      .close(false)
+      .then(() => {
+        logger.info('MongoDB connection closed');
+        logger.info('Server shutdown completed', { signal });
+        process.exit(0);
+      })
+      .catch((err) => {
+        logger.error('Error closing MongoDB connection:', { error: err.message });
+        process.exit(1);
+      });
   });
 
   // Force exit after 10 seconds

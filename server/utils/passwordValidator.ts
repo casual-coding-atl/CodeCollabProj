@@ -48,7 +48,7 @@ const validatePassword = (password: string): PasswordValidationResult => {
   // Check for special character
   if (
     PASSWORD_REQUIREMENTS.REQUIRE_SPECIAL &&
-    !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)
   ) {
     errors.push('Password must contain at least one special character');
   }

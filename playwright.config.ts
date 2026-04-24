@@ -22,7 +22,7 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Disable video in CI to speed up tests
@@ -40,25 +40,33 @@ export default defineConfig({
     },
   ],
 
-  webServer: [
-    {
-      command: 'npm run server',
-      url: 'http://localhost:5001/api/auth/me',
-      ignoreHTTPSErrors: true,
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-      cwd: '.',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-    {
-      command: 'PORT=3000 npm run client',
-      url: 'http://localhost:3000',
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-      cwd: '.',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  ],
+  // Only start local servers if not testing against remote preview URL
+  webServer: process.env.BASE_URL
+    ? undefined
+    : [
+        {
+          // Seed database first, then start server
+          // NODE_ENV=development ensures MongoDB connects (test skips it)
+          command:
+            'cd server && MONGODB_URI=mongodb://localhost:27017/codecollab_test npx tsx seed.js && NODE_ENV=development PORT=5001 npx tsx index.js',
+          url: 'http://localhost:5001/health',
+          ignoreHTTPSErrors: true,
+          timeout: 120 * 1000,
+          reuseExistingServer: !process.env.CI,
+          cwd: '.',
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+        {
+          // Build client first, then serve production build (more reliable than Vite dev)
+          command:
+            'cd client && npm run build && npx serve -s build -l 3000',
+          url: 'http://localhost:3000',
+          timeout: 180 * 1000,
+          reuseExistingServer: !process.env.CI,
+          cwd: '.',
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      ],
 });

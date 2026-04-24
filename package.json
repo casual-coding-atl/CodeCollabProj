@@ -13,6 +13,7 @@
     "test:e2e": "npx playwright test",
     "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:critical": "npx playwright test --config=playwright.critical.config.ts",
     "test:e2e:security": "npx playwright test cookie-auth-security",
     "typecheck": "concurrently \"cd server && npm run typecheck\" \"cd client && npm run typecheck\"",
     "lint": "concurrently \"cd server && npm run lint\" \"cd client && npm run lint\"",
@@ -39,9 +40,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "axios": "^1.10.0",
-    "nodemailer": "^7.0.5",
-    "nodemon": "^3.1.10"
+    "axios": "^1.13.4",
+    "nodemailer": "^8.0.1",
+    "nodemon": "^3.1.11"
   },
   "lint-staged": {
     "client/src/**/*.{ts,tsx,js,jsx}": [
@@ -56,5 +57,8 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
+  },
+  "overrides": {
+    "lodash": "^4.17.23"
   }
 }

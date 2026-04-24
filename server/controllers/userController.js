@@ -311,10 +311,6 @@ const uploadAvatar = async (req, res) => {
 };
 
 // Helper function to get file extension
-const getExtension = (filename) => {
-  const lastDot = filename.lastIndexOf('.');
-  return lastDot !== -1 ? filename.substring(lastDot) : '';
-};
 
 // Delete user avatar (using GridFS)
 const deleteAvatar = async (req, res) => {

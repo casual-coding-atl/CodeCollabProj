@@ -139,7 +139,7 @@ const getAllUsers = async (req, res) => {
     const status = req.query.status;
 
     // Build filter query
-    let filter = {};
+    const filter = {};
 
     if (search) {
       filter.$or = [

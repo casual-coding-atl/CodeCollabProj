@@ -10,7 +10,6 @@ import type {
   RegisterResponse,
   RefreshTokenResponse,
   CookieAuthCheckResult,
-  PasswordChangeFormData,
   PasswordResetRequestResponse,
   VerifyPasswordResetTokenResponse,
   EmailVerificationResponse,
