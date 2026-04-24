@@ -71,3 +71,6 @@ server/uploads/
 
 # Claude orchestrator state
 .claude/orchestrator/
+
+# Local project evaluation files
+AI_PROJECT_EVALUATION_IDEAS.md
