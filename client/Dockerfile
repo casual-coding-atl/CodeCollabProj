@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -14,7 +14,7 @@ ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # Stage 2: Production (no devDependencies, minimal attack surface)
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 
 RUN npm install -g serve@14.2.4

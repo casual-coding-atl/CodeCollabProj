@@ -1,6 +1,9 @@
 {
   "name": "codecollabproj-server",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  },
   "description": "Backend server for CodeCollabProj platform",
   "main": "index.js",
   "scripts": {

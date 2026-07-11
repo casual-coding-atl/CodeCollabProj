@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # Job 1: Lint and Type Check (fastest, runs first)
@@ -142,7 +142,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: client-build
-          path: client/dist/
+          path: client/build/
           retention-days: 7
 
   # Job 5: E2E Tests (Local with MongoDB - Works Reliably)

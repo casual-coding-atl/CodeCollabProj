@@ -1,6 +1,9 @@
 {
   "name": "codecollabproj",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  },
   "description": "Computer Club Collaboration Platform",
   "scripts": {
     "start": "cd server && npm start",
