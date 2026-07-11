@@ -38,7 +38,13 @@ const getDashboardStats = async (req, res) => {
         {
           $facet: {
             total: [{ $count: 'count' }],
-            active: [{ $match: { status: 'active' } }, { $count: 'count' }],
+            // "Active" = projects not yet completed. 'active' is not a valid
+            // Project status (enum is ideation/in_progress/completed), so the old
+            // query always returned 0.
+            active: [
+              { $match: { status: { $in: ['ideation', 'in_progress'] } } },
+              { $count: 'count' },
+            ],
             newThisWeek: [{ $match: { createdAt: { $gte: sevenDaysAgo } } }, { $count: 'count' }],
           },
         },
@@ -270,8 +276,10 @@ const updateUserRole = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Prevent self-demotion
-    if (user._id.toString() === req.user._id.toString() && role !== 'admin') {
+    // Prevent self-demotion, but only when a role change is actually requested.
+    // (Guarding on `role !== 'admin'` when role is omitted blocked admins from
+    // updating their own non-role permissions.)
+    if (user._id.toString() === req.user._id.toString() && role && role !== 'admin') {
       return res.status(400).json({ message: 'Cannot change your own admin role' });
     }
 

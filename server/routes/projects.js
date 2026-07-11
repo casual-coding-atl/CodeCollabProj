@@ -12,7 +12,7 @@ const {
   handleCollaborationRequest,
   searchProjects,
 } = require('../controllers/projectController');
-const { projectValidator } = require('../middleware/validators');
+const { projectValidator, projectUpdateValidator } = require('../middleware/validators');
 const auth = require('../middleware/auth');
 const { FILE_UPLOAD } = require('../config/constants');
 
@@ -71,7 +71,7 @@ router.get('/:id', getProjectById);
 // @route   PUT /api/projects/:id
 // @desc    Update project
 // @access  Private (owner only)
-router.put('/:id', auth, projectValidator, updateProject);
+router.put('/:id', auth, projectUpdateValidator, updateProject);
 
 // @route   DELETE /api/projects/:id
 // @desc    Delete project
