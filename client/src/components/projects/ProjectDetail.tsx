@@ -177,8 +177,7 @@ const ProjectDetail: React.FC = () => {
         navigate('/projects');
       },
       onError: () => {
-        // Keep the dialog open so the user sees it failed and can retry.
-        setShowDeleteDialog(false);
+        // Keep the dialog open so the user can see it failed and retry.
       },
     });
   };
