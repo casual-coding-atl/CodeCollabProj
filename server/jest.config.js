@@ -6,7 +6,11 @@ module.exports = {
   testEnvironment: 'node',
 
   // Test file patterns (support both .ts and .js)
-  testMatch: ['**/__tests__/**/*.ts', '**/__tests__/**/*.js', '**/?(*.)+(spec|test).ts'],
+  testMatch: [
+    '**/__tests__/**/*.(test|spec).ts',
+    '**/__tests__/**/*.(test|spec).js',
+    '**/?(*.)+(spec|test).ts',
+  ],
 
   // Coverage settings
   collectCoverageFrom: [
