@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
 const Message = require('../models/Message');
+const escapeRegExp = require('../utils/escapeRegExp');
 // GridFS removed - now using filesystem storage
 // const { uploadToGridFS, downloadFromGridFS, deleteFromGridFS, getFileInfo } = require('../utils/gridfs');
 
@@ -104,13 +105,15 @@ const searchUsers = async (req, res) => {
 
     const searchCriteria = { isProfilePublic: true };
 
-    // Text search
+    // Text search — escape the user-supplied term so regex metacharacters are
+    // treated literally (prevents ReDoS and 500s from invalid patterns).
     if (query) {
+      const safeQuery = escapeRegExp(query);
       searchCriteria.$or = [
-        { firstName: { $regex: query, $options: 'i' } },
-        { lastName: { $regex: query, $options: 'i' } },
-        { username: { $regex: query, $options: 'i' } },
-        { bio: { $regex: query, $options: 'i' } },
+        { firstName: { $regex: safeQuery, $options: 'i' } },
+        { lastName: { $regex: safeQuery, $options: 'i' } },
+        { username: { $regex: safeQuery, $options: 'i' } },
+        { bio: { $regex: safeQuery, $options: 'i' } },
       ];
     }
 
