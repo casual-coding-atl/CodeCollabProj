@@ -106,7 +106,7 @@ const MemberSearch: React.FC = () => {
 
     sendMessageMutation.mutate(
       {
-        recipient: selectedUser._id,
+        recipientId: selectedUser._id,
         subject: messageData.subject,
         content: messageData.content,
       },

@@ -16,7 +16,8 @@ export interface UserSearchParams {
  * Message data for sending a new message
  */
 export interface SendMessageData {
-  recipient: string;
+  // Must match the server's message validator/controller, which read `recipientId`.
+  recipientId: string;
   subject: string;
   content: string;
 }
