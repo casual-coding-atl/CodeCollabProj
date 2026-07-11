@@ -210,23 +210,27 @@ export const authService: AuthServiceInterface = {
     return response.data;
   },
 
-  // Refresh access token using refresh token
+  // Refresh access token using the refresh token.
+  // Auth is cookie-based: the httpOnly refreshToken cookie is sent automatically
+  // (api has withCredentials). A localStorage refresh token is only present for
+  // legacy sessions, so we must NOT require one here — doing so would abort every
+  // cookie-based refresh and force-log-out users when the access cookie expires.
   refreshToken: async (): Promise<string> => {
-    const refreshToken = authService.getRefreshToken();
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
+    const storedRefreshToken = authService.getRefreshToken();
 
     try {
-      const response = await api.post<RefreshTokenResponse>('/auth/refresh-token', {
-        refreshToken,
-      });
+      const response = await api.post<RefreshTokenResponse>(
+        '/auth/refresh-token',
+        // Send the legacy token in the body when we have one; the server also
+        // accepts the refresh token from the httpOnly cookie.
+        storedRefreshToken ? { refreshToken: storedRefreshToken } : {}
+      );
 
       if (response.data.accessToken) {
-        // Update access token using setTokens to encrypt it
-        const currentRefreshToken = authService.getRefreshToken();
-        if (currentRefreshToken) {
-          authService.setTokens(response.data.accessToken, currentRefreshToken);
+        // The backend sets the new access token as an httpOnly cookie. For legacy
+        // localStorage sessions, keep the encrypted copy in sync as well.
+        if (storedRefreshToken) {
+          authService.setTokens(response.data.accessToken, storedRefreshToken);
         }
         return response.data.accessToken;
       }
