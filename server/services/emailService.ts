@@ -23,9 +23,10 @@ const createTransporter = (): Transporter<SMTPTransport.SentMessageInfo> => {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
-    tls: {
-      rejectUnauthorized: false,
-    },
+    // TLS certificate validation is left at its secure default (rejectUnauthorized:
+    // true). Gmail presents a valid certificate; disabling validation would allow
+    // man-in-the-middle interception of outgoing mail.
+    requireTLS: true,
   });
 };
 
