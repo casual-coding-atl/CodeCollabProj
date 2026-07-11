@@ -138,7 +138,8 @@ class EnvValidator {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
     let password = '';
     for (let i = 0; i < length; i++) {
-      password += charset.charAt(Math.floor(Math.random() * charset.length));
+      // Use a CSPRNG (crypto.randomInt) rather than Math.random for secret material.
+      password += charset.charAt(crypto.randomInt(charset.length));
     }
     return password;
   }
