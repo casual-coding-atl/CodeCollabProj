@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import {
   Box,
   Paper,
@@ -165,6 +165,15 @@ interface EditRoleDialogProps {
 const EditRoleDialog: React.FC<EditRoleDialogProps> = ({ open, user, onClose, onSave }) => {
   const [role, setRole] = useState<UserRole>(user?.role || 'user');
   const [loading, setLoading] = useState(false);
+
+  // The dialog stays mounted across selections, so the initial useState value is
+  // stale for every user after the first. Re-sync the role to the selected user
+  // whenever the dialog opens, otherwise saving can silently demote them.
+  useEffect(() => {
+    if (open && user) {
+      setRole(user.role);
+    }
+  }, [open, user]);
 
   const handleSave = async (): Promise<void> => {
     if (!user) return;
