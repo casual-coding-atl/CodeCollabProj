@@ -26,11 +26,6 @@ if [ ! -f "client/example.env" ]; then
     exit 1
 fi
 
-if [ ! -f "docker-compose.example.yml" ]; then
-    echo "❌ docker-compose.example.yml not found!"
-    exit 1
-fi
-
 echo "✅ All required example files found"
 
 # 1. Copy environment files
@@ -41,14 +36,14 @@ if [ ! -f "server/.env" ]; then
     echo "📄 Copying server/.env from example..."
     cp server/example.env server/.env
     
-    # Generate a secure JWT secret
+    # Generate a secure JWT secret and replace the placeholder from example.env
     JWT_SECRET=$(generate_jwt_secret)
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS
-        sed -i '' "s/your_jwt_secret_here/$JWT_SECRET/" server/.env
+        sed -i '' "s/GENERATE_SECURE_64_CHAR_SECRET_HERE_DO_NOT_USE_THIS_DEFAULT/$JWT_SECRET/" server/.env
     else
         # Linux
-        sed -i "s/your_jwt_secret_here/$JWT_SECRET/" server/.env
+        sed -i "s/GENERATE_SECURE_64_CHAR_SECRET_HERE_DO_NOT_USE_THIS_DEFAULT/$JWT_SECRET/" server/.env
     fi
     echo "🔐 Generated secure JWT secret"
 else
@@ -62,18 +57,7 @@ else
     echo "⚠️  client/.env already exists, skipping..."
 fi
 
-# 2. Copy Docker configuration
-echo ""
-echo "🐳 Setting up Docker configuration..."
-
-if [ ! -f "docker-compose.yml" ]; then
-    echo "📄 Copying docker-compose.yml from example..."
-    cp docker-compose.example.yml docker-compose.yml
-else
-    echo "⚠️  docker-compose.yml already exists, skipping..."
-fi
-
-# 3. Create uploads directory
+# 2. Create uploads directory
 echo ""
 echo "📁 Creating uploads directory..."
 mkdir -p server/uploads
@@ -91,6 +75,6 @@ echo "2. Start the application:"
 echo "   ./start.sh"
 echo ""
 echo "🔒 Security reminders:"
-echo "- Never commit .env files or docker-compose.yml with real credentials"
+echo "- Never commit .env files with real credentials"
 echo "- Use Gmail App Passwords, not your regular Gmail password"
 echo "- The JWT secret has been automatically generated for security"
