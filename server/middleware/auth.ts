@@ -39,6 +39,37 @@ const auth = async (req: Request, res: Response, next: NextFunction): Promise<vo
       return;
     }
 
+    // Enforce account suspension/deactivation on every authenticated request,
+    // not just admin routes — otherwise a suspended user keeps full access until
+    // their session expires.
+    const account = sessionData.user as {
+      isActive?: boolean;
+      isSuspended?: boolean;
+      suspendedUntil?: Date | string;
+      isCurrentlySuspended?: () => boolean;
+    };
+    const suspended =
+      typeof account.isCurrentlySuspended === 'function'
+        ? account.isCurrentlySuspended()
+        : Boolean(
+            account.isSuspended &&
+            (!account.suspendedUntil || new Date() < new Date(account.suspendedUntil))
+          );
+
+    if (account.isActive === false || suspended) {
+      logger.securityEvent('SUSPENDED_ACCOUNT_ACCESS', {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        path: req.path,
+      });
+      res.status(403).json({
+        message: suspended
+          ? 'Your account has been suspended.'
+          : 'Your account has been deactivated.',
+      });
+      return;
+    }
+
     req.token = token;
     req.user = sessionData.user;
     req.sessionId = sessionData.sessionId;

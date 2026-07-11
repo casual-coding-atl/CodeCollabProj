@@ -138,13 +138,6 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    console.log('🔍 Login request body:', {
-      email,
-      passwordLength: password?.length,
-      passwordFirstChar: password?.[0],
-      passwordLastChar: password?.[password.length - 1],
-    });
-
     // Find user
     // Use generic error message to prevent user enumeration
     const user = await User.findOne({ email });
@@ -160,12 +153,9 @@ const login = async (req, res) => {
     }
 
     // Check password
-    console.log('🔍 Login attempt for:', email, '(role:', user.role, ')');
     const isMatch = await user.comparePassword(password);
-    console.log('🔍 Password match result:', isMatch);
 
     if (!isMatch) {
-      console.log('❌ Password mismatch for:', email);
       logger.authAttempt(false, {
         userId: user._id,
         email,
@@ -177,7 +167,32 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    console.log('✅ Password matched for:', email);
+    // Block suspended or deactivated accounts from obtaining a new session.
+    if (user.isActive === false) {
+      logger.authAttempt(false, {
+        userId: user._id,
+        email,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        reason: 'account_deactivated',
+      });
+      return res.status(403).json({ message: 'Your account has been deactivated.' });
+    }
+
+    if (user.isCurrentlySuspended()) {
+      logger.authAttempt(false, {
+        userId: user._id,
+        email,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        reason: 'account_suspended',
+      });
+      return res.status(403).json({
+        message: user.suspensionReason
+          ? `Your account has been suspended: ${user.suspensionReason}`
+          : 'Your account has been suspended.',
+      });
+    }
 
     // Check if email is verified
     // Skip verification check for pre-seeded test users (they have isEmailVerified: true)

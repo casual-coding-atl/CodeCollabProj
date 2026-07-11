@@ -20,14 +20,16 @@ const { FILE_UPLOAD } = require('../config/constants');
 // Use global uploadPath from server/index.js (supports Railway volumes)
 const uploadPath = global.uploadPath || path.join(__dirname, '../uploads');
 
-// Multer 2.x uses async functions instead of callbacks
+// Multer (incl. 2.x) uses (req, file, cb) callbacks. The storage/filter functions
+// MUST invoke cb — returning or throwing leaves the upload hanging (or crashes the
+// process on a non-image), so always call cb(null, value) / cb(error).
 const storage = multer.diskStorage({
-  destination: function (_req, _file) {
-    return uploadPath;
+  destination: function (_req, _file, cb) {
+    cb(null, uploadPath);
   },
-  filename: function (req, file) {
+  filename: function (_req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    return file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   },
 });
 
@@ -36,12 +38,13 @@ const upload = multer({
   limits: {
     fileSize: FILE_UPLOAD.MAX_FILE_SIZE,
   },
-  fileFilter: function (req, file) {
-    // Accept any image MIME type - return true/false for multer 2.x
+  fileFilter: function (_req, file, cb) {
+    // Accept any image MIME type; reject others via cb (not by throwing).
     if (file.mimetype.startsWith('image/')) {
-      return true;
+      cb(null, true);
+      return;
     }
-    throw new Error('Only image files are allowed!');
+    cb(new Error('Only image files are allowed!'));
   },
 });
 
