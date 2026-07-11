@@ -225,7 +225,9 @@ userSchema.methods.generateEmailVerificationToken = function (
   this: HydratedDocument<IUser, IUserMethods>
 ): string {
   const token = crypto.randomBytes(32).toString('hex');
-  this.emailVerificationToken = token;
+  // Store only a hash of the token; the raw token goes in the email link so a DB
+  // read cannot yield a usable verification token.
+  this.emailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
   this.emailVerificationExpires = new Date(Date.now() + SECURITY.EMAIL_VERIFICATION_TOKEN_EXPIRY);
   return token;
 };
@@ -235,7 +237,8 @@ userSchema.methods.generatePasswordResetToken = function (
   this: HydratedDocument<IUser, IUserMethods>
 ): string {
   const token = crypto.randomBytes(32).toString('hex');
-  this.passwordResetToken = token;
+  // Store only a hash of the token; the raw token goes in the reset link.
+  this.passwordResetToken = crypto.createHash('sha256').update(token).digest('hex');
   this.passwordResetExpires = new Date(Date.now() + SECURITY.PASSWORD_RESET_TOKEN_EXPIRY);
   return token;
 };
