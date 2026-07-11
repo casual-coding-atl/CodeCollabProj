@@ -46,8 +46,9 @@ const register = async (req, res) => {
 
     const { email, password, username } = req.body;
 
-    // Check if user already exists
-    // Use generic error message to prevent user enumeration
+    // Check if user already exists. Use a generic message that does not reveal
+    // which field matched. (A fully uniform success response was considered but
+    // leaks account existence via response shape and breaks the signup UX.)
     const existingUser = await User.findOne({
       $or: [{ email }, { username }],
     });
@@ -305,36 +306,25 @@ const verifyEmail = async (req, res) => {
 
 // Resend verification email
 const resendVerificationEmail = async (req, res) => {
+  // Uniform response regardless of whether the account exists or is already
+  // verified, so this endpoint can't be used to enumerate accounts.
+  const genericMessage =
+    'If an account with that email exists and is not yet verified, a verification email has been sent.';
   try {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (user && !user.isEmailVerified) {
+      const verificationToken = user.generateEmailVerificationToken();
+      await user.save();
+      await sendVerificationEmail(email, verificationToken, user.username);
     }
 
-    if (user.isEmailVerified) {
-      return res.status(400).json({ message: 'Email is already verified' });
-    }
-
-    // Generate new verification token
-    const verificationToken = user.generateEmailVerificationToken();
-    await user.save();
-
-    // Send verification email
-    const emailSent = await sendVerificationEmail(email, verificationToken, user.username);
-
-    if (!emailSent) {
-      return res.status(500).json({
-        message: 'Failed to send verification email. Please try again later.',
-      });
-    }
-
-    res.json({
-      message: 'Verification email sent successfully. Please check your inbox.',
-    });
+    return res.json({ message: genericMessage });
   } catch (error) {
-    res.status(500).json({ message: 'Error sending verification email', error: error.message });
+    logger.error('Error sending verification email', { error: error.message });
+    // Still return the generic message so failures don't reveal account existence.
+    return res.json({ message: genericMessage });
   }
 };
 
