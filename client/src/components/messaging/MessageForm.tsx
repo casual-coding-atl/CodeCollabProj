@@ -117,7 +117,7 @@ const MessageForm: React.FC<MessageFormProps> = ({
     }
 
     sendMessageMutation.mutate({
-      recipient: formData.recipientId,
+      recipientId: formData.recipientId,
       subject: formData.subject.trim(),
       content: formData.content.trim(),
     });
