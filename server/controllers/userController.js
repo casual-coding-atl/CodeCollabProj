@@ -29,6 +29,16 @@ const getUserById = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Enforce profile privacy: a private profile is only viewable by its owner or
+    // by privileged roles (admin/moderator), not by any authenticated user.
+    const requesterId = req.user?._id?.toString();
+    const isOwner = requesterId === user._id.toString();
+    const isPrivileged = ['admin', 'moderator'].includes(req.user?.role);
+
+    if (!user.isProfilePublic && !isOwner && !isPrivileged) {
+      return res.status(403).json({ message: 'This profile is private' });
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user', error: error.message });
