@@ -1,4 +1,4 @@
-import React, { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
+import React, { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Container,
@@ -81,44 +81,71 @@ interface FormErrors {
   [key: string]: string | undefined;
 }
 
-const ProjectForm: React.FC = () => {
+// Maps a fetched project (or undefined, for create mode) into initial form state.
+const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): FormData => {
+  if (!initialProject) {
+    return {
+      title: '',
+      description: '',
+      technologies: [],
+      requiredSkills: [],
+      tags: [],
+      githubUrl: '',
+      liveUrl: '',
+      resources: [{ name: '', url: '' }],
+      status: 'ideation',
+      incentives: {
+        enabled: false,
+        type: 'recognition',
+        description: '',
+        amount: 0,
+        currency: 'USD',
+        equityPercentage: 0,
+        customReward: '',
+      },
+    };
+  }
+
+  return {
+    title: initialProject.title || '',
+    description: initialProject.description || '',
+    technologies: initialProject.technologies || [],
+    requiredSkills: initialProject.requiredSkills || [],
+    tags: initialProject.tags || [],
+    githubUrl: initialProject.githubUrl || '',
+    liveUrl: initialProject.liveUrl || '',
+    resources: initialProject.resources?.length
+      ? initialProject.resources.map((r) => ({ name: r.name, url: r.url }))
+      : [{ name: '', url: '' }],
+    status: initialProject.status || 'ideation',
+    incentives: {
+      enabled: initialProject.incentives?.enabled ?? false,
+      type: initialProject.incentives?.type ?? 'recognition',
+      description: initialProject.incentives?.description ?? '',
+      amount: initialProject.incentives?.amount ?? 0,
+      currency: initialProject.incentives?.currency ?? 'USD',
+      equityPercentage: initialProject.incentives?.equityPercentage ?? 0,
+      customReward: initialProject.incentives?.customReward ?? '',
+    },
+  };
+};
+
+interface ProjectFormFieldsProps {
+  initialProject: ProjectApiResponse | undefined;
+  projectId: string | undefined;
+}
+
+// Owns the editable form state. Seeded once from initialProject via a useState
+// initializer; the parent remounts this via `key` when the project identity changes,
+// so a background refetch of the same project never clobbers in-progress edits.
+const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, projectId }) => {
   const navigate = useNavigate();
-  const { projectId } = useParams<{ projectId: string }>();
-
-  // Auth state
-  const { isAuthenticated } = useAuth();
-
-  // Project data for editing - useProject handles enabled internally based on projectId
-  const {
-    data: currentProject,
-    isLoading: loading,
-    error: projectError,
-  } = useProject(projectId) as UseProjectResult;
 
   // Mutations
   const createProjectMutation = useCreateProject();
   const updateProjectMutation = useUpdateProject();
 
-  const [formData, setFormData] = useState<FormData>({
-    title: '',
-    description: '',
-    technologies: [],
-    requiredSkills: [],
-    tags: [],
-    githubUrl: '',
-    liveUrl: '',
-    resources: [{ name: '', url: '' }],
-    status: 'ideation',
-    incentives: {
-      enabled: false,
-      type: 'recognition',
-      description: '',
-      amount: 0,
-      currency: 'USD',
-      equityPercentage: 0,
-      customReward: '',
-    },
-  });
+  const [formData, setFormData] = useState<FormData>(() => mapProjectToFormData(initialProject));
 
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
@@ -174,37 +201,6 @@ const ProjectForm: React.FC = () => {
     'Git',
     'Docker',
   ];
-
-  // TanStack Query will automatically fetch the project when projectId exists
-
-  useEffect(() => {
-    if (currentProject && projectId) {
-      console.log('📝 Setting form data for editing:', currentProject);
-      console.log('📋 Current requiredSkills:', currentProject.requiredSkills);
-      setFormData({
-        title: currentProject.title || '',
-        description: currentProject.description || '',
-        technologies: currentProject.technologies || [],
-        requiredSkills: currentProject.requiredSkills || [],
-        tags: currentProject.tags || [],
-        githubUrl: currentProject.githubUrl || '',
-        liveUrl: currentProject.liveUrl || '',
-        resources: currentProject.resources?.length
-          ? currentProject.resources.map((r) => ({ name: r.name, url: r.url }))
-          : [{ name: '', url: '' }],
-        status: currentProject.status || 'ideation',
-        incentives: {
-          enabled: currentProject.incentives?.enabled ?? false,
-          type: currentProject.incentives?.type ?? 'recognition',
-          description: currentProject.incentives?.description ?? '',
-          amount: currentProject.incentives?.amount ?? 0,
-          currency: currentProject.incentives?.currency ?? 'USD',
-          equityPercentage: currentProject.incentives?.equityPercentage ?? 0,
-          customReward: currentProject.incentives?.customReward ?? '',
-        },
-      });
-    }
-  }, [currentProject, projectId]);
 
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
@@ -353,62 +349,6 @@ const ProjectForm: React.FC = () => {
       alert('Please fix the form errors before submitting.');
     }
   };
-
-  // Check authentication
-  if (!isAuthenticated) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Authentication Required
-          </Typography>
-          You must be logged in to create or edit projects.
-        </Alert>
-        <Button variant="contained" onClick={() => navigate('/login')}>
-          Go to Login
-        </Button>
-      </Container>
-    );
-  }
-
-  // Loading state for editing
-  if (projectId && loading) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Loading project data...
-          </Typography>
-        </Box>
-      </Container>
-    );
-  }
-
-  // Error state for editing
-  if (projectId && projectError) {
-    const errorObj = projectError as Error & { response?: { data?: { message?: string } } };
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Error Loading Project
-          </Typography>
-          {errorObj?.response?.data?.message || errorObj?.message || 'Failed to load project data'}
-        </Alert>
-        <Button variant="contained" onClick={() => navigate('/projects')}>
-          Back to Projects
-        </Button>
-      </Container>
-    );
-  }
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
@@ -669,6 +609,89 @@ const ProjectForm: React.FC = () => {
         </form>
       </Paper>
     </Container>
+  );
+};
+
+const ProjectForm: React.FC = () => {
+  const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
+
+  // Auth state
+  const { isAuthenticated } = useAuth();
+
+  // Project data for editing - useProject handles enabled internally based on projectId.
+  // TanStack Query will automatically fetch the project when projectId exists.
+  const {
+    data: currentProject,
+    isLoading: loading,
+    error: projectError,
+  } = useProject(projectId) as UseProjectResult;
+
+  // Check authentication
+  if (!isAuthenticated) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Authentication Required
+          </Typography>
+          You must be logged in to create or edit projects.
+        </Alert>
+        <Button variant="contained" onClick={() => navigate('/login')}>
+          Go to Login
+        </Button>
+      </Container>
+    );
+  }
+
+  // Loading state for editing
+  if (projectId && loading) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '300px',
+          }}
+        >
+          <CircularProgress />
+          <Typography variant="h6" sx={{ ml: 2 }}>
+            Loading project data...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  // Error state for editing
+  if (projectId && projectError) {
+    const errorObj = projectError as Error & { response?: { data?: { message?: string } } };
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Error Loading Project
+          </Typography>
+          {errorObj?.response?.data?.message || errorObj?.message || 'Failed to load project data'}
+        </Alert>
+        <Button variant="contained" onClick={() => navigate('/projects')}>
+          Back to Projects
+        </Button>
+      </Container>
+    );
+  }
+
+  // Data is present (edit mode gates on loading above) or absent (create mode).
+  // The `key` remounts the form body when the project identity changes, seeding
+  // fresh local state from initialProject without an effect.
+  return (
+    <ProjectFormFields
+      key={projectId ?? 'new'}
+      initialProject={currentProject}
+      projectId={projectId}
+    />
   );
 };
 

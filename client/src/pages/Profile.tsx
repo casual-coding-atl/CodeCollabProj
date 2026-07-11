@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ChangeEvent, FormEvent, KeyboardEvent } from 'react';
+import React, { useState, useRef, ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import {
   Container,
   Typography,
@@ -45,63 +45,39 @@ interface UserWithId extends Omit<User, 'id'> {
   profileImage?: string;
 }
 
-const Profile: React.FC = () => {
-  // Auth and profile data
-  const { isAuthenticated } = useAuth();
-  const { data: profile, isLoading: profileLoading, error: profileError } = useMyProfile();
+interface ProfileFormProps {
+  profile: UserWithId | undefined;
+  profileError: unknown;
+}
+
+const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
   const updateProfileMutation = useUpdateProfile();
   const uploadAvatarMutation = useUploadAvatar();
   const deleteAvatarMutation = useDeleteAvatar();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState<ProfileFormData>({
-    firstName: '',
-    lastName: '',
-    bio: '',
-    skills: [],
-    experience: 'beginner',
-    location: '',
-    timezone: '',
-    availability: 'flexible',
-    portfolioLinks: [],
+  const [formData, setFormData] = useState<ProfileFormData>(() => ({
+    firstName: profile?.firstName || '',
+    lastName: profile?.lastName || '',
+    bio: profile?.bio || '',
+    skills: profile?.skills || [],
+    experience: profile?.experience || 'beginner',
+    location: profile?.location || '',
+    timezone: profile?.timezone || '',
+    availability: profile?.availability || 'flexible',
+    portfolioLinks: profile?.portfolioLinks || [],
     socialLinks: {
-      github: '',
-      linkedin: '',
-      twitter: '',
-      website: '',
+      github: profile?.socialLinks?.github || '',
+      linkedin: profile?.socialLinks?.linkedin || '',
+      twitter: profile?.socialLinks?.twitter || '',
+      website: profile?.socialLinks?.website || '',
     },
-    isProfilePublic: true,
-  });
+    isProfilePublic: profile?.isProfilePublic ?? true,
+  }));
 
   const [newSkill, setNewSkill] = useState('');
   const [newPortfolioLink, setNewPortfolioLink] = useState<PortfolioLink>({ name: '', url: '' });
   const [validationError, setValidationError] = useState('');
-
-  const typedProfile = profile as UserWithId | undefined;
-
-  useEffect(() => {
-    if (typedProfile) {
-      setFormData({
-        firstName: typedProfile.firstName || '',
-        lastName: typedProfile.lastName || '',
-        bio: typedProfile.bio || '',
-        skills: typedProfile.skills || [],
-        experience: typedProfile.experience || 'beginner',
-        location: typedProfile.location || '',
-        timezone: typedProfile.timezone || '',
-        availability: typedProfile.availability || 'flexible',
-        portfolioLinks: typedProfile.portfolioLinks || [],
-        socialLinks: {
-          github: typedProfile.socialLinks?.github || '',
-          linkedin: typedProfile.socialLinks?.linkedin || '',
-          twitter: typedProfile.socialLinks?.twitter || '',
-          website: typedProfile.socialLinks?.website || '',
-        },
-        isProfilePublic:
-          typedProfile.isProfilePublic !== undefined ? typedProfile.isProfilePublic : true,
-      });
-    }
-  }, [typedProfile]);
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent
@@ -178,10 +154,10 @@ const Profile: React.FC = () => {
         return;
       }
 
-      const formData = new FormData();
-      formData.append('avatar', file);
+      const avatarFormData = new FormData();
+      avatarFormData.append('avatar', file);
 
-      uploadAvatarMutation.mutate(formData, {
+      uploadAvatarMutation.mutate(avatarFormData, {
         onSuccess: (data) => {
           console.log('✅ Avatar uploaded:', data);
           setValidationError('');
@@ -246,46 +222,6 @@ const Profile: React.FC = () => {
     });
   };
 
-  // Authentication check
-  if (!isAuthenticated) {
-    return (
-      <Container maxWidth="md">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Authentication Required
-            </Typography>
-            You must be logged in to view your profile.
-          </Alert>
-          <Button variant="contained" href="/login">
-            Go to Login
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-
-  if (profileLoading) {
-    return (
-      <Container maxWidth="md">
-        <Box
-          sx={{
-            mt: 4,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Loading profile...
-          </Typography>
-        </Box>
-      </Container>
-    );
-  }
-
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4, mb: 4 }}>
@@ -320,7 +256,7 @@ const Profile: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
                   <Box sx={{ position: 'relative', mb: 2 }}>
                     <Avatar
-                      user={typedProfile}
+                      user={profile}
                       size="xxl"
                       onClick={handleAvatarClick}
                       sx={{ cursor: 'pointer' }}
@@ -364,7 +300,7 @@ const Profile: React.FC = () => {
                     >
                       {uploadAvatarMutation.isPending ? 'Uploading...' : 'Change Photo'}
                     </Button>
-                    {typedProfile?.profileImage && (
+                    {profile?.profileImage && (
                       <Button
                         variant="outlined"
                         size="small"
@@ -680,6 +616,65 @@ const Profile: React.FC = () => {
         </Paper>
       </Box>
     </Container>
+  );
+};
+
+const Profile: React.FC = () => {
+  // Auth and profile data
+  const { isAuthenticated } = useAuth();
+  const { data: profile, isLoading: profileLoading, error: profileError } = useMyProfile();
+
+  const typedProfile = profile as UserWithId | undefined;
+
+  // Authentication check
+  if (!isAuthenticated) {
+    return (
+      <Container maxWidth="md">
+        <Box sx={{ mt: 4 }}>
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Authentication Required
+            </Typography>
+            You must be logged in to view your profile.
+          </Alert>
+          <Button variant="contained" href="/login">
+            Go to Login
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
+
+  if (profileLoading) {
+    return (
+      <Container maxWidth="md">
+        <Box
+          sx={{
+            mt: 4,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '300px',
+          }}
+        >
+          <CircularProgress />
+          <Typography variant="h6" sx={{ ml: 2 }}>
+            Loading profile...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  return (
+    <ProfileForm
+      profile={typedProfile}
+      profileError={profileError}
+      // Re-seed the form only when the server data actually changes (post-save or an
+      // out-of-band edit) — updatedAt changes then, but stays stable across no-op
+      // refetches, so in-progress edits aren't clobbered by background revalidation.
+      key={typedProfile?.updatedAt ?? typedProfile?._id}
+    />
   );
 };
 

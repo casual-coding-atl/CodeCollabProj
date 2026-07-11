@@ -32,8 +32,11 @@ const ResetPassword: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string>('');
   const [confirmPasswordError, setConfirmPasswordError] = useState<string>('');
-  const [token, setToken] = useState<string>('');
   const [passwordResetSuccess, setPasswordResetSuccess] = useState<boolean>(false);
+
+  // Token is available during render from the URL — derive it instead of
+  // mirroring it into state via an effect.
+  const token = searchParams.get('token') ?? '';
 
   // Query to verify the password reset token
   const {
@@ -42,15 +45,13 @@ const ResetPassword: React.FC = () => {
     error: tokenError,
   } = usePasswordResetTokenQuery(token);
 
+  // No token in URL — redirect to forgot password. Isolated in a tiny effect
+  // gated on the derived value.
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('token');
-    if (tokenFromUrl) {
-      setToken(tokenFromUrl);
-    } else {
-      // No token in URL, redirect to forgot password
+    if (!token) {
       navigate('/forgot-password');
     }
-  }, [searchParams, navigate]);
+  }, [token, navigate]);
 
   const validateForm = (): boolean => {
     let isValid = true;

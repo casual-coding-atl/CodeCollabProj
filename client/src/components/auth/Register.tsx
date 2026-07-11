@@ -64,13 +64,6 @@ const Register: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Clear registration success message when component unmounts
-  useEffect(() => {
-    return () => {
-      setRegistrationSuccess(false);
-    };
-  }, []);
-
   const validateForm = (): boolean => {
     const errors: RegisterFormErrors = {};
     if (!formData.username) {

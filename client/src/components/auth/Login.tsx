@@ -46,13 +46,6 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Clear needs verification when component unmounts
-  useEffect(() => {
-    return () => {
-      setNeedsVerification(false);
-    };
-  }, []);
-
   const validateForm = (): boolean => {
     const errors: LoginFormErrors = {};
     if (!formData.email) {
