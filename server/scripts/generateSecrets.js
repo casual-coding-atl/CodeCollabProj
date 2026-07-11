@@ -17,7 +17,8 @@ function generateSecurePassword(length = 32) {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   let password = '';
   for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
+    // Use a CSPRNG (crypto.randomInt) rather than Math.random for secret material.
+    password += charset.charAt(crypto.randomInt(charset.length));
   }
   return password;
 }
@@ -26,7 +27,7 @@ function generateEnvFile() {
   const jwtSecret = generateSecureSecret(64);
   const jwtRefreshSecret = generateSecureSecret(64);
   const dbPassword = generateSecurePassword(24);
-  
+
   const envContent = `# ========================================
 # CodeCollab Server Environment Configuration
 # ========================================
@@ -79,17 +80,19 @@ function main() {
 
   try {
     const { envContent, secrets } = generateEnvFile();
-    
+
     // Write to .env file
     const envPath = path.join(__dirname, '../.env.production');
     fs.writeFileSync(envPath, envContent);
-    
+
     console.log('✅ Production environment file generated: .env.production');
     console.log('\n🔒 Generated Secrets:');
     console.log(`   JWT Secret: ${secrets.jwtSecret.substring(0, 20)}... (128 characters)`);
-    console.log(`   JWT Refresh Secret: ${secrets.jwtRefreshSecret.substring(0, 20)}... (128 characters)`);
+    console.log(
+      `   JWT Refresh Secret: ${secrets.jwtRefreshSecret.substring(0, 20)}... (128 characters)`
+    );
     console.log(`   Database Password: ${secrets.dbPassword.substring(0, 8)}... (24 characters)`);
-    
+
     console.log('\n📋 Next Steps:');
     console.log('1. Review and update the .env.production file with your specific settings');
     console.log('2. Update EMAIL_USER and EMAIL_PASSWORD with your email service credentials');
@@ -97,13 +100,12 @@ function main() {
     console.log('4. Copy .env.production to .env for local use or deploy to your server');
     console.log('5. Ensure .env files are added to .gitignore');
     console.log('6. Back up these secrets securely');
-    
+
     console.log('\n⚠️  Security Reminders:');
     console.log('- Never commit .env files to version control');
     console.log('- Store secrets in secure environment variable systems in production');
     console.log('- Rotate secrets periodically');
     console.log('- Use different secrets for different environments');
-    
   } catch (error) {
     console.error('❌ Error generating secrets:', error.message);
     process.exit(1);
