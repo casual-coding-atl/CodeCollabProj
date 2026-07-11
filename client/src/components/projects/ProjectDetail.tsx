@@ -39,6 +39,7 @@ import {
   useProject,
   useRequestCollaboration,
   useHandleCollaborationRequest,
+  useDeleteProject,
 } from '../../hooks/projects';
 import { useComments, useCreateComment } from '../../hooks/comments';
 import type {
@@ -111,6 +112,7 @@ const ProjectDetail: React.FC = () => {
   const createCommentMutation = useCreateComment();
   const requestCollaborationMutation = useRequestCollaboration();
   const handleCollaborationMutation = useHandleCollaborationRequest();
+  const deleteProjectMutation = useDeleteProject();
 
   // Local state
   const [comment, setComment] = useState<string>('');
@@ -168,10 +170,17 @@ const ProjectDetail: React.FC = () => {
   };
 
   const confirmDelete = (): void => {
-    // TODO: Implement project deletion
-    // dispatch(deleteProject(projectId));
-    setShowDeleteDialog(false);
-    navigate('/projects');
+    if (!projectId) return;
+    deleteProjectMutation.mutate(projectId, {
+      onSuccess: () => {
+        setShowDeleteDialog(false);
+        navigate('/projects');
+      },
+      onError: () => {
+        // Keep the dialog open so the user sees it failed and can retry.
+        setShowDeleteDialog(false);
+      },
+    });
   };
 
   const handleCollaborate = async (): Promise<void> => {
