@@ -13,6 +13,7 @@ import {
   RoleUpdateData,
   SuspensionData,
   AdminOperationResponse,
+  UserDetailsResponse,
 } from '../../services/adminService';
 import type { User } from '../../types';
 
@@ -37,7 +38,9 @@ export const useAdminUsers = (
  * @param userId - The ID of the user to fetch
  * @returns UseQueryResult containing user details
  */
-export const useAdminUserDetails = (userId: string | undefined): UseQueryResult<User, Error> => {
+export const useAdminUserDetails = (
+  userId: string | undefined
+): UseQueryResult<UserDetailsResponse, Error> => {
   return useQuery({
     queryKey: ['admin', 'users', userId],
     queryFn: () => adminService.getUserDetails(userId as string),
