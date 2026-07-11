@@ -221,9 +221,11 @@ const getUserDetails = async (req, res) => {
       .select('deviceInfo location lastActivity createdAt')
       .sort({ lastActivity: -1 });
 
-    // Get user's projects
+    // Get user's projects (owner or accepted/pending collaborator).
+    // The schema uses `owner` (not `createdBy`) and `collaborators` is an array of
+    // subdocuments keyed by `userId`, so match on `collaborators.userId`.
     const projects = await Project.find({
-      $or: [{ createdBy: userId }, { collaborators: userId }],
+      $or: [{ owner: userId }, { 'collaborators.userId': userId }],
     })
       .select('title status createdAt')
       .sort({ createdAt: -1 })

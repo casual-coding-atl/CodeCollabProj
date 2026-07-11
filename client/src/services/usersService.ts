@@ -123,7 +123,8 @@ export const usersService: UsersServiceInterface = {
     Object.keys(searchParams).forEach((key) => {
       const value = searchParams[key];
       if (value) {
-        params.append(key, value);
+        // The server reads the free-text term as `query`, not `search`.
+        params.append(key === 'search' ? 'query' : key, value);
       }
     });
 
