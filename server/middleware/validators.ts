@@ -222,6 +222,24 @@ const projectValidator: ValidationChain[] = [
 ];
 
 /**
+ * Project update validator — same rules as create, but every field is optional so
+ * partial updates (PUT) aren't rejected for omitting title/description.
+ */
+const projectUpdateValidator: ValidationChain[] = [
+  body('title')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Title must be between 3 and 100 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ min: 10, max: 2000 })
+    .withMessage('Description must be between 10 and 2000 characters'),
+  ...projectValidator.slice(2),
+];
+
+/**
  * Message request validators
  */
 const messageValidator: ValidationChain[] = [
@@ -261,6 +279,7 @@ module.exports = {
   loginValidator,
   profileUpdateValidator,
   projectValidator,
+  projectUpdateValidator,
   commentValidator,
   messageValidator,
 };
@@ -270,6 +289,7 @@ export {
   loginValidator,
   profileUpdateValidator,
   projectValidator,
+  projectUpdateValidator,
   commentValidator,
   messageValidator,
 };

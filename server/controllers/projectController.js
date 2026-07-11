@@ -312,6 +312,13 @@ const handleCollaborationRequest = async (req, res) => {
     const { status } = req.body;
     const { projectId, userId } = req.params;
 
+    // Only accept a valid decision on a collaboration request. Without this, an
+    // invalid value is written straight to the subdocument (schema enum only
+    // allows pending/accepted/rejected) and causes a 500 on save.
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: "Status must be 'accepted' or 'rejected'" });
+    }
+
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
