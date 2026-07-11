@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const Project = require('../models/Project');
 const logger = require('../utils/logger');
+const escapeRegExp = require('../utils/escapeRegExp');
 
 // Create new project
 const createProject = async (req, res) => {
@@ -354,11 +355,13 @@ const searchProjects = async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
+    // Escape regex metacharacters so the term is matched literally (prevents ReDoS).
+    const safeQuery = escapeRegExp(query);
     const projects = await Project.find({
       $or: [
-        { title: { $regex: query, $options: 'i' } },
-        { tags: { $regex: query, $options: 'i' } },
-        { requiredSkills: { $regex: query, $options: 'i' } },
+        { title: { $regex: safeQuery, $options: 'i' } },
+        { tags: { $regex: safeQuery, $options: 'i' } },
+        { requiredSkills: { $regex: safeQuery, $options: 'i' } },
       ],
     })
       .populate('owner', '_id username')
