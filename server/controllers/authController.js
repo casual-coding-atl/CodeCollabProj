@@ -46,22 +46,15 @@ const register = async (req, res) => {
 
     const { email, password, username } = req.body;
 
-    // Usernames are public handles, so it's fine to say one is taken.
-    const existingUsername = await User.findOne({ username });
-    if (existingUsername) {
-      return res.status(400).json({ message: 'This username is already taken' });
-    }
-
-    // For the email, do NOT reveal whether it's already registered (that would
-    // enable enumeration of who has an account). If it exists, respond exactly as
-    // for a brand-new signup and send no duplicate.
-    const existingEmail = await User.findOne({ email });
-    if (existingEmail) {
-      // Echo back only what the requester submitted — never the existing account's
-      // real data — so the response is indistinguishable from a fresh signup.
-      return res.status(201).json({
-        message: 'Account created successfully. Please check your email to verify your account.',
-        user: { email, username },
+    // Check if user already exists. Use a generic message that does not reveal
+    // which field matched. (A fully uniform success response was considered but
+    // leaks account existence via response shape and breaks the signup UX.)
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }],
+    });
+    if (existingUser) {
+      return res.status(400).json({
+        message: 'An account with this email or username already exists',
       });
     }
 
