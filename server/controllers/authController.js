@@ -167,6 +167,33 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Block suspended or deactivated accounts from obtaining a new session.
+    if (user.isActive === false) {
+      logger.authAttempt(false, {
+        userId: user._id,
+        email,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        reason: 'account_deactivated',
+      });
+      return res.status(403).json({ message: 'Your account has been deactivated.' });
+    }
+
+    if (user.isCurrentlySuspended()) {
+      logger.authAttempt(false, {
+        userId: user._id,
+        email,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        reason: 'account_suspended',
+      });
+      return res.status(403).json({
+        message: user.suspensionReason
+          ? `Your account has been suspended: ${user.suspensionReason}`
+          : 'Your account has been suspended.',
+      });
+    }
+
     // Check if email is verified
     // Skip verification check for pre-seeded test users (they have isEmailVerified: true)
     if (!user.isEmailVerified) {
