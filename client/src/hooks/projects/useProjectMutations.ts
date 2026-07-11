@@ -7,6 +7,12 @@ import {
 import { queryKeys, invalidateQueries } from '../../config/queryClient';
 import type { Project } from '../../types';
 
+// The API serializes projects with `_id` (no virtual `id`), so cache updates must
+// match on whichever identifier is present — otherwise list edits/removals never
+// match and lists go stale.
+const projectId2 = (p?: Project | null): string | undefined =>
+  p ? (p.id ?? (p as Project & { _id?: string })._id) : undefined;
+
 /**
  * Context for optimistic update rollback
  */
@@ -112,7 +118,7 @@ export const useUpdateProject = (): UseMutationResult<
         (oldProjects) => {
           if (!oldProjects) return oldProjects;
           return oldProjects.map((project) =>
-            project.id === projectId ? updatedProject : project
+            projectId2(project) === projectId ? updatedProject : project
           );
         }
       );
@@ -159,20 +165,25 @@ export const useDeleteProject = (): UseMutationResult<
         { queryKey: queryKeys.projects.lists() },
         (oldProjects) => {
           if (!oldProjects) return oldProjects;
-          return oldProjects.filter((project) => project.id !== projectId);
+          return oldProjects.filter((project) => projectId2(project) !== projectId);
         }
       );
 
       return { previousProject, projectId };
     },
     onError: (err: Error, _projectId: string, context: DeleteMutationContext | undefined) => {
-      // If the mutation fails, add the project back to the lists
+      // If the mutation fails, add the project back to the lists — but only if it
+      // isn't already present, so a rollback can't duplicate it in the list.
       if (context?.previousProject) {
+        const restored = context.previousProject;
         queryClient.setQueriesData<Project[]>(
           { queryKey: queryKeys.projects.lists() },
           (oldProjects) => {
-            if (!oldProjects) return [context.previousProject as Project];
-            return [context.previousProject as Project, ...oldProjects];
+            if (!oldProjects) return [restored];
+            if (oldProjects.some((p) => projectId2(p) === projectId2(restored))) {
+              return oldProjects;
+            }
+            return [restored, ...oldProjects];
           }
         );
       }

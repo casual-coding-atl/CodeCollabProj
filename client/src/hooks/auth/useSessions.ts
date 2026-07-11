@@ -96,7 +96,12 @@ export const useSessions = (): UseSessionsReturn => {
    */
   const getOtherSessions = (): Session[] => {
     const currentSession = getCurrentSession();
-    return sessions?.filter((session) => session.id !== currentSession?.id) || [];
+    // The API serializes sessions with `_id` (no virtual `id`), so compare on
+    // whichever identifier is present — otherwise every id is undefined and this
+    // filters out every session, always returning [].
+    const sid = (s?: Session | null): string | undefined =>
+      s ? (s.id ?? (s as Session & { _id?: string })._id) : undefined;
+    return sessions?.filter((session) => sid(session) !== sid(currentSession)) || [];
   };
 
   return {
