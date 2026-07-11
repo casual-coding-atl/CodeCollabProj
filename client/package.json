@@ -1,6 +1,9 @@
 {
   "name": "codecollabproj-client",
   "version": "1.0.1",
+  "engines": {
+    "node": ">=22"
+  },
   "private": true,
   "type": "module",
   "dependencies": {
