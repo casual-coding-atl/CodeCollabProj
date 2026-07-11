@@ -56,7 +56,13 @@ const auth = async (req: Request, res: Response, next: NextFunction): Promise<vo
             (!account.suspendedUntil || new Date() < new Date(account.suspendedUntil))
           );
 
-    if (account.isActive === false || suspended) {
+    // Suspended/deactivated users must still be able to end their own session,
+    // so allow the logout endpoints through even when blocked elsewhere.
+    const requestPath = (req.originalUrl || req.url).split('?')[0];
+    const isLogoutRoute =
+      requestPath.endsWith('/logout') || requestPath.endsWith('/logout-all');
+
+    if ((account.isActive === false || suspended) && !isLogoutRoute) {
       logger.securityEvent('SUSPENDED_ACCOUNT_ACCESS', {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
