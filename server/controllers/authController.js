@@ -8,6 +8,29 @@ const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/e
 const SENSITIVE_FIELDS =
   '-password -passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires';
 
+const isProd = () => process.env.NODE_ENV === 'production';
+
+// When the frontend and API are on different sites (as in the deployed setup),
+// the browser only sends auth cookies if they are SameSite=None + Secure. Same-site
+// and local dev use Lax. Override with COOKIE_SAME_SITE if a deployment differs.
+const cookieSameSite = () => process.env.COOKIE_SAME_SITE || (isProd() ? 'none' : 'lax');
+
+const accessTokenCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProd(),
+  sameSite: cookieSameSite(),
+  maxAge: 15 * 60 * 1000, // 15 minutes
+  path: '/',
+});
+
+const refreshTokenCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProd(),
+  sameSite: cookieSameSite(),
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/api/auth',
+});
+
 // Register new user
 const register = async (req, res) => {
   try {
@@ -60,21 +83,8 @@ const register = async (req, res) => {
       });
 
       // Set httpOnly cookies for secure token storage
-      res.cookie('accessToken', sessionData.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 15 * 60 * 1000, // 15 minutes
-        path: '/',
-      });
-
-      res.cookie('refreshToken', sessionData.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        path: '/api/auth',
-      });
+      res.cookie('accessToken', sessionData.accessToken, accessTokenCookieOptions());
+      res.cookie('refreshToken', sessionData.refreshToken, refreshTokenCookieOptions());
 
       // Still return tokens in response body for backward compatibility during transition
       return res.status(201).json({
@@ -228,21 +238,8 @@ const login = async (req, res) => {
     });
 
     // Set httpOnly cookies for secure token storage
-    res.cookie('accessToken', sessionData.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-      path: '/',
-    });
-
-    res.cookie('refreshToken', sessionData.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/api/auth',
-    });
+    res.cookie('accessToken', sessionData.accessToken, accessTokenCookieOptions());
+    res.cookie('refreshToken', sessionData.refreshToken, refreshTokenCookieOptions());
 
     // Still return tokens in response body for backward compatibility during transition
     res.json({
@@ -493,13 +490,7 @@ const refreshToken = async (req, res) => {
     const sessionData = await sessionService.refreshSession(token, deviceInfo);
 
     // Set new access token as httpOnly cookie
-    res.cookie('accessToken', sessionData.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-      path: '/',
-    });
+    res.cookie('accessToken', sessionData.accessToken, accessTokenCookieOptions());
 
     // Still return token in response body for backward compatibility
     res.json({
@@ -528,8 +519,12 @@ const logout = async (req, res) => {
     }
 
     // Clear httpOnly cookies
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', { path: '/', sameSite: cookieSameSite(), secure: isProd() });
+    res.clearCookie('refreshToken', {
+      path: '/api/auth',
+      sameSite: cookieSameSite(),
+      secure: isProd(),
+    });
 
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
@@ -551,8 +546,12 @@ const logoutAll = async (req, res) => {
     });
 
     // Clear httpOnly cookies
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', { path: '/', sameSite: cookieSameSite(), secure: isProd() });
+    res.clearCookie('refreshToken', {
+      path: '/api/auth',
+      sameSite: cookieSameSite(),
+      secure: isProd(),
+    });
 
     res.json({
       message: `Logged out from ${revokedCount} devices successfully`,
