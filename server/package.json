@@ -20,13 +20,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.js",
     "lint:fix": "eslint . --ext .ts,.js --fix",
-    "seed": "node seed.js",
-    "verify-all": "node verify-all-users.js",
-    "reset-users": "node resetUsers.js",
-    "delete-user": "node deleteUser.js",
-    "verify-user": "node verifyUser.js",
-    "unverify-user": "node unverifyUser.js",
-    "update-project-owner": "node updateProjectOwner.js"
+    "seed": "tsx seed.js",
+    "verify-all": "tsx verify-all-users.js",
+    "reset-users": "tsx resetUsers.js",
+    "delete-user": "tsx deleteUser.js",
+    "verify-user": "tsx verifyUser.js",
+    "unverify-user": "tsx unverifyUser.js",
+    "update-project-owner": "tsx updateProjectOwner.js"
   },
   "dependencies": {
     "axios": "^1.13.4",
