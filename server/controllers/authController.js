@@ -1,8 +1,13 @@
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
 const sessionService = require('../services/sessionService');
 const logger = require('../utils/logger');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+
+// Email verification and password reset tokens are stored hashed, so an incoming
+// raw token must be hashed the same way before looking up the user.
+const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 // Sensitive fields that should NEVER be returned in API responses
 const SENSITIVE_FIELDS =
@@ -274,7 +279,7 @@ const verifyEmail = async (req, res) => {
     }
 
     const user = await User.findOne({
-      emailVerificationToken: token,
+      emailVerificationToken: hashToken(token),
       emailVerificationExpires: { $gt: Date.now() },
     });
 
@@ -393,7 +398,7 @@ const verifyPasswordResetToken = async (req, res) => {
     const { token } = req.params;
 
     const user = await User.findOne({
-      passwordResetToken: token,
+      passwordResetToken: hashToken(token),
       passwordResetExpires: { $gt: Date.now() },
     });
 
@@ -423,7 +428,7 @@ const resetPassword = async (req, res) => {
     const { token, password } = req.body;
 
     const user = await User.findOne({
-      passwordResetToken: token,
+      passwordResetToken: hashToken(token),
       passwordResetExpires: { $gt: Date.now() },
     });
 
