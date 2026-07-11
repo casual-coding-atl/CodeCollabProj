@@ -1,6 +1,16 @@
 import api from '../utils/api';
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
-import type { User, UserRole } from '../types';
+import type { User, UserRole, Session, Project } from '../types';
+
+/**
+ * Shape returned by GET /admin/users/:id — the server wraps the user with their
+ * sessions and projects rather than returning a bare User.
+ */
+export interface UserDetailsResponse {
+  user: User;
+  sessions: Session[];
+  projects: Project[];
+}
 
 // Create a custom axios instance for admin operations with longer timeout
 const adminApi: AxiosInstance = axios.create({
@@ -170,7 +180,7 @@ export interface AdminOperationResponse {
 export interface AdminServiceInterface {
   getDashboardStats: () => Promise<DashboardStats>;
   getAllUsers: (params?: AdminUserQueryParams) => Promise<PaginatedUsersResponse>;
-  getUserDetails: (userId: string) => Promise<User>;
+  getUserDetails: (userId: string) => Promise<UserDetailsResponse>;
   updateUserRole: (userId: string, roleData: RoleUpdateData) => Promise<AdminOperationResponse>;
   suspendUser: (
     userId: string,
@@ -198,12 +208,25 @@ export const adminService: AdminServiceInterface = {
         .filter(([, value]) => value !== undefined)
         .map(([key, value]) => [key, String(value)])
     ).toString();
-    const response = await adminApi.get<PaginatedUsersResponse>(`/admin/users?${queryString}`);
-    return response.data;
+    // The server nests pagination under `pagination` and calls the page count
+    // `pages`; map it to the flat { total, page, limit, totalPages } shape the UI
+    // expects (otherwise total/totalPages are undefined and paging breaks).
+    const response = await adminApi.get<{
+      users: User[];
+      pagination: { page: number; limit: number; total: number; pages: number };
+    }>(`/admin/users?${queryString}`);
+    const { users, pagination } = response.data;
+    return {
+      users,
+      total: pagination.total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages: pagination.pages,
+    };
   },
 
-  getUserDetails: async (userId: string): Promise<User> => {
-    const response = await adminApi.get<User>(`/admin/users/${userId}`);
+  getUserDetails: async (userId: string): Promise<UserDetailsResponse> => {
+    const response = await adminApi.get<UserDetailsResponse>(`/admin/users/${userId}`);
     return response.data;
   },
 
