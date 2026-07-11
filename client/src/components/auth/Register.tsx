@@ -25,6 +25,7 @@ interface AxiosError {
   response?: {
     data?: {
       message?: string;
+      errors?: { msg?: string; message?: string }[];
     };
   };
   message?: string;
@@ -86,8 +87,12 @@ const Register: React.FC = () => {
 
     if (!formData.password) {
       errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+    } else if (
+      // Match the server policy: 8+ chars with upper, lower, digit, and special.
+      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(formData.password)
+    ) {
+      errors.password =
+        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character';
     }
 
     if (!formData.confirmPassword) {
@@ -126,9 +131,16 @@ const Register: React.FC = () => {
   const getErrorMessage = (): string => {
     if (!registerMutation.error) return '';
     const axiosError = registerMutation.error as AxiosError;
-    return (
-      axiosError?.response?.data?.message || registerMutation.error.message || 'Registration failed'
-    );
+    const data = axiosError?.response?.data;
+    // Surface express-validator errors (returned as an `errors` array) so the user
+    // sees why registration was rejected, not just a generic message.
+    if (data?.errors?.length) {
+      return data.errors
+        .map((e) => e.msg || e.message)
+        .filter(Boolean)
+        .join(' ');
+    }
+    return data?.message || registerMutation.error.message || 'Registration failed';
   };
 
   if (registrationSuccess) {

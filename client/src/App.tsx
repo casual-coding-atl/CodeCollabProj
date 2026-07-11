@@ -13,6 +13,7 @@ import AdminRoute from './components/routing/AdminRoute';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
+import NotFound from './pages/NotFound';
 import Home from './pages/Home';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
@@ -113,7 +114,7 @@ function App(): React.ReactElement {
               <Route
                 path="/admin/*"
                 element={
-                  <AdminRoute requireRole={['admin', 'moderator']}>
+                  <AdminRoute requireRole={['admin']}>
                     <AdminLayout />
                   </AdminRoute>
                 }
@@ -196,6 +197,8 @@ function App(): React.ReactElement {
                         }
                       />
                       <Route path="/about" element={<About />} />
+                      {/* Catch-all: render NotFound for unknown URLs instead of a blank page */}
+                      <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Layout>
                 }

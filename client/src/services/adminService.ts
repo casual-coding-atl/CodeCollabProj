@@ -22,14 +22,9 @@ const adminApi: AxiosInstance = axios.create({
   withCredentials: true, // Send cookies with all requests for httpOnly cookie auth
 });
 
-// Add auth token to admin requests
-adminApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('accessToken');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Auth is carried by the httpOnly access cookie (withCredentials above). We do NOT
+// inject an Authorization header from localStorage — for cookie sessions it is
+// empty, and any value there is encrypted and unusable by the server.
 
 /**
  * Refresh token response type
@@ -53,25 +48,12 @@ adminApi.interceptors.response.use(
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      // Try to refresh token or redirect to login
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const response = await api.post<RefreshTokenResponse>('/auth/refresh-token', {
-            refreshToken,
-          });
-          localStorage.setItem('accessToken', response.data.accessToken);
-          // Retry the original request
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-          }
-          return adminApi.request(originalRequest);
-        } catch {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          window.location.href = '/login';
-        }
-      } else {
+      try {
+        // Cookie-based refresh: the httpOnly refresh cookie is sent automatically.
+        // On success the server sets a new access cookie; just retry the request.
+        await api.post<RefreshTokenResponse>('/auth/refresh-token', {});
+        return adminApi.request(originalRequest);
+      } catch {
         window.location.href = '/login';
       }
     }
