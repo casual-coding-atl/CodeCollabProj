@@ -109,6 +109,13 @@ test.describe('project filters', () => {
     // clear resets the URL
     await page.getByTestId('clear-filters').click();
     await expect.poll(() => new URL(page.url()).searchParams.toString()).toBe('');
+
+    // the Featured toggle writes a clean ?featured=true (no escaped quotes) and
+    // the list still loads (regression guard for the search-serializer bug)
+    await page.getByRole('button', { name: /featured/i }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('featured')).toBe('true');
+    expect(page.url()).not.toMatch(/%5C|%22/);
+    await expect(page.getByText(/network error/i)).toHaveCount(0);
   });
 });
 

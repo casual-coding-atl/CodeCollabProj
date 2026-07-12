@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { Search, Plus, Users, Calendar, X, Star } from 'lucide-react';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
@@ -49,27 +49,58 @@ interface UserWithId {
 
 const SKILLS = ['JavaScript', 'Python', 'Java', 'React', 'Node.js'];
 
+const DEFAULT_STATE: ProjectFilterState = {
+  search: '',
+  status: 'all',
+  technology: 'all',
+  featured: false,
+  sort: 'newest',
+};
+
+function readFiltersFromUrl(): ProjectFilterState {
+  if (typeof window === 'undefined') return { ...DEFAULT_STATE };
+  const sp = new URLSearchParams(window.location.search);
+  return {
+    search: sp.get('q') ?? '',
+    status: sp.get('status') ?? 'all',
+    technology: sp.get('tech') ?? 'all',
+    featured: sp.get('featured') === 'true',
+    sort: (sp.get('sort') as ProjectSort) ?? 'newest',
+  };
+}
+
 const ProjectList: React.FC = () => {
   const { user } = useAuth();
   const typedUser = user as UserWithId | null;
   const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [searchParams, setSearchParams] = useSearchParams();
 
-  const state: ProjectFilterState = {
-    search: searchParams.get('q') ?? '',
-    status: searchParams.get('status') ?? 'all',
-    technology: searchParams.get('tech') ?? 'all',
-    featured: searchParams.get('featured') === 'true',
-    sort: (searchParams.get('sort') as ProjectSort) ?? 'newest',
+  // Filter state is local; the URL is synced directly with History (shareable)
+  // rather than via the router's search serializer, which mangles string values
+  // like "true" on repeated writes.
+  const [state, setState] = useState<ProjectFilterState>(readFiltersFromUrl);
+
+  const patch = (partial: Partial<ProjectFilterState>): void => {
+    setState((prev) => {
+      const next = { ...prev, ...partial };
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams();
+        if (next.search) sp.set('q', next.search);
+        if (next.status && next.status !== 'all') sp.set('status', next.status);
+        if (next.technology && next.technology !== 'all') sp.set('tech', next.technology);
+        if (next.featured) sp.set('featured', 'true');
+        if (next.sort && next.sort !== 'newest') sp.set('sort', next.sort);
+        const qs = sp.toString();
+        window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+      }
+      return next;
+    });
   };
 
-  const setFilter = (key: string, value: string | null): void => {
-    const next = new URLSearchParams(searchParams);
-    if (!value || value === 'all' || value === '' || value === 'false') next.delete(key);
-    else next.set(key, value);
-    setSearchParams(next);
+  const clearFilters = (): void => {
+    setState({ ...DEFAULT_STATE });
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
   };
-  const clearFilters = (): void => setSearchParams(new URLSearchParams());
+
   const hasActiveFilters =
     !!state.search ||
     state.status !== 'all' ||
@@ -127,13 +158,13 @@ const ProjectList: React.FC = () => {
             data-testid="project-search"
             placeholder="Search projects…"
             value={state.search}
-            onChange={(e) => setFilter('q', e.target.value)}
+            onChange={(e) => patch({ search: e.target.value })}
             className="pl-9"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={state.status} onValueChange={(v) => setFilter('status', v)}>
+          <Select value={state.status} onValueChange={(v) => patch({ status: v })}>
             <SelectTrigger data-testid="filter-status" className="w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -144,7 +175,7 @@ const ProjectList: React.FC = () => {
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={state.technology} onValueChange={(v) => setFilter('tech', v)}>
+          <Select value={state.technology} onValueChange={(v) => patch({ technology: v })}>
             <SelectTrigger data-testid="filter-tech" className="w-[140px]">
               <SelectValue placeholder="Technology" />
             </SelectTrigger>
@@ -157,7 +188,7 @@ const ProjectList: React.FC = () => {
               ))}
             </SelectContent>
           </Select>
-          <Select value={state.sort} onValueChange={(v) => setFilter('sort', v)}>
+          <Select value={state.sort} onValueChange={(v) => patch({ sort: v as ProjectSort })}>
             <SelectTrigger data-testid="project-sort" className="w-[170px]">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
@@ -172,7 +203,7 @@ const ProjectList: React.FC = () => {
             variant={state.featured ? 'default' : 'outline'}
             className="gap-1.5"
             aria-pressed={state.featured}
-            onClick={() => setFilter('featured', state.featured ? null : 'true')}
+            onClick={() => patch({ featured: !state.featured })}
           >
             <Star className={cn('size-3.5', state.featured && 'fill-current')} />
             Featured
