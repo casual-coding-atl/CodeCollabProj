@@ -3,7 +3,7 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   server: {
     port: 3000,
     // No proxy: the /api/* endpoints are served IN-PROCESS by TanStack Start
@@ -18,14 +18,15 @@ export default defineConfig({
       ),
     },
   },
-  // Bundle MUI/emotion into the SSR build. Externalized, their internal
-  // directory imports (e.g. @mui/utils/formatMuiErrorMessage) break Node's ESM
-  // loader (ERR_UNSUPPORTED_DIR_IMPORT) in the production server.
   ssr: {
-    noExternal: [/@mui\//, /@emotion\//],
+    // Bundle MUI/emotion into the SSR build ONLY for production: externalized,
+    // their internal directory imports (e.g. @mui/utils/formatMuiErrorMessage)
+    // break Node's ESM loader (ERR_UNSUPPORTED_DIR_IMPORT). In dev, leave them
+    // externalized — Vite's dev module runner can't evaluate MUI's CJS if inlined.
+    noExternal: command === 'build' ? [/@mui\//, /@emotion\//] : [],
   },
   plugins: [
     tanstackStart(),
     viteReact(),
   ],
-});
+}));

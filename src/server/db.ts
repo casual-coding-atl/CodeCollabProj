@@ -29,3 +29,11 @@ export function connectDB(): Promise<typeof mongoose> {
   }
   return g.__ccpMongoose;
 }
+
+/** GridFS bucket for avatar images — Mongo-backed, so no filesystem/volume needed. */
+export async function getAvatarBucket() {
+  await connectDB();
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('MongoDB connection not ready');
+  return new mongoose.mongo.GridFSBucket(db, { bucketName: 'avatars' });
+}
