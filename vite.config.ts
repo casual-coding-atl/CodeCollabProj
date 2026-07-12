@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import viteReact from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig(({ command }) => ({
@@ -11,6 +12,8 @@ export default defineConfig(({ command }) => ({
   },
   resolve: {
     alias: {
+      // shadcn/ui imports use the @ alias for src.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       // Lift-and-shift bridge: legacy imports of react-router-dom resolve to the
       // TanStack Router compat shim. Remove per-file as components are deepened.
       'react-router-dom': fileURLToPath(
@@ -26,6 +29,7 @@ export default defineConfig(({ command }) => ({
     noExternal: command === 'build' ? [/@mui\//, /@emotion\//] : [],
   },
   plugins: [
+    tailwindcss(),
     tanstackStart(),
     viteReact(),
   ],

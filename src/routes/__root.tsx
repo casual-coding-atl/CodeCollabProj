@@ -11,8 +11,10 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-import appCss from '../styles.css?url';
-import '../styles/global.css';
+// Tailwind + shadcn theme (includes a layered preflight reset). The legacy
+// CRA global.css / styles.css are intentionally dropped — their unlayered
+// `* { margin:0 }` reset overrode Tailwind's layered utilities.
+import '../styles/globals.css';
 
 const theme = createTheme({
   palette: {
@@ -36,7 +38,6 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'CodeCollabProj' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
   notFoundComponent: NotFoundShell,
