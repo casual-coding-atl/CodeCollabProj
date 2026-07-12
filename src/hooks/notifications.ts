@@ -11,18 +11,25 @@ import type { NotificationView } from '../lib/notifications';
 
 const KEYS = {
   all: ['notifications'] as const,
-  list: (): readonly string[] => ['notifications', 'list'],
+  list: (limit?: number): readonly unknown[] => ['notifications', 'list', limit ?? 0],
   unread: (): readonly string[] => ['notifications', 'unread'],
 };
 
 type FeedOptions = Omit<UseQueryOptions<NotificationView[], Error>, 'queryKey' | 'queryFn'>;
 type CountOptions = Omit<UseQueryOptions<number, Error>, 'queryKey' | 'queryFn'>;
 
-/** The recipient's notification feed (newest first). Refetches on focus so a missed push self-heals. */
-export function useNotifications(options: FeedOptions = {}): UseQueryResult<NotificationView[], Error> {
+/**
+ * The recipient's notification feed (newest first). Refetches on focus so a missed
+ * push self-heals. Pass `limit` to fetch more (the /notifications page grows this
+ * for "Load more"); the default (undefined) feed is what the SSE push prepends to.
+ */
+export function useNotifications(
+  limit?: number,
+  options: FeedOptions = {},
+): UseQueryResult<NotificationView[], Error> {
   return useQuery({
-    queryKey: KEYS.list(),
-    queryFn: notificationsService.list,
+    queryKey: KEYS.list(limit),
+    queryFn: () => notificationsService.list(limit),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     ...options,

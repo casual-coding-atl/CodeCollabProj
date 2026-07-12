@@ -42,6 +42,9 @@ export const Route = createFileRoute('/api/projects/$id/collaborate/$userId')({
           return error(404, 'Collaboration request not found');
         }
 
+        // Removing an already-accepted collaborator is a removal, not a rejected
+        // request — notify them as `collaborator_removed` instead of `join_rejected`.
+        const wasAccepted = project.collaborators[collaboratorIndex].status === 'accepted';
         if (status === 'rejected') {
           project.collaborators.splice(collaboratorIndex, 1);
         } else {
@@ -50,10 +53,16 @@ export const Route = createFileRoute('/api/projects/$id/collaborate/$userId')({
 
         await project.save();
 
-        // Notify the requester of the owner's decision.
+        // Notify the affected member of the owner's decision.
+        const notifyType =
+          status === 'accepted'
+            ? 'join_accepted'
+            : wasAccepted
+              ? 'collaborator_removed'
+              : 'join_rejected';
         await createNotification({
           userId: params.userId,
-          type: status === 'accepted' ? 'join_accepted' : 'join_rejected',
+          type: notifyType,
           actor: String(user._id),
           projectId: String(project._id),
         });

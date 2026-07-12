@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -21,7 +21,9 @@ export const NotificationBell: FC = () => {
   // Live push while signed in; feed/count load on demand.
   useNotificationStream(isAuthenticated);
   const { data: unread = 0 } = useUnreadCount({ enabled: isAuthenticated });
-  const { data: notifications = [], isLoading } = useNotifications({ enabled: isAuthenticated && open });
+  const { data: notifications = [], isLoading } = useNotifications(undefined, {
+    enabled: isAuthenticated && open,
+  });
   const markRead = useMarkRead();
 
   if (!isAuthenticated) return null;
@@ -80,13 +82,13 @@ export const NotificationBell: FC = () => {
         </div>
 
         <div className="border-t px-3 py-2 text-center">
-          <RouterLink
+          <Link
             to="/notifications"
             className="text-xs font-medium text-primary hover:underline"
             onClick={() => setOpen(false)}
           >
             See all →
-          </RouterLink>
+          </Link>
         </div>
       </PopoverContent>
     </Popover>

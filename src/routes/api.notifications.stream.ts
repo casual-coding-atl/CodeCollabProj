@@ -13,6 +13,10 @@ import { subscribe } from '../server/notifications';
 export const Route = createFileRoute('/api/notifications/stream')({
   server: {
     handlers: {
+      // Deliberately not wrapped in handler() (the convention for JSON routes):
+      // this returns a long-lived streaming Response, so once the stream is open a
+      // thrown error can't be turned into a JSON body. Auth is done up front via
+      // getAuthUser + a manual 401 instead of requireUser's throw-a-Response.
       GET: async ({ request }) => {
         const user = await getAuthUser(request).catch(() => null);
         if (!user) return error(401, 'Not authenticated');

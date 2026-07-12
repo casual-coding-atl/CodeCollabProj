@@ -1,4 +1,4 @@
-import { type FC } from 'react';
+import { useState, type FC } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -6,11 +6,15 @@ import { useNotifications, useUnreadCount, useMarkRead } from '../hooks/notifica
 import { NotificationRow } from '../components/notifications/NotificationRow';
 
 const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
+const PAGE_SIZE = 20;
 
 const Notifications: FC = () => {
-  const { data: notifications = [], isLoading } = useNotifications();
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const { data: notifications = [], isLoading, isFetching } = useNotifications(limit);
   const { data: unread = 0 } = useUnreadCount();
   const markRead = useMarkRead();
+  // If the server returned a full page, there may be more history to load.
+  const hasMore = notifications.length >= limit;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -49,6 +53,19 @@ const Notifications: FC = () => {
           </div>
         )}
       </div>
+
+      {hasMore && (
+        <div className="mt-4 flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isFetching}
+            onClick={() => setLimit((l) => l + PAGE_SIZE)}
+          >
+            {isFetching ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

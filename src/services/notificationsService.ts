@@ -12,8 +12,10 @@ export interface MarkReadResponse {
 
 /** Same-origin `/api/notifications` client. */
 export const notificationsService = {
-  list: async (): Promise<NotificationView[]> => {
-    const res = await api.get<NotificationView[]>('/notifications');
+  list: async (limit?: number): Promise<NotificationView[]> => {
+    const res = await api.get<NotificationView[]>('/notifications', {
+      params: limit ? { limit } : undefined,
+    });
     return res.data;
   },
   unreadCount: async (): Promise<number> => {
