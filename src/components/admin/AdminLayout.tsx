@@ -8,7 +8,7 @@ import {
   ChevronLeft,
   LogOut,
 } from 'lucide-react';
-import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,7 @@ import logger from '../../utils/logger';
 interface MenuItem {
   text: string;
   icon: React.ReactNode;
-  path: string;
+  path: '/admin' | '/admin/users' | '/admin/logs' | '/admin/analytics' | '/admin/settings';
   exact?: boolean;
 }
 
@@ -66,14 +66,14 @@ const AdminLayout: React.FC = () => {
   const handleLogout = async (): Promise<void> => {
     try {
       await logout();
-      navigate('/login');
+      navigate({ to: '/login' });
     } catch (error) {
       logger.error('Logout failed:', error);
     }
   };
 
   const handleBackToApp = (): void => {
-    navigate('/dashboard');
+    navigate({ to: '/dashboard' });
   };
 
   return (
@@ -91,7 +91,7 @@ const AdminLayout: React.FC = () => {
             <Button
               key={item.text}
               variant="ghost"
-              onClick={() => navigate(item.path)}
+              onClick={() => navigate({ to: item.path })}
               className={cn(
                 'justify-start gap-2',
                 isActiveRoute(item)

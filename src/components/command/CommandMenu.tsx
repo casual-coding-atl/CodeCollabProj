@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import {
   FolderGit2,
   Home,
@@ -50,13 +50,9 @@ export function CommandMenu() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const go = (to: string): void => {
-    setOpen(false);
-    navigate(to);
-  };
-
   const isStaff = user?.role === 'admin' || user?.role === 'moderator';
-  const pages = [
+  type PagePath = '/' | '/projects' | '/members' | '/messages' | '/dashboard' | '/profile' | '/admin';
+  const allPages: { label: string; to: PagePath; icon: typeof Home; show: boolean }[] = [
     { label: 'Home', to: '/', icon: Home, show: true },
     { label: 'Projects', to: '/projects', icon: FolderGit2, show: true },
     { label: 'Members', to: '/members', icon: Users, show: isAuthenticated },
@@ -64,7 +60,8 @@ export function CommandMenu() {
     { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, show: isAuthenticated },
     { label: 'Profile', to: '/profile', icon: User, show: isAuthenticated },
     { label: 'Admin', to: '/admin', icon: Shield, show: isStaff },
-  ].filter((p) => p.show);
+  ];
+  const pages = allPages.filter((p) => p.show);
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
@@ -73,7 +70,14 @@ export function CommandMenu() {
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Pages">
           {pages.map((p) => (
-            <CommandItem key={p.to} value={`page ${p.label}`} onSelect={() => go(p.to)}>
+            <CommandItem
+              key={p.to}
+              value={`page ${p.label}`}
+              onSelect={() => {
+                setOpen(false);
+                navigate({ to: p.to });
+              }}
+            >
               <p.icon className="size-4" />
               {p.label}
             </CommandItem>
@@ -85,7 +89,10 @@ export function CommandMenu() {
               <CommandItem
                 key={p._id}
                 value={`project ${p.title}`}
-                onSelect={() => go(`/projects/${p._id}`)}
+                onSelect={() => {
+                  setOpen(false);
+                  navigate({ to: '/projects/$projectId', params: { projectId: p._id } });
+                }}
               >
                 <FolderGit2 className="size-4" />
                 {p.title}
@@ -99,7 +106,10 @@ export function CommandMenu() {
               <CommandItem
                 key={u._id}
                 value={`member ${u.username}`}
-                onSelect={() => go(`/members/${u._id}`)}
+                onSelect={() => {
+                  setOpen(false);
+                  navigate({ to: '/members/$id', params: { id: u._id } });
+                }}
               >
                 <Users className="size-4" />
                 {u.username}

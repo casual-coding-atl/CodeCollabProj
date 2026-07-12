@@ -30,7 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { addTag, removeTag } from '@/lib/tags';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../hooks/auth';
 import { useMyProfile, useUpdateProfile, useUploadAvatar, useDeleteAvatar } from '../hooks/users';
@@ -675,7 +675,8 @@ const ProfileProjects: React.FC<{ userId?: string }> = ({ userId }) => {
             {mine.map((p) => (
               <li key={p._id}>
                 <RouterLink
-                  to={`/projects/${p._id}`}
+                  to="/projects/$projectId"
+                  params={{ projectId: p._id }}
                   className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                 >
                   {p.title}

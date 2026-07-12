@@ -1,8 +1,5 @@
 import { type FC } from 'react';
-// Uses the react-router-dom compat shim deliberately: rows navigate to dynamic,
-// runtime-built URLs (e.g. `/projects/<id>#<commentId>`), which is the string
-// call shape the shim supports — TanStack's typed navigate wants literal routes.
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Check, X } from 'lucide-react';
 import Avatar from '../common/Avatar';
@@ -36,14 +33,25 @@ export const NotificationRow: FC<Props> = ({ notification, onAfterAction }) => {
   const navigate = useNavigate();
   const markRead = useMarkRead();
   const collab = useHandleCollaborationRequest();
-  const { text, href } = describeNotification(notification);
+  const { text } = describeNotification(notification);
   const unread = !notification.readAt;
   const canDecide =
     notification.type === 'join_requested' && !!notification.projectId?._id && !!notification.actor?._id;
 
   const open = (): void => {
     if (unread) markRead.mutate({ ids: [notification._id] });
-    navigate(href);
+    if (notification.projectId?._id) {
+      navigate({
+        to: '/projects/$projectId',
+        params: { projectId: notification.projectId._id },
+        hash:
+          notification.type === 'comment_posted' && notification.commentId
+            ? notification.commentId
+            : undefined,
+      });
+    } else {
+      navigate({ to: '/notifications' });
+    }
     onAfterAction?.();
   };
 

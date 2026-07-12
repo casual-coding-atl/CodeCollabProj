@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Plus, Users, CalendarDays, FolderGit2, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -198,11 +198,11 @@ const Dashboard: React.FC = () => {
                 </CardContent>
                 <CardFooter className="gap-2">
                   <Button asChild variant="ghost" size="sm">
-                    <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                    <RouterLink to="/projects/$projectId" params={{ projectId: project._id }}>View Details</RouterLink>
                   </Button>
                   {isOwner && (
                     <Button asChild variant="ghost" size="sm">
-                      <RouterLink to={`/projects/${project._id}/edit`}>Edit</RouterLink>
+                      <RouterLink to="/projects/$projectId/edit" params={{ projectId: project._id }}>Edit</RouterLink>
                     </Button>
                   )}
                 </CardFooter>

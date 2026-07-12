@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearch } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
@@ -12,14 +12,14 @@ interface VerifyResponse {
 }
 
 const EmailVerification: React.FC = () => {
-  const { token: paramToken } = useParams<{ token?: string }>();
-  const [searchParams] = useSearchParams();
+  const { token: paramToken } = useParams({ strict: false }) as { token?: string };
+  const search = useSearch({ strict: false }) as { token?: string };
   const navigate = useNavigate();
   const [status, setStatus] = useState<VerificationStatus>('verifying');
   const [message, setMessage] = useState('');
 
   // Get token from either URL params or query string
-  const token = paramToken || searchParams.get('token');
+  const token = paramToken || search.token;
 
   // The verify endpoint consumes the single-use token on first success. Cache the
   // in-flight request per token in a ref so React StrictMode's double-invoke (or any
@@ -124,7 +124,7 @@ const EmailVerification: React.FC = () => {
           {getContent()}
 
           {(status === 'success' || status === 'error') && (
-            <Button onClick={() => navigate('/login')} className="mt-4 w-full" size="lg">
+            <Button onClick={() => navigate({ to: '/login' })} className="mt-4 w-full" size="lg">
               Go to Login
             </Button>
           )}

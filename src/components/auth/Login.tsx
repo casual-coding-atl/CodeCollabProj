@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { useAuth, useLogin } from '../../hooks/auth';
 import LoginForm from './LoginForm';
 import VerificationAlert from './VerificationAlert';
@@ -31,7 +31,7 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate({ to: '/dashboard' });
     }
   }, [isAuthenticated, navigate]);
 
@@ -39,7 +39,7 @@ const Login: React.FC = () => {
     setSubmittedEmail(formData.email);
     loginMutation.mutate(formData, {
       onSuccess: () => {
-        navigate('/dashboard');
+        navigate({ to: '/dashboard' });
       },
       onError: (error) => {
         // Check if the error is due to unverified email

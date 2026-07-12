@@ -1,6 +1,6 @@
 import React, { useState, useMemo, type ChangeEvent, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, Link as RouterLink } from '@tanstack/react-router';
 import AvatarGroup from '../common/AvatarGroup';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -91,7 +91,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
 );
 
 const ProjectDetail: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId } = useParams({ from: '/_main/projects/$projectId' });
   const navigate = useNavigate();
 
   // Auth state
@@ -176,7 +176,7 @@ const ProjectDetail: React.FC = () => {
     console.log('🔧 Edit button clicked for project:', projectId);
     console.log('👤 Current user:', user);
     console.log('👑 Is owner:', isOwner);
-    navigate(`/projects/${projectId}/edit`);
+    navigate({ to: '/projects/$projectId/edit', params: { projectId } });
   };
 
   const handleDelete = (): void => {
@@ -189,7 +189,7 @@ const ProjectDetail: React.FC = () => {
       onSuccess: () => {
         setShowDeleteDialog(false);
         toast.success('Project deleted');
-        navigate('/projects');
+        navigate({ to: '/projects' });
       },
       onError: () => {
         toast.error('Couldn’t delete project');
@@ -311,7 +311,7 @@ const ProjectDetail: React.FC = () => {
             The project you&apos;re looking for doesn&apos;t exist or has been removed.
           </AlertDescription>
         </Alert>
-        <Button onClick={() => navigate('/projects')}>Back to Projects</Button>
+        <Button onClick={() => navigate({ to: '/projects' })}>Back to Projects</Button>
       </div>
     );
   }
@@ -426,7 +426,8 @@ const ProjectDetail: React.FC = () => {
                           </Avatar>
                           {u?._id ? (
                             <RouterLink
-                              to={`/members/${u._id}`}
+                              to="/members/$id"
+                              params={{ id: u._id }}
                               className="text-sm font-medium hover:text-primary"
                             >
                               {u?.username ?? 'Member'}
@@ -488,7 +489,7 @@ const ProjectDetail: React.FC = () => {
               ) : (
                 <div>
                   {!user ? (
-                    <Button variant="outline" onClick={() => navigate('/login')}>
+                    <Button variant="outline" onClick={() => navigate({ to: '/login' })}>
                       Login to Collaborate
                     </Button>
                   ) : collaborationStatus === 'pending' ? (

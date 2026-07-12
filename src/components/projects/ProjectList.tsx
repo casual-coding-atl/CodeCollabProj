@@ -1,5 +1,5 @@
 import React, { useState, useMemo, type ChangeEvent } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Search, Loader2 } from 'lucide-react';
 import { useProjects, useProjectSearch } from '../../hooks/projects';
 import type { ProjectFilters } from '../../services/projectsService';
@@ -170,7 +170,7 @@ const ProjectList: React.FC = () => {
               <CardContent className="flex flex-1 flex-col gap-3">
                 <h2 className="text-lg font-semibold leading-tight">
                   <RouterLink
-                    to={`/projects/${project._id}`}
+                    to="/projects/$projectId" params={{ projectId: project._id }}
                     className="transition-colors hover:text-primary"
                   >
                     {project.title}
@@ -205,7 +205,7 @@ const ProjectList: React.FC = () => {
               </CardContent>
               <CardFooter>
                 <Button asChild variant="outline" size="sm">
-                  <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                  <RouterLink to="/projects/$projectId" params={{ projectId: project._id }}>View Details</RouterLink>
                 </Button>
               </CardFooter>
             </Card>

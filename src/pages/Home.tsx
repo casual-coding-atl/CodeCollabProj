@@ -1,5 +1,5 @@
 import { type FC } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Users, GraduationCap, Rocket, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

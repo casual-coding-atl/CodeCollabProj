@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -97,7 +97,7 @@ const ForgotPassword: React.FC = () => {
                           {passwordResetData.resetUrl}
                         </p>
                         <Button asChild size="sm">
-                          <RouterLink to={`/reset-password?token=${passwordResetData.resetToken}`}>
+                          <RouterLink to="/reset-password" search={{ token: passwordResetData.resetToken }}>
                             Click to Reset Password
                           </RouterLink>
                         </Button>

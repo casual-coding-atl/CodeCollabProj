@@ -1,6 +1,5 @@
 import { type FC } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useLocation } from '@tanstack/react-router';
+import { Link as RouterLink, useNavigate, useLocation } from '@tanstack/react-router';
 import {
   FolderGit2,
   Users,
@@ -35,7 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 
 interface NavItem {
-  to: string;
+  to: '/projects' | '/members' | '/messages' | '/dashboard' | '/login' | '/register';
   label: string;
   icon: typeof FolderGit2;
   badge?: number;
@@ -55,7 +54,7 @@ const Header: FC = () => {
   const unreadCount = inboxMessages.filter((msg) => !msg.isRead).length;
 
   const handleLogout = (): void => {
-    logoutMutation.mutate(undefined, { onSuccess: () => navigate('/login') });
+    logoutMutation.mutate(undefined, { onSuccess: () => navigate({ to: '/login' }) });
   };
 
   const isStaff = user?.role === 'admin' || user?.role === 'moderator';

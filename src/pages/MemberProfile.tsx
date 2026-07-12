@@ -1,5 +1,5 @@
 import { type FC, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams } from '@tanstack/react-router';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import { useUser } from '../hooks/users';
 import { useProjects } from '../hooks/projects';
@@ -41,7 +41,7 @@ interface ProjectWithId {
 const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
 
 const MemberProfile: FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams({ from: '/_main/members/$id' });
   const { data: member, isLoading, error } = useUser(id);
   const { data: projects = [] } = useProjects();
   const [showMessage, setShowMessage] = useState(false);
@@ -154,7 +154,8 @@ const MemberProfile: FC = () => {
                 {memberProjects.map((p) => (
                   <li key={p._id}>
                     <RouterLink
-                      to={`/projects/${p._id}`}
+                      to="/projects/$projectId"
+                      params={{ projectId: p._id }}
                       className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                     >
                       {p.title}

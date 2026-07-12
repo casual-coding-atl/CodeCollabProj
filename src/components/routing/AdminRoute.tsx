@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '../../hooks/auth';

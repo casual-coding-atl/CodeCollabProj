@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -183,7 +183,8 @@ const Members: React.FC = () => {
                     <HoverCard openDelay={150}>
                       <HoverCardTrigger asChild>
                         <RouterLink
-                          to={`/members/${user._id}`}
+                          to="/members/$id"
+                          params={{ id: user._id }}
                           className="flex items-center gap-3 text-left hover:text-primary"
                         >
                           <Avatar user={user} size="sm" />
@@ -213,7 +214,8 @@ const Members: React.FC = () => {
                               </div>
                             )}
                             <RouterLink
-                              to={`/members/${user._id}`}
+                              to="/members/$id"
+                          params={{ id: user._id }}
                               className="mt-3 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
                             >
                               View full profile →
@@ -254,7 +256,8 @@ const Members: React.FC = () => {
                         {userProjects.map((p, i) => (
                           <span key={p._id}>
                             <RouterLink
-                              to={`/projects#${p._id}`}
+                              to="/projects"
+                              hash={p._id}
                               className="text-primary underline-offset-4 hover:underline"
                             >
                               {p.title}

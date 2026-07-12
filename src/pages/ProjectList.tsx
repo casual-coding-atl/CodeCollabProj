@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Search, Plus, Users, Calendar, X, Star } from 'lucide-react';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
@@ -288,7 +288,7 @@ const ProjectList: React.FC = () => {
                 <CardContent className="flex flex-1 flex-col gap-3">
                   <h2 className="text-lg font-semibold leading-tight">
                     <RouterLink
-                      to={`/projects/${project._id}`}
+                      to="/projects/$projectId" params={{ projectId: project._id }}
                       className="transition-colors hover:text-primary"
                     >
                       {project.title}
@@ -324,13 +324,13 @@ const ProjectList: React.FC = () => {
                 </CardContent>
                 <CardFooter className="gap-2">
                   <Button asChild variant="outline" size="sm">
-                    <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                    <RouterLink to="/projects/$projectId" params={{ projectId: project._id }}>View Details</RouterLink>
                   </Button>
                   {project.owner &&
                     typeof project.owner === 'object' &&
                     project.owner._id === typedUser?._id && (
                       <Button asChild variant="ghost" size="sm">
-                        <RouterLink to={`/projects/${project._id}/edit`}>Edit</RouterLink>
+                        <RouterLink to="/projects/$projectId/edit" params={{ projectId: project._id }}>Edit</RouterLink>
                       </Button>
                     )}
                 </CardFooter>
