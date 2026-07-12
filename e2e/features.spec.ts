@@ -86,3 +86,24 @@ test.describe('confirm dialog', () => {
     await expect(dialog).toBeHidden();
   });
 });
+
+test.describe('project filters', () => {
+  test('reflect in the URL and clear resets them', async ({ page }) => {
+    await login(page);
+    await page.goto('/projects');
+    await page.waitForLoadState('networkidle');
+
+    // typing a search reflects into the URL (shareable/bookmarkable)
+    await page.getByTestId('project-search').fill('project');
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('q'))
+      .toBe('project');
+
+    // a match count is shown
+    await expect(page.getByTestId('project-count')).toBeVisible();
+
+    // clear resets the URL
+    await page.getByTestId('clear-filters').click();
+    await expect.poll(() => new URL(page.url()).searchParams.toString()).toBe('');
+  });
+});

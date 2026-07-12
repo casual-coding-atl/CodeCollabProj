@@ -1,11 +1,20 @@
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useRequestPasswordReset } from '../../hooks/auth';
 import type { PasswordResetRequestResponseDev } from '../../types/auth';
 
@@ -18,46 +27,38 @@ interface AxiosError {
   message?: string;
 }
 
+// Mirrors the previous inline validation: email required + valid.
+const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
+});
+
+type ForgotPasswordSchema = z.infer<typeof forgotPasswordSchema>;
+
 const ForgotPassword: React.FC = () => {
   const requestPasswordResetMutation = useRequestPasswordReset();
 
-  const [email, setEmail] = useState<string>('');
-  const [emailError, setEmailError] = useState<string>('');
+  const form = useForm<ForgotPasswordSchema>({
+    resolver: zodResolver(forgotPasswordSchema),
+    mode: 'onTouched',
+    defaultValues: { email: '' },
+  });
+
   const [passwordResetData, setPasswordResetData] =
     useState<PasswordResetRequestResponseDev | null>(null);
 
-  const validateEmail = (): boolean => {
-    if (!email) {
-      setEmailError('Email is required');
-      return false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setEmailError('Email is invalid');
-      return false;
-    }
-    setEmailError('');
-    return true;
-  };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (validateEmail()) {
-      requestPasswordResetMutation.mutate(email, {
-        onSuccess: (data) => {
-          console.log('Password reset requested successfully:', data);
-          setPasswordResetData(data as PasswordResetRequestResponseDev);
-        },
-        onError: (error) => {
-          console.error('Password reset request failed:', error);
-        },
-      });
-    }
-  };
-
-  const handleEmailChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setEmail(e.target.value);
-    if (emailError) {
-      setEmailError('');
-    }
+  const handleSubmit = (values: ForgotPasswordSchema): void => {
+    requestPasswordResetMutation.mutate(values.email, {
+      onSuccess: (data) => {
+        console.log('Password reset requested successfully:', data);
+        setPasswordResetData(data as PasswordResetRequestResponseDev);
+      },
+      onError: (error) => {
+        console.error('Password reset request failed:', error);
+      },
+    });
   };
 
   const getErrorMessage = (): string => {
@@ -121,7 +122,7 @@ const ForgotPassword: React.FC = () => {
               <Button
                 onClick={() => {
                   setPasswordResetData(null);
-                  setEmail('');
+                  form.reset({ email: '' });
                 }}
                 variant="outline"
                 className="w-full"
@@ -158,42 +159,47 @@ const ForgotPassword: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} noValidate className="space-y-4">
+              <FormField
+                control={form.control}
                 name="email"
-                autoComplete="email"
-                autoFocus
-                required
-                value={email}
-                onChange={handleEmailChange}
-                disabled={requestPasswordResetMutation.isPending}
-                aria-invalid={!!emailError}
-                className={cn(emailError && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        autoComplete="email"
+                        autoFocus
+                        disabled={requestPasswordResetMutation.isPending}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
-            </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={requestPasswordResetMutation.isPending}
-            >
-              {requestPasswordResetMutation.isPending ? 'Sending…' : 'Send Reset Link'}
-            </Button>
-
-            <p className="text-center text-sm">
-              <RouterLink
-                to="/login"
-                className="font-medium text-primary underline-offset-4 hover:underline"
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={requestPasswordResetMutation.isPending}
               >
-                Back to Login
-              </RouterLink>
-            </p>
-          </form>
+                {requestPasswordResetMutation.isPending ? 'Sending…' : 'Send Reset Link'}
+              </Button>
+
+              <p className="text-center text-sm">
+                <RouterLink
+                  to="/login"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Back to Login
+                </RouterLink>
+              </p>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

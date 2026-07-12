@@ -1,40 +1,49 @@
-import { type ChangeEvent, type FC, type FormEvent } from 'react';
+import { type FC } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import type { LoginFormData } from '../../types/forms';
 
-interface LoginFormErrors {
-  email?: string;
-  password?: string;
-}
 interface AxiosError {
   response?: { data?: { message?: string } };
   message?: string;
 }
+
 interface LoginFormProps {
-  formData: LoginFormData;
-  formErrors: LoginFormErrors;
   isLoading: boolean;
   error: AxiosError | Error | null;
-  onChange: (data: LoginFormData) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (data: LoginFormData) => void;
 }
 
-const LoginForm: FC<LoginFormProps> = ({
-  formData,
-  formErrors,
-  isLoading,
-  error,
-  onChange,
-  onSubmit,
-}) => {
-  const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    onChange({ ...formData, [e.target.name]: e.target.value });
-  };
+// Mirrors the previous inline validation: email required + valid, password required.
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginSchema = z.infer<typeof loginSchema>;
+
+const LoginForm: FC<LoginFormProps> = ({ isLoading, error, onSubmit }) => {
+  const form = useForm<LoginSchema>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onTouched',
+    defaultValues: { email: '', password: '' },
+  });
 
   const errorMessage = error
     ? (error as AxiosError)?.response?.data?.message || error.message || 'Login failed'
@@ -58,63 +67,67 @@ const LoginForm: FC<LoginFormProps> = ({
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
               name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              autoComplete="email"
-              autoFocus
-              aria-label="Email address"
-              aria-invalid={!!formErrors.email}
-              className={cn(formErrors.email && 'border-destructive')}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      autoComplete="email"
+                      autoFocus
+                      aria-label="Email address"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
-          </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <RouterLink
-                to="/forgot-password"
-                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                aria-label="Forgot password"
-              >
-                Forgot password?
-              </RouterLink>
-            </div>
-            <Input
-              id="password"
+            <FormField
+              control={form.control}
               name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              autoComplete="current-password"
-              aria-label="Password"
-              aria-invalid={!!formErrors.password}
-              className={cn(formErrors.password && 'border-destructive')}
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Password</FormLabel>
+                    <RouterLink
+                      to="/forgot-password"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                      aria-label="Forgot password"
+                    >
+                      Forgot password?
+                    </RouterLink>
+                  </div>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="current-password"
+                      aria-label="Password"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {formErrors.password && (
-              <p className="text-xs text-destructive">{formErrors.password}</p>
-            )}
-          </div>
 
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isLoading}
-            aria-label="Submit login form"
-          >
-            {isLoading ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isLoading}
+              aria-label="Submit login form"
+            >
+              {isLoading ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+        </Form>
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}

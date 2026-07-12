@@ -1,20 +1,21 @@
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useAuth, useRegister } from '../../hooks/auth';
-import type { RegisterFormData } from '../../types/forms';
-
-interface RegisterFormErrors {
-  username?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
-}
 
 interface AxiosError {
   response?: {
@@ -36,6 +37,34 @@ interface RegisterResponse {
   message?: string;
 }
 
+// Mirrors the previous inline validation and the server policy (8+ chars with
+// upper, lower, digit, and special character).
+const registerSchema = z
+  .object({
+    username: z
+      .string()
+      .min(1, 'Username is required')
+      .min(3, 'Username must be at least 3 characters'),
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
+    password: z
+      .string()
+      .min(1, 'Password is required')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
+        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character'
+      ),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterSchema = z.infer<typeof registerSchema>;
+
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -43,15 +72,19 @@ const Register: React.FC = () => {
   // TanStack Query mutation
   const registerMutation = useRegister();
 
-  const [formData, setFormData] = useState<RegisterFormData>({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+  const form = useForm<RegisterSchema>({
+    resolver: zodResolver(registerSchema),
+    mode: 'onTouched',
+    defaultValues: {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
   });
 
-  const [formErrors, setFormErrors] = useState<RegisterFormErrors>({});
   const [registrationSuccess, setRegistrationSuccess] = useState<boolean>(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string>('');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -59,61 +92,18 @@ const Register: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const validateForm = (): boolean => {
-    const errors: RegisterFormErrors = {};
-    if (!formData.username) {
-      errors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      errors.username = 'Username must be at least 3 characters';
-    }
-
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    } else if (
-      // Match the server policy: 8+ chars with upper, lower, digit, and special.
-      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(formData.password)
-    ) {
-      errors.password =
-        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character';
-    }
-
-    if (!formData.confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
+  const handleSubmit = (values: RegisterSchema): void => {
+    const { confirmPassword: _confirmPassword, ...registerData } = values;
+    setSubmittedEmail(values.email);
+    registerMutation.mutate(registerData, {
+      onSuccess: (data: RegisterResponse) => {
+        setRegistrationSuccess(true);
+        // If auto-login in development mode, navigate to dashboard
+        if (data.token && data.user) {
+          navigate('/dashboard');
+        }
+      },
     });
-  };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (validateForm()) {
-      const { confirmPassword: _, ...registerData } = formData;
-      registerMutation.mutate(registerData, {
-        onSuccess: (data: RegisterResponse) => {
-          setRegistrationSuccess(true);
-          // If auto-login in development mode, navigate to dashboard
-          if (data.token && data.user) {
-            navigate('/dashboard');
-          }
-        },
-      });
-    }
   };
 
   const getErrorMessage = (): string => {
@@ -148,7 +138,7 @@ const Register: React.FC = () => {
             >
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
               <span>
-                We&apos;ve sent a verification email to <strong>{formData.email}</strong>. Please
+                We&apos;ve sent a verification email to <strong>{submittedEmail}</strong>. Please
                 check your inbox and click the verification link to activate your account.
               </span>
             </div>
@@ -186,84 +176,74 @@ const Register: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
                 name="username"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                aria-invalid={!!formErrors.username}
-                className={cn(formErrors.username && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.username && (
-                <p className="text-xs text-destructive">{formErrors.username}</p>
-              )}
-            </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+              <FormField
+                control={form.control}
                 name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                aria-invalid={!!formErrors.email}
-                className={cn(formErrors.email && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
-            </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
+              <FormField
+                control={form.control}
                 name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                data-testid="password-input"
-                aria-invalid={!!formErrors.password}
-                className={cn(formErrors.password && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" data-testid="password-input" {...field} />
+                    </FormControl>
+                    <FormMessage data-testid="password-error" />
+                  </FormItem>
+                )}
               />
-              {formErrors.password && (
-                <p data-testid="password-error" className="text-xs text-destructive">
-                  {formErrors.password}
-                </p>
-              )}
-            </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
+              <FormField
+                control={form.control}
                 name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                aria-invalid={!!formErrors.confirmPassword}
-                className={cn(formErrors.confirmPassword && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.confirmPassword && (
-                <p className="text-xs text-destructive">{formErrors.confirmPassword}</p>
-              )}
-            </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={registerMutation.isPending}
-            >
-              {registerMutation.isPending ? 'Registering…' : 'Register'}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? 'Registering…' : 'Register'}
+              </Button>
+            </form>
+          </Form>
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             Already have an account?{' '}

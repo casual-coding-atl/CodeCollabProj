@@ -1,11 +1,20 @@
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { usePasswordResetTokenQuery, useResetPassword } from '../../hooks/auth';
 
 interface AxiosError {
@@ -17,16 +26,34 @@ interface AxiosError {
   message?: string;
 }
 
+// Mirrors the previous inline validation: password required + min 6, confirm matches.
+const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(1, 'Password is required')
+      .min(6, 'Password must be at least 6 characters long'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;
+
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const resetPasswordMutation = useResetPassword();
 
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>('');
-  const [passwordError, setPasswordError] = useState<string>('');
-  const [confirmPasswordError, setConfirmPasswordError] = useState<string>('');
-  const [passwordResetSuccess, setPasswordResetSuccess] = useState<boolean>(false);
+  const form = useForm<ResetPasswordSchema>({
+    resolver: zodResolver(resetPasswordSchema),
+    mode: 'onTouched',
+    defaultValues: { password: '', confirmPassword: '' },
+  });
+
+  const [passwordResetSuccess, setPasswordResetSuccess] = React.useState<boolean>(false);
 
   // Token is available during render from the URL — derive it instead of
   // mirroring it into state via an effect.
@@ -47,62 +74,19 @@ const ResetPassword: React.FC = () => {
     }
   }, [token, navigate]);
 
-  const validateForm = (): boolean => {
-    let isValid = true;
-
-    if (!password) {
-      setPasswordError('Password is required');
-      isValid = false;
-    } else if (password.length < 6) {
-      setPasswordError('Password must be at least 6 characters long');
-      isValid = false;
-    } else {
-      setPasswordError('');
-    }
-
-    if (!confirmPassword) {
-      setConfirmPasswordError('Please confirm your password');
-      isValid = false;
-    } else if (password !== confirmPassword) {
-      setConfirmPasswordError('Passwords do not match');
-      isValid = false;
-    } else {
-      setConfirmPasswordError('');
-    }
-
-    return isValid;
-  };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (validateForm()) {
-      resetPasswordMutation.mutate(
-        { token, password },
-        {
-          onSuccess: (data) => {
-            console.log('Password reset successful:', data);
-            setPasswordResetSuccess(true);
-          },
-          onError: (error) => {
-            console.error('Password reset failed:', error);
-          },
-        }
-      );
-    }
-  };
-
-  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setPassword(e.target.value);
-    if (passwordError) {
-      setPasswordError('');
-    }
-  };
-
-  const handleConfirmPasswordChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setConfirmPassword(e.target.value);
-    if (confirmPasswordError) {
-      setConfirmPasswordError('');
-    }
+  const handleSubmit = (values: ResetPasswordSchema): void => {
+    resetPasswordMutation.mutate(
+      { token, password: values.password },
+      {
+        onSuccess: (data) => {
+          console.log('Password reset successful:', data);
+          setPasswordResetSuccess(true);
+        },
+        onError: (error) => {
+          console.error('Password reset failed:', error);
+        },
+      }
+    );
   };
 
   const getErrorMessage = (): string => {
@@ -235,62 +219,66 @@ const ResetPassword: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="password">New Password</Label>
-              <Input
-                id="password"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} noValidate className="space-y-4">
+              <FormField
+                control={form.control}
                 name="password"
-                type="password"
-                autoComplete="new-password"
-                autoFocus
-                required
-                value={password}
-                onChange={handlePasswordChange}
-                disabled={resetPasswordMutation.isPending}
-                aria-invalid={!!passwordError}
-                className={cn(passwordError && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        autoFocus
+                        disabled={resetPasswordMutation.isPending}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
-            </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
+              <FormField
+                control={form.control}
                 name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={confirmPassword}
-                onChange={handleConfirmPasswordChange}
-                disabled={resetPasswordMutation.isPending}
-                aria-invalid={!!confirmPasswordError}
-                className={cn(confirmPasswordError && 'border-destructive')}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        disabled={resetPasswordMutation.isPending}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {confirmPasswordError && (
-                <p className="text-xs text-destructive">{confirmPasswordError}</p>
-              )}
-            </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              disabled={resetPasswordMutation.isPending}
-            >
-              {resetPasswordMutation.isPending ? 'Resetting…' : 'Reset Password'}
-            </Button>
-
-            <p className="text-center text-sm">
-              <RouterLink
-                to="/login"
-                className="font-medium text-primary underline-offset-4 hover:underline"
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={resetPasswordMutation.isPending}
               >
-                Back to Login
-              </RouterLink>
-            </p>
-          </form>
+                {resetPasswordMutation.isPending ? 'Resetting…' : 'Reset Password'}
+              </Button>
+
+              <p className="text-center text-sm">
+                <RouterLink
+                  to="/login"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Back to Login
+                </RouterLink>
+              </p>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
