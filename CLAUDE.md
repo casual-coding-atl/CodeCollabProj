@@ -28,7 +28,7 @@ npm run typecheck  # tsc --noEmit
   - `models.ts` — Mongoose models (`User`, `Session`, `Project`, `Comment`, `Message`), `strict:false`, bound to the real collections.
   - `db.ts` — `connectDB()` cached connection. Call it in handlers before querying.
 - **Ported React app**: `components/`, `hooks/` (TanStack Query, by domain), `services/` (axios → same-origin `/api`), `config/`, `types/`, `utils/`.
-- **`compat/react-router-shim.tsx`**: aliases `react-router-dom` → TanStack Router (via `vite.config.ts` + `tsconfig` paths) so ported components use react-router call shapes unchanged. Prefer importing `@tanstack/react-router` directly in new code.
+- **Routing is 100% `@tanstack/react-router`.** The old `react-router-dom` compat shim was removed — import `Link`, `useNavigate`, `useParams`, `useSearch`, `Navigate`, `Outlet` from `@tanstack/react-router` directly. Dynamic nav is typed: `navigate({ to: '/projects/$projectId', params: { projectId: id } })`, `<Link to="/members/$id" params={{ id }}>`, `hash={}` / `search={}` for fragments and query.
 
 ## Auth model
 
