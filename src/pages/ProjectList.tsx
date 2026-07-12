@@ -114,71 +114,74 @@ const ProjectList: React.FC = () => {
   );
 
   const controls = (
-    <>
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="sm:col-span-2 lg:col-span-1">
+    <div className="mb-6 space-y-3">
+      {/* Toolbar: search grows, filters grouped at fixed widths */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <div className="relative w-full md:flex-1">
           <Label htmlFor="project-search" className="sr-only">
             Search projects
           </Label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="project-search"
-              data-testid="project-search"
-              placeholder="Search projects…"
-              value={state.search}
-              onChange={(e) => setFilter('q', e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="project-search"
+            data-testid="project-search"
+            placeholder="Search projects…"
+            value={state.search}
+            onChange={(e) => setFilter('q', e.target.value)}
+            className="pl-9"
+          />
         </div>
-        <Select value={state.status} onValueChange={(v) => setFilter('status', v)}>
-          <SelectTrigger data-testid="filter-status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="ideation">Ideation</SelectItem>
-            <SelectItem value="in_progress">In progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={state.technology} onValueChange={(v) => setFilter('tech', v)}>
-          <SelectTrigger data-testid="filter-tech">
-            <SelectValue placeholder="Technology" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tech</SelectItem>
-            {SKILLS.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={state.sort} onValueChange={(v) => setFilter('sort', v)}>
-          <SelectTrigger data-testid="project-sort">
-            <SelectValue placeholder="Sort" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="oldest">Oldest</SelectItem>
-            <SelectItem value="collaborators">Most collaborators</SelectItem>
-          </SelectContent>
-        </Select>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={state.status} onValueChange={(v) => setFilter('status', v)}>
+            <SelectTrigger data-testid="filter-status" className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="ideation">Ideation</SelectItem>
+              <SelectItem value="in_progress">In progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={state.technology} onValueChange={(v) => setFilter('tech', v)}>
+            <SelectTrigger data-testid="filter-tech" className="w-[140px]">
+              <SelectValue placeholder="Technology" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tech</SelectItem>
+              {SKILLS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={state.sort} onValueChange={(v) => setFilter('sort', v)}>
+            <SelectTrigger data-testid="project-sort" className="w-[170px]">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="collaborators">Most collaborators</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant={state.featured ? 'default' : 'outline'}
+            className="gap-1.5"
+            aria-pressed={state.featured}
+            onClick={() => setFilter('featured', state.featured ? null : 'true')}
+          >
+            <Star className={cn('size-3.5', state.featured && 'fill-current')} />
+            Featured
+          </Button>
+        </div>
       </div>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant={state.featured ? 'default' : 'outline'}
-          size="sm"
-          className="gap-1.5"
-          aria-pressed={state.featured}
-          onClick={() => setFilter('featured', state.featured ? null : 'true')}
-        >
-          <Star className={cn('size-3.5', state.featured && 'fill-current')} />
-          Featured
-        </Button>
+
+      {/* Meta row: active-filter reset + result count */}
+      <div className="flex min-h-6 items-center gap-3">
         {hasActiveFilters && (
           <Button
             type="button"
@@ -186,7 +189,7 @@ const ProjectList: React.FC = () => {
             size="sm"
             data-testid="clear-filters"
             onClick={clearFilters}
-            className="gap-1.5 text-muted-foreground"
+            className="h-6 gap-1.5 px-2 text-muted-foreground"
           >
             <X className="size-3.5" />
             Clear filters
@@ -199,7 +202,7 @@ const ProjectList: React.FC = () => {
           {isLoading ? '…' : `${displayProjects.length} project${displayProjects.length === 1 ? '' : 's'}`}
         </span>
       </div>
-    </>
+    </div>
   );
 
   return (
