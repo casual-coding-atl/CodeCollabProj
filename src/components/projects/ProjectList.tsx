@@ -1,29 +1,22 @@
 import React, { useState, useMemo, type ChangeEvent } from 'react';
-import {
-  Container,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Typography,
-  Button,
-  TextField,
-  Box,
-  Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  InputAdornment,
-  CircularProgress,
-  Alert,
-  type SelectChangeEvent,
-} from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
+import { Search, Loader2 } from 'lucide-react';
 import { useProjects, useProjectSearch } from '../../hooks/projects';
 import type { ProjectFilters } from '../../services/projectsService';
 import type { Project } from '../../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Extended Project type for API responses
 interface ProjectApiResponse extends Omit<Project, 'id'> {
@@ -66,12 +59,12 @@ const ProjectList: React.FC = () => {
     setSearchQuery(e.target.value);
   };
 
-  const handleStatusFilter = (e: SelectChangeEvent<string>): void => {
-    setStatusFilter(e.target.value);
+  const handleStatusFilter = (value: string): void => {
+    setStatusFilter(value);
   };
 
-  const handleSkillFilter = (e: SelectChangeEvent<string>): void => {
-    setSkillFilter(e.target.value);
+  const handleSkillFilter = (value: string): void => {
+    setSkillFilter(value === 'all' ? '' : value);
   };
 
   // Determine which projects to display
@@ -79,153 +72,153 @@ const ProjectList: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-        <CircularProgress />
-      </Container>
+      <div className="mx-auto flex max-w-6xl justify-center px-4 py-16 sm:px-6">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container sx={{ mt: 4 }}>
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={() => refetch()}>
-              Retry
-            </Button>
-          }
-        >
-          Failed to load projects: {error.message}
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="flex items-center justify-between gap-4">
+          <AlertDescription>Failed to load projects: {error.message}</AlertDescription>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
         </Alert>
-      </Container>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {/* Search and Filter Section */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              label="Search Projects"
+      <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="lg:col-span-2">
+          <Label htmlFor="project-search" className="sr-only">
+            Search Projects
+          </Label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              {isSearching ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Search className="size-4" />
+              )}
+            </span>
+            <Input
+              id="project-search"
+              placeholder="Search Projects"
               value={searchQuery}
               onChange={handleSearch}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    {isSearching ? <CircularProgress size={20} /> : <SearchIcon />}
-                  </InputAdornment>
-                ),
-              }}
-              helperText={
-                searchQuery.length > 0 && searchQuery.length <= 2
-                  ? 'Type at least 3 characters to search'
-                  : ''
-              }
+              className="pl-9"
             />
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select value={statusFilter} label="Status" onChange={handleStatusFilter}>
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="ideation">Ideation</MenuItem>
-                <MenuItem value="in_progress">In Progress</MenuItem>
-                <MenuItem value="completed">Completed</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Required Skill</InputLabel>
-              <Select value={skillFilter} label="Required Skill" onChange={handleSkillFilter}>
-                <MenuItem value="">All Skills</MenuItem>
-                <MenuItem value="javascript">JavaScript</MenuItem>
-                <MenuItem value="python">Python</MenuItem>
-                <MenuItem value="java">Java</MenuItem>
-                <MenuItem value="react">React</MenuItem>
-                <MenuItem value="node">Node.js</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
-      </Box>
+          </div>
+          {searchQuery.length > 0 && searchQuery.length <= 2 && (
+            <p className="mt-1.5 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              Type at least 3 characters to search
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label className="mb-1.5 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            Status
+          </Label>
+          <Select value={statusFilter} onValueChange={handleStatusFilter}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="ideation">Ideation</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="mb-1.5 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            Required Skill
+          </Label>
+          <Select value={skillFilter || 'all'} onValueChange={handleSkillFilter}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Required Skill" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Skills</SelectItem>
+              <SelectItem value="javascript">JavaScript</SelectItem>
+              <SelectItem value="python">Python</SelectItem>
+              <SelectItem value="java">Java</SelectItem>
+              <SelectItem value="react">React</SelectItem>
+              <SelectItem value="node">Node.js</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Projects Grid */}
-      <Grid container spacing={3}>
-        {displayProjects?.length > 0 ? (
-          displayProjects.map((project) => (
-            <Grid item key={project._id} xs={12} sm={6} md={4}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {project.title}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                    }}
-                  >
-                    {project.description}
-                  </Typography>
-                  <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {project.requiredSkills &&
-                      project.requiredSkills.map((skill) => (
-                        <Chip
-                          key={skill}
-                          label={skill}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                        />
-                      ))}
-                  </Box>
-                  <Box sx={{ mt: 2 }}>
-                    <Chip
-                      label={project.status}
-                      color={
-                        project.status === 'completed'
-                          ? 'success'
-                          : project.status === 'in_progress'
-                            ? 'primary'
-                            : 'default'
-                      }
-                    />
-                  </Box>
-                </CardContent>
-                <CardActions>
-                  <Button
-                    size="small"
-                    color="primary"
-                    component={RouterLink}
+      {displayProjects?.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {displayProjects.map((project) => (
+            <Card
+              key={project._id}
+              className="group flex h-full flex-col transition-colors hover:border-primary/40 hover:shadow-sm"
+            >
+              <CardContent className="flex flex-1 flex-col gap-3">
+                <h2 className="text-lg font-semibold leading-tight">
+                  <RouterLink
                     to={`/projects/${project._id}`}
+                    className="transition-colors hover:text-primary"
                   >
-                    View Details
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))
-        ) : (
-          <Grid item xs={12}>
-            <Typography align="center">
-              {searchQuery.length > 2
-                ? 'No projects found matching your search'
-                : 'No projects found'}
-            </Typography>
-          </Grid>
-        )}
-      </Grid>
-    </Container>
+                    {project.title}
+                  </RouterLink>
+                </h2>
+                <p className="line-clamp-3 text-sm text-muted-foreground">
+                  {project.description}
+                </p>
+                {project.requiredSkills && project.requiredSkills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {project.requiredSkills.map((skill) => (
+                      <Badge key={skill} variant="outline" className="text-primary">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-auto">
+                  <Badge
+                    variant={
+                      project.status === 'completed'
+                        ? 'default'
+                        : project.status === 'in_progress'
+                          ? 'secondary'
+                          : 'outline'
+                    }
+                    className="font-mono text-[11px] uppercase tracking-widest"
+                  >
+                    {project.status}
+                  </Badge>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline" size="sm">
+                  <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center text-muted-foreground">
+          {searchQuery.length > 2
+            ? 'No projects found matching your search'
+            : 'No projects found'}
+        </p>
+      )}
+    </div>
   );
 };
 

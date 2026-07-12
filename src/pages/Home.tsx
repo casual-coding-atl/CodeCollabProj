@@ -1,75 +1,84 @@
-import React from 'react';
-import { Container, Typography, Box, Button, Grid, Card, CardContent } from '@mui/material';
+import { type FC } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { Users, GraduationCap, Rocket, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const Home: React.FC = () => {
+const features = [
+  {
+    icon: Users,
+    label: 'collaborate',
+    title: 'Find collaborators',
+    body: 'Post a project, list what you need, and pair up with other members of the group.',
+  },
+  {
+    icon: GraduationCap,
+    label: 'learn',
+    title: 'Learn in the open',
+    body: 'Trade techniques and best practices. Everything is shared, nothing is gatekept.',
+  },
+  {
+    icon: Rocket,
+    label: 'ship',
+    title: 'Actually ship it',
+    body: 'Turn the idea you keep talking about at meetup into something that runs.',
+  },
+];
+
+const Home: FC = () => {
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 8 }}>
-        <Typography variant="h2" component="h1" gutterBottom align="center">
-          Welcome to CodeCollabProj
-        </Typography>
-        <Typography variant="h5" component="h2" gutterBottom align="center" color="text.secondary">
-          Collaborate on code projects with ease. Share, learn, and build together.
-        </Typography>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            size="large"
-            component={RouterLink}
-            to="/projects"
-            sx={{ mr: 2 }}
-          >
-            Browse Projects
+    <div className="mx-auto max-w-5xl">
+      {/* Hero */}
+      <section className="relative overflow-hidden py-16 text-center sm:py-24">
+        {/* soft brand glow behind the headline */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-8 -z-10 h-64 w-[40rem] max-w-full -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
+        />
+        <p className="mb-5 font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
+          <span className="text-brand-amber">//</span> casual coding meetup
+        </p>
+        <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
+          Build the thing, together.
+        </h1>
+        <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-muted-foreground">
+          CodeCollabProj is where the group shares projects, finds collaborators, and ships side
+          projects that would otherwise stay ideas.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Button asChild size="lg">
+            <RouterLink to="/projects">
+              Browse projects
+              <ArrowRight className="size-4" />
+            </RouterLink>
           </Button>
-          <Button variant="outlined" size="large" component={RouterLink} to="/register">
-            Get Started
+          <Button asChild size="lg" variant="outline">
+            <RouterLink to="/register">Join the group</RouterLink>
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </section>
 
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5" component="h3" gutterBottom>
-                Collaborate
-              </Typography>
-              <Typography variant="body1">
-                Work together with other developers on shared projects. Real-time collaboration made
-                easy.
-              </Typography>
-            </CardContent>
+      {/* Features */}
+      <section className="grid gap-4 pb-16 sm:grid-cols-3">
+        {features.map(({ icon: Icon, label, title, body }) => (
+          <Card
+            key={label}
+            className="group transition-colors hover:border-primary/40 hover:shadow-sm"
+          >
+            <CardHeader>
+              <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <Icon className="size-5" />
+              </div>
+              <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                {label}
+              </p>
+              <CardTitle className="text-lg">{title}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">{body}</CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5" component="h3" gutterBottom>
-                Learn
-              </Typography>
-              <Typography variant="body1">
-                Discover new technologies and best practices from the community. Share knowledge and
-                grow together.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5" component="h3" gutterBottom>
-                Build
-              </Typography>
-              <Typography variant="body1">
-                Create amazing projects with the help of the community. Turn your ideas into
-                reality.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Container>
+        ))}
+      </section>
+    </div>
   );
 };
 

@@ -1,22 +1,12 @@
 import React from 'react';
-import {
-  Container,
-  Grid,
-  Paper,
-  Typography,
-  Box,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Chip,
-  Divider,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { Loader2, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '../../hooks/auth';
 import { useHandleCollaborationRequest } from '../../hooks/projects';
 import type { Project, User, CollaboratorStatus } from '../../types';
@@ -67,13 +57,11 @@ const Dashboard: React.FC = () => {
     handleCollaborationMutation.mutate(
       { projectId, userId, status },
       {
-        onSuccess: (result) => {
-          console.log('✅ Collaboration request handled:', result);
-          // The user data should automatically refresh through TanStack Query
+        onSuccess: () => {
+          toast.success(`Request ${status}`);
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
-          console.error('❌ Error handling collaboration request:', error);
-          alert(
+          toast.error(
             error?.response?.data?.message ||
               error?.message ||
               'Failed to handle collaboration request'
@@ -85,153 +73,130 @@ const Dashboard: React.FC = () => {
 
   if (authLoading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Loading dashboard...
-          </Typography>
-        </Box>
-      </Container>
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <div className="flex min-h-[300px] items-center justify-center gap-3">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <p className="text-lg font-medium">Loading dashboard...</p>
+        </div>
+      </div>
     );
   }
 
   if (!user) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Authentication Required
-          </Typography>
-          You must be logged in to view your dashboard.
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Authentication Required</AlertTitle>
+          <AlertDescription>You must be logged in to view your dashboard.</AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => navigate('/login')}>
-          Go to Login
-        </Button>
-      </Container>
+        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+      </div>
     );
   }
 
   const userWithCollabs = user as UserWithCollaborations;
 
-  return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Grid container spacing={3}>
-        {/* My Projects Section */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Box
-              sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
-            >
-              <Typography variant="h6">My Projects</Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreateProject}>
-                Create Project
-              </Button>
-            </Box>
-            <List>
-              {userWithCollabs.projects && userWithCollabs.projects.length > 0 ? (
-                userWithCollabs.projects.map((project) => (
-                  <React.Fragment key={project._id}>
-                    <ListItem button onClick={() => handleViewProject(project._id)}>
-                      <ListItemText primary={project.title} secondary={project.description} />
-                      <ListItemSecondaryAction>
-                        <Chip
-                          label={project.status}
-                          color={
-                            project.status === 'completed'
-                              ? 'success'
-                              : project.status === 'in_progress'
-                                ? 'primary'
-                                : 'default'
-                          }
-                        />
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                    <Divider />
-                  </React.Fragment>
-                ))
-              ) : (
-                <ListItem>
-                  <ListItemText primary="No projects yet" />
-                </ListItem>
-              )}
-            </List>
-          </Paper>
-        </Grid>
+  const statusVariant = (status: string): 'default' | 'secondary' | 'outline' =>
+    status === 'completed' ? 'default' : status === 'in_progress' ? 'secondary' : 'outline';
 
-        {/* Collaboration Requests Section */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              Collaboration Requests
-            </Typography>
-            <List>
-              {userWithCollabs.collaborationRequests &&
-              userWithCollabs.collaborationRequests.length > 0 ? (
-                userWithCollabs.collaborationRequests.map((request) => (
-                  <React.Fragment key={request._id}>
-                    <ListItem>
-                      <ListItemText
-                        primary={`${request.user.username} wants to collaborate on ${request.project.title}`}
-                        secondary={`Status: ${request.status}`}
-                      />
-                      {request.status === 'pending' && (
-                        <ListItemSecondaryAction>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="success"
-                              disabled={handleCollaborationMutation.isPending}
-                              onClick={() =>
-                                handleCollaborationRequest(
-                                  request.project._id,
-                                  request.user._id,
-                                  'accepted'
-                                )
-                              }
-                            >
-                              {handleCollaborationMutation.isPending ? 'Processing...' : 'Accept'}
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="error"
-                              disabled={handleCollaborationMutation.isPending}
-                              onClick={() =>
-                                handleCollaborationRequest(
-                                  request.project._id,
-                                  request.user._id,
-                                  'rejected'
-                                )
-                              }
-                            >
-                              {handleCollaborationMutation.isPending ? 'Processing...' : 'Reject'}
-                            </Button>
-                          </Box>
-                        </ListItemSecondaryAction>
-                      )}
-                    </ListItem>
-                    <Divider />
-                  </React.Fragment>
-                ))
-              ) : (
-                <ListItem>
-                  <ListItemText primary="No pending collaboration requests" />
-                </ListItem>
-              )}
-            </List>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Container>
+  return (
+    <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 md:grid-cols-3">
+      {/* My Projects Section */}
+      <Card className="md:col-span-2">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-lg">My Projects</CardTitle>
+          <Button onClick={handleCreateProject}>
+            <Plus className="size-4" />
+            Create Project
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {userWithCollabs.projects && userWithCollabs.projects.length > 0 ? (
+            <ul className="divide-y divide-border">
+              {userWithCollabs.projects.map((project) => (
+                <li key={project._id}>
+                  <button
+                    type="button"
+                    onClick={() => handleViewProject(project._id)}
+                    className="flex w-full items-center justify-between gap-4 py-3 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{project.title}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {project.description}
+                      </p>
+                    </div>
+                    <Badge variant={statusVariant(project.status)}>{project.status}</Badge>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-3 text-sm text-muted-foreground">No projects yet</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Collaboration Requests Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Collaboration Requests</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {userWithCollabs.collaborationRequests &&
+          userWithCollabs.collaborationRequests.length > 0 ? (
+            <ul className="space-y-3">
+              {userWithCollabs.collaborationRequests.map((request, index) => (
+                <li key={request._id}>
+                  {index > 0 && <Separator className="mb-3" />}
+                  <p className="text-sm text-foreground">
+                    {`${request.user.username} wants to collaborate on ${request.project.title}`}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                    Status: {request.status}
+                  </p>
+                  {request.status === 'pending' && (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={handleCollaborationMutation.isPending}
+                        onClick={() =>
+                          handleCollaborationRequest(
+                            request.project._id,
+                            request.user._id,
+                            'accepted'
+                          )
+                        }
+                      >
+                        {handleCollaborationMutation.isPending ? 'Processing...' : 'Accept'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={handleCollaborationMutation.isPending}
+                        onClick={() =>
+                          handleCollaborationRequest(
+                            request.project._id,
+                            request.user._id,
+                            'rejected'
+                          )
+                        }
+                      >
+                        {handleCollaborationMutation.isPending ? 'Processing...' : 'Reject'}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-3 text-sm text-muted-foreground">
+              No pending collaboration requests
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

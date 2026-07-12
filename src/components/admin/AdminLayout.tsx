@@ -1,29 +1,19 @@
 import React from 'react';
 import {
-  Box,
-  Drawer,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  AppBar,
-  Toolbar,
-  Typography,
-  Divider,
-} from '@mui/material';
-import {
-  Dashboard as DashboardIcon,
-  People as PeopleIcon,
-  Security as SecurityIcon,
-  Settings as SettingsIcon,
-  Analytics as AnalyticsIcon,
-  ExitToApp as ExitIcon,
-} from '@mui/icons-material';
+  LayoutDashboard,
+  Users,
+  Shield,
+  BarChart3,
+  Settings,
+  ChevronLeft,
+  LogOut,
+} from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import { useAuth } from '../../hooks/auth';
 import logger from '../../utils/logger';
-
-const drawerWidth = 240;
 
 interface MenuItem {
   text: string;
@@ -40,28 +30,28 @@ const AdminLayout: React.FC = () => {
   const menuItems: MenuItem[] = [
     {
       text: 'Dashboard',
-      icon: <DashboardIcon />,
+      icon: <LayoutDashboard className="size-4" />,
       path: '/admin',
       exact: true,
     },
     {
       text: 'User Management',
-      icon: <PeopleIcon />,
+      icon: <Users className="size-4" />,
       path: '/admin/users',
     },
     {
       text: 'System Logs',
-      icon: <SecurityIcon />,
+      icon: <Shield className="size-4" />,
       path: '/admin/logs',
     },
     {
       text: 'Analytics',
-      icon: <AnalyticsIcon />,
+      icon: <BarChart3 className="size-4" />,
       path: '/admin/analytics',
     },
     {
       text: 'Settings',
-      icon: <SettingsIcon />,
+      icon: <Settings className="size-4" />,
       path: '/admin/settings',
     },
   ];
@@ -87,107 +77,72 @@ const AdminLayout: React.FC = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      {/* App Bar */}
-      <AppBar
-        position="fixed"
-        sx={{
-          width: `calc(100% - ${drawerWidth}px)`,
-          ml: `${drawerWidth}px`,
-          bgcolor: 'error.main',
-        }}
-      >
-        <Toolbar>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Admin Panel
-          </Typography>
-          <Typography variant="body2" sx={{ mr: 2 }}>
-            {user?.username}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
+    <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar */}
-      <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-        }}
-        variant="permanent"
-        anchor="left"
-      >
-        <Toolbar>
-          <Typography variant="h6" sx={{ color: 'error.main', fontWeight: 'bold' }}>
-            CodeCollabProj Admin
-          </Typography>
-        </Toolbar>
-        <Divider />
+      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
+        <div className="flex h-16 items-center gap-2 px-4">
+          <Shield className="size-5 text-brand-amber" />
+          <span className="text-sm font-semibold tracking-tight">CodeCollabProj Admin</span>
+        </div>
+        <Separator />
 
-        <List>
+        <nav className="flex flex-1 flex-col gap-1 p-3">
           {menuItems.map((item) => (
-            <ListItem
+            <Button
               key={item.text}
-              button
-              selected={isActiveRoute(item)}
+              variant="ghost"
               onClick={() => navigate(item.path)}
-              sx={{
-                '&.Mui-selected': {
-                  backgroundColor: 'error.light',
-                  color: 'white',
-                  '&:hover': {
-                    backgroundColor: 'error.main',
-                  },
-                },
-              }}
+              className={cn(
+                'justify-start gap-2',
+                isActiveRoute(item)
+                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                  : 'text-muted-foreground'
+              )}
             >
-              <ListItemIcon
-                sx={{
-                  color: isActiveRoute(item) ? 'white' : 'inherit',
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItem>
+              {item.icon}
+              {item.text}
+            </Button>
           ))}
-        </List>
+        </nav>
 
-        <Divider />
+        <Separator />
 
-        <List>
-          <ListItem button onClick={handleBackToApp}>
-            <ListItemIcon>
-              <ExitIcon />
-            </ListItemIcon>
-            <ListItemText primary="Back to App" />
-          </ListItem>
+        <div className="flex flex-col gap-1 p-3">
+          <Button
+            variant="ghost"
+            onClick={handleBackToApp}
+            className="justify-start gap-2 text-muted-foreground"
+          >
+            <ChevronLeft className="size-4" />
+            Back to App
+          </Button>
 
-          <ListItem button onClick={handleLogout}>
-            <ListItemIcon>
-              <ExitIcon />
-            </ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItem>
-        </List>
-      </Drawer>
+          <Button
+            data-testid="logout-button"
+            variant="ghost"
+            onClick={handleLogout}
+            className="justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <LogOut className="size-4" />
+            Logout
+          </Button>
+        </div>
+      </aside>
 
-      {/* Main Content */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          bgcolor: 'background.default',
-          minHeight: '100vh',
-          mt: 8, // Account for AppBar height
-        }}
-      >
-        <Outlet />
-      </Box>
-    </Box>
+      {/* Main area */}
+      <div className="flex flex-1 flex-col">
+        {/* Top bar */}
+        <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
+          <h1 className="text-lg font-semibold tracking-tight">Admin Panel</h1>
+          <span className="font-mono text-sm text-muted-foreground">{user?.username}</span>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1">
+          <Outlet />
+        </main>
+      </div>
+    </div>
   );
 };
 

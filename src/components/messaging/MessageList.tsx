@@ -1,24 +1,11 @@
 import React from 'react';
-import {
-  Box,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  Chip,
-  Typography,
-  Paper,
-  IconButton,
-  Divider,
-} from '@mui/material';
-import {
-  Email as EmailIcon,
-  MarkEmailRead as EmailOpenIcon,
-  Delete as DeleteIcon,
-  Reply as ReplyIcon,
-} from '@mui/icons-material';
+import { Mail, MailOpen, Trash2, Reply } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import type { UserSummary } from '../../types';
 
 // Message type to handle API response with _id
@@ -51,130 +38,122 @@ const MessageList: React.FC<MessageListProps> = ({
 }) => {
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" p={3}>
-        <Typography>Loading messages...</Typography>
-      </Box>
+      <div className="flex justify-center p-6">
+        <p className="text-muted-foreground">Loading messages...</p>
+      </div>
     );
   }
 
   if (messages.length === 0) {
     return (
-      <Paper sx={{ p: 3, textAlign: 'center' }}>
-        <EmailIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-        <Typography variant="h6" color="text.secondary">
-          No messages yet
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Your messages will appear here
-        </Typography>
-      </Paper>
+      <Card className="p-6 text-center">
+        <Mail className="mx-auto mb-2 size-12 text-muted-foreground" />
+        <p className="text-lg font-medium text-muted-foreground">No messages yet</p>
+        <p className="text-sm text-muted-foreground">Your messages will appear here</p>
+      </Card>
     );
   }
 
   return (
-    <Paper>
-      <List sx={{ width: '100%' }}>
+    <Card className="overflow-hidden py-0">
+      <ul className="w-full">
         {messages.map((message, index) => (
           <React.Fragment key={message._id}>
-            <ListItem
-              alignItems="flex-start"
-              sx={{
-                backgroundColor: message.isRead ? 'transparent' : 'action.hover',
-                cursor: 'pointer',
-                '&:hover': {
-                  backgroundColor: 'action.selected',
-                },
-              }}
+            <li
+              className={cn(
+                'flex cursor-pointer items-start gap-3 p-4 transition-colors hover:bg-accent',
+                !message.isRead && 'border-l-2 border-brand-amber bg-brand-amber/5'
+              )}
               onClick={() => onMessageClick && onMessageClick(message)}
             >
-              <ListItemAvatar>
-                <Avatar sx={{ bgcolor: message.isRead ? 'grey.400' : 'primary.main' }}>
-                  {message.isRead ? <EmailOpenIcon /> : <EmailIcon />}
-                </Avatar>
-              </ListItemAvatar>
+              {/* Avatar / status icon */}
+              <div
+                className={cn(
+                  'flex size-10 shrink-0 items-center justify-center rounded-full',
+                  message.isRead
+                    ? 'bg-muted text-muted-foreground'
+                    : 'bg-brand-amber text-brand-amber-foreground'
+                )}
+              >
+                {message.isRead ? <MailOpen className="size-5" /> : <Mail className="size-5" />}
+              </div>
 
-              <ListItemText
-                primary={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Typography
-                      variant="subtitle1"
-                      fontWeight={message.isRead ? 'normal' : 'bold'}
-                      sx={{ flexGrow: 1 }}
-                    >
-                      {message.subject}
-                    </Typography>
-                    {!message.isRead && (
-                      <Chip label="New" size="small" color="primary" sx={{ height: 20 }} />
+              {/* Content */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p
+                    className={cn(
+                      'flex-1 truncate',
+                      message.isRead ? 'font-normal' : 'font-bold'
                     )}
-                  </Box>
-                }
-                secondary={
-                  <Box>
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="text.primary"
-                      fontWeight={message.isRead ? 'normal' : 'medium'}
-                    >
-                      From:{' '}
-                      {(message.sender as UserSummary)?.username ||
-                        (message.sender as UserSummary)?.firstName ||
-                        'Unknown'}
-                    </Typography>
-                    <Typography
-                      component="div"
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        mt: 0.5,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {message.content}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                    </Typography>
-                  </Box>
-                }
-              />
+                  >
+                    {message.subject}
+                  </p>
+                  {!message.isRead && (
+                    <Badge className="h-5 bg-brand-amber text-brand-amber-foreground hover:bg-brand-amber">
+                      New
+                    </Badge>
+                  )}
+                </div>
 
-              <Box display="flex" flexDirection="column" gap={1}>
+                <p
+                  className={cn(
+                    'text-sm text-foreground',
+                    message.isRead ? 'font-normal' : 'font-medium'
+                  )}
+                >
+                  From:{' '}
+                  {(message.sender as UserSummary)?.username ||
+                    (message.sender as UserSummary)?.firstName ||
+                    'Unknown'}
+                </p>
+                <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+                  {message.content}
+                </p>
+                <p className="mt-1 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                  {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-1">
                 {onReplyMessage && (
-                  <IconButton
-                    size="small"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
                     onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
                       onReplyMessage(message);
                     }}
                     title="Reply"
+                    aria-label="Reply"
                   >
-                    <ReplyIcon />
-                  </IconButton>
+                    <Reply className="size-4" />
+                  </Button>
                 )}
                 {onDeleteMessage && (
-                  <IconButton
-                    size="small"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-destructive hover:text-destructive"
                     onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
                       onDeleteMessage(message._id);
                     }}
                     title="Delete"
-                    sx={{ color: 'error.main' }}
+                    aria-label="Delete"
                   >
-                    <DeleteIcon />
-                  </IconButton>
+                    <Trash2 className="size-4" />
+                  </Button>
                 )}
-              </Box>
-            </ListItem>
-            {index < messages.length - 1 && <Divider variant="inset" component="li" />}
+              </div>
+            </li>
+            {index < messages.length - 1 && <Separator />}
           </React.Fragment>
         ))}
-      </List>
-    </Paper>
+      </ul>
+    </Card>
   );
 };
 

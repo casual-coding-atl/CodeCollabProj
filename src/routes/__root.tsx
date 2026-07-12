@@ -1,33 +1,15 @@
 /// <reference types="vite/client" />
-import {
-  HeadContent,
-  Outlet,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router';
+import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
 import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-import appCss from '../styles.css?url';
-import '../styles/global.css';
-
-const theme = createTheme({
-  palette: {
-    primary: { main: '#1976d2' },
-    secondary: { main: '#dc004e' },
-  },
-  components: {
-    MuiCssBaseline: {
-      styleOverrides: {
-        '*': { boxSizing: 'border-box' },
-        html: { WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' },
-      },
-    },
-  },
-});
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { ConfirmProvider } from '@/components/common/confirm';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import '../styles/globals.css';
 
 export const Route = createRootRoute({
   head: () => ({
@@ -36,7 +18,6 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'CodeCollabProj' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
   notFoundComponent: NotFoundShell,
@@ -46,12 +27,16 @@ function RootComponent() {
   return (
     <RootDocument>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <Outlet />
-          </ThemeProvider>
-        </QueryClientProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider delayDuration={200}>
+              <ConfirmProvider>
+                <Outlet />
+              </ConfirmProvider>
+            </TooltipProvider>
+            <Toaster richColors closeButton />
+          </QueryClientProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </RootDocument>
   );
@@ -60,9 +45,12 @@ function RootComponent() {
 function NotFoundShell() {
   return (
     <RootDocument>
-      <div style={{ padding: 32, fontFamily: 'system-ui' }}>
-        <h1>404 — Not Found</h1>
-        <a href="/">Go home</a>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">error 404</p>
+        <h1 className="text-2xl font-bold tracking-tight">Page not found</h1>
+        <a href="/" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          Go home
+        </a>
       </div>
     </RootDocument>
   );
@@ -70,8 +58,10 @@ function NotFoundShell() {
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Set the theme class before first paint to avoid a flash of the wrong theme. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

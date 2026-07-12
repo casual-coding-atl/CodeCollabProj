@@ -1,26 +1,32 @@
-import React, { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Card,
-  CardContent,
-  CardActions,
-  CardMedia,
-  Grid,
-  TextField,
-  InputAdornment,
-  Chip,
-  Alert,
-} from '@mui/material';
-import { Search, Add, People, CalendarToday } from '@mui/icons-material';
+import { Search, Plus, Users, Calendar, X, Star } from 'lucide-react';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
 import { ProjectListSkeleton } from '../components/common/Skeletons';
+import AvatarGroup from '../components/common/AvatarGroup';
+import {
+  toProjectQuery,
+  sortProjects,
+  type ProjectFilterState,
+  type ProjectSort,
+} from '@/lib/projectFilters';
+import type { ProjectFilters } from '../services/projectsService';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
-// API response types - standalone interfaces to handle _id fields
 interface ProjectWithId {
   _id: string;
   id?: string;
@@ -29,218 +35,299 @@ interface ProjectWithId {
   technologies?: string[];
   image?: string;
   createdAt: string;
-  owner?:
-    | {
-        _id: string;
-        username?: string;
-      }
-    | string
-    | null;
+  collaboratorCount?: number;
+  owner?: { _id: string; username?: string } | string | null;
   collaborators?: Array<{
-    _id?: string;
-    userId?: string;
+    status?: string;
+    userId?: { _id?: string; username?: string; profileImage?: string } | string;
   }>;
 }
-
 interface UserWithId {
   _id?: string;
   id?: string;
 }
 
+const SKILLS = ['JavaScript', 'Python', 'Java', 'React', 'Node.js'];
+
+const DEFAULT_STATE: ProjectFilterState = {
+  search: '',
+  status: 'all',
+  technology: 'all',
+  featured: false,
+  sort: 'newest',
+};
+
+function readFiltersFromUrl(): ProjectFilterState {
+  if (typeof window === 'undefined') return { ...DEFAULT_STATE };
+  const sp = new URLSearchParams(window.location.search);
+  return {
+    search: sp.get('q') ?? '',
+    status: sp.get('status') ?? 'all',
+    technology: sp.get('tech') ?? 'all',
+    featured: sp.get('featured') === 'true',
+    sort: (sp.get('sort') as ProjectSort) ?? 'newest',
+  };
+}
+
 const ProjectList: React.FC = () => {
   const { user } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
+  const typedUser = user as UserWithId | null;
   const projectRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const typedUser = user as UserWithId | null;
+  // Filter state is local; the URL is synced directly with History (shareable)
+  // rather than via the router's search serializer, which mangles string values
+  // like "true" on repeated writes.
+  const [state, setState] = useState<ProjectFilterState>(readFiltersFromUrl);
 
-  // TanStack Query hook
-  const { data: projects = [], isLoading, error, refetch } = useProjects();
+  const patch = (partial: Partial<ProjectFilterState>): void => {
+    setState((prev) => {
+      const next = { ...prev, ...partial };
+      if (typeof window !== 'undefined') {
+        const sp = new URLSearchParams();
+        if (next.search) sp.set('q', next.search);
+        if (next.status && next.status !== 'all') sp.set('status', next.status);
+        if (next.technology && next.technology !== 'all') sp.set('tech', next.technology);
+        if (next.featured) sp.set('featured', 'true');
+        if (next.sort && next.sort !== 'newest') sp.set('sort', next.sort);
+        const qs = sp.toString();
+        window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+      }
+      return next;
+    });
+  };
 
-  const typedProjects = projects as unknown as ProjectWithId[];
+  const clearFilters = (): void => {
+    setState({ ...DEFAULT_STATE });
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+  };
 
-  // Scroll to project card if hash is present
+  const hasActiveFilters =
+    !!state.search ||
+    state.status !== 'all' ||
+    state.technology !== 'all' ||
+    !!state.featured ||
+    (state.sort && state.sort !== 'newest');
+
+  const filters = useMemo(
+    () => toProjectQuery(state) as ProjectFilters,
+    [state.search, state.status, state.technology, state.featured]
+  );
+
+  const { data: projects = [], isLoading, error, refetch } = useProjects(filters);
+  const typed = projects as unknown as ProjectWithId[];
+  const displayProjects = useMemo(
+    () => sortProjects(typed, state.sort ?? 'newest'),
+    [typed, state.sort]
+  );
+
   useEffect(() => {
     if (window.location.hash) {
       const id = window.location.hash.replace('#', '');
-      setTimeout(() => {
-        if (projectRefs.current[id]) {
-          projectRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 200); // Wait for render
+      setTimeout(() => projectRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
     }
   }, [projects]);
 
-  const filteredProjects = useMemo(
-    () =>
-      typedProjects.filter(
-        (project) =>
-          project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (project.technologies &&
-            project.technologies.some((tech) =>
-              tech.toLowerCase().includes(searchTerm.toLowerCase())
-            ))
-      ),
-    [typedProjects, searchTerm]
+  const header = (
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+          <span className="text-brand-amber">//</span> projects
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
+      </div>
+      <Button asChild>
+        <RouterLink to="/projects/create">
+          <Plus className="size-4" />
+          Create Project
+        </RouterLink>
+      </Button>
+    </div>
   );
 
-  if (isLoading) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4, mb: 4 }}>
-          <Box
-            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}
-          >
-            <Typography variant="h4" component="h1">
-              Projects
-            </Typography>
-          </Box>
-          <ProjectListSkeleton count={6} />
-        </Box>
-      </Container>
-    );
-  }
+  const controls = (
+    <div className="mb-6 space-y-3">
+      {/* Toolbar: search grows, filters grouped at fixed widths */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <div className="relative w-full md:flex-1">
+          <Label htmlFor="project-search" className="sr-only">
+            Search projects
+          </Label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="project-search"
+            data-testid="project-search"
+            placeholder="Search projects…"
+            value={state.search}
+            onChange={(e) => patch({ search: e.target.value })}
+            className="pl-9"
+          />
+        </div>
 
-  if (error) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert
-            severity="error"
-            action={
-              <Button color="inherit" size="small" onClick={() => refetch()}>
-                Retry
-              </Button>
-            }
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={state.status} onValueChange={(v) => patch({ status: v })}>
+            <SelectTrigger data-testid="filter-status" className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="ideation">Ideation</SelectItem>
+              <SelectItem value="in_progress">In progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={state.technology} onValueChange={(v) => patch({ technology: v })}>
+            <SelectTrigger data-testid="filter-tech" className="w-[140px]">
+              <SelectValue placeholder="Technology" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tech</SelectItem>
+              {SKILLS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={state.sort} onValueChange={(v) => patch({ sort: v as ProjectSort })}>
+            <SelectTrigger data-testid="project-sort" className="w-[170px]">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="collaborators">Most collaborators</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant={state.featured ? 'default' : 'outline'}
+            className="gap-1.5"
+            aria-pressed={state.featured}
+            onClick={() => patch({ featured: !state.featured })}
           >
-            Failed to load projects: {(error as Error).message}
-          </Alert>
-        </Box>
-      </Container>
-    );
-  }
+            <Star className={cn('size-3.5', state.featured && 'fill-current')} />
+            Featured
+          </Button>
+        </div>
+      </div>
+
+      {/* Meta row: active-filter reset + result count */}
+      <div className="flex min-h-6 items-center gap-3">
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="clear-filters"
+            onClick={clearFilters}
+            className="h-6 gap-1.5 px-2 text-muted-foreground"
+          >
+            <X className="size-3.5" />
+            Clear filters
+          </Button>
+        )}
+        <span
+          data-testid="project-count"
+          className="ml-auto font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+        >
+          {isLoading ? '…' : `${displayProjects.length} project${displayProjects.length === 1 ? '' : 's'}`}
+        </span>
+      </div>
+    </div>
+  );
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h4" component="h1">
-            Projects
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            component={RouterLink}
-            to="/projects/create"
-          >
-            Create Project
+    <div className="mx-auto max-w-6xl">
+      {header}
+      {controls}
+      {isLoading ? (
+        <ProjectListSkeleton count={6} />
+      ) : error ? (
+        <Alert variant="destructive" className="flex items-center justify-between gap-4">
+          <AlertDescription>Failed to load projects: {(error as Error).message}</AlertDescription>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
           </Button>
-        </Box>
-
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Search projects..."
-          value={searchTerm}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ mb: 4 }}
-        />
-
-        <Grid container spacing={3} data-testid="project-list">
-          {filteredProjects.map((project) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
+        </Alert>
+      ) : displayProjects.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="project-list">
+          {displayProjects.map((project) => (
+            <div
               key={project._id}
-              ref={(el: HTMLDivElement | null) => {
+              ref={(el) => {
                 projectRefs.current[project._id] = el;
               }}
             >
-              <Card data-testid="project-card">
-                {project.image && (
-                  <CardMedia
-                    component="img"
-                    height="200"
-                    image={`http://localhost:5000${project.image}`}
-                    alt={project.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
-                )}
-                <CardContent>
-                  <Typography variant="h6" component="h2" gutterBottom>
-                    {project.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {project.description}
-                  </Typography>
-                  <Box sx={{ mb: 2 }}>
-                    {project.technologies &&
-                      project.technologies.map((tech) => (
-                        <Chip key={tech} label={tech} size="small" sx={{ mr: 1, mb: 1 }} />
+              <Card
+                data-testid="project-card"
+                className="group flex h-full flex-col transition-colors hover:border-primary/40 hover:shadow-sm"
+              >
+                <CardContent className="flex flex-1 flex-col gap-3">
+                  <h2 className="text-lg font-semibold leading-tight">
+                    <RouterLink
+                      to={`/projects/${project._id}`}
+                      className="transition-colors hover:text-primary"
+                    >
+                      {project.title}
+                    </RouterLink>
+                  </h2>
+                  <p className="line-clamp-3 text-sm text-muted-foreground">{project.description}</p>
+                  {project.technologies && project.technologies.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {project.technologies.map((tech) => (
+                        <Badge key={tech} variant="secondary">
+                          {tech}
+                        </Badge>
                       ))}
-                  </Box>
-                  <Box
-                    sx={{ display: 'flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <People sx={{ fontSize: 16, mr: 0.5 }} />
-                      <Typography variant="body2">
-                        {project.collaborators ? project.collaborators.length : 0}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
-                      <Typography variant="body2">
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  </Box>
+                    </div>
+                  )}
+                  <div className="mt-auto flex items-center gap-4 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Users className="size-3.5" />
+                      {project.collaboratorCount ?? project.collaborators?.length ?? 0}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3.5" />
+                      {new Date(project.createdAt).toLocaleDateString()}
+                    </span>
+                    <AvatarGroup
+                      className="ml-auto"
+                      max={4}
+                      members={(project.collaborators ?? [])
+                        .filter((c) => c.status === 'accepted' && typeof c.userId === 'object')
+                        .map((c) => c.userId as { _id?: string; username?: string; profileImage?: string })}
+                    />
+                  </div>
                 </CardContent>
-                <CardActions>
-                  <Button size="small" component={RouterLink} to={`/projects/${project._id}`}>
-                    View Details
+                <CardFooter className="gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
                   </Button>
                   {project.owner &&
                     typeof project.owner === 'object' &&
                     project.owner._id === typedUser?._id && (
-                      <Button
-                        size="small"
-                        component={RouterLink}
-                        to={`/projects/${project._id}/edit`}
-                      >
-                        Edit
+                      <Button asChild variant="ghost" size="sm">
+                        <RouterLink to={`/projects/${project._id}/edit`}>Edit</RouterLink>
                       </Button>
                     )}
-                </CardActions>
+                </CardFooter>
               </Card>
-            </Grid>
+            </div>
           ))}
-        </Grid>
-
-        {filteredProjects.length === 0 && (
-          <Box sx={{ textAlign: 'center', mt: 4 }}>
-            <Typography variant="h6" color="text.secondary">
-              {typedProjects.length === 0 ? 'No projects yet' : 'No projects found'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {typedProjects.length === 0
-                ? 'Be the first to create a project!'
-                : 'Try adjusting your search terms or create a new project.'}
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Container>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed py-16 text-center">
+          <p className="text-sm text-muted-foreground">
+            {hasActiveFilters ? 'No projects match your filters.' : 'No projects yet.'}
+          </p>
+          {hasActiveFilters && (
+            <Button variant="link" onClick={clearFilters} className="mt-1">
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

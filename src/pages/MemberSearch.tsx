@@ -1,29 +1,27 @@
 import React, { useState, FormEvent, ChangeEvent } from 'react';
+import { Search, MessageSquare, Eye, SlidersHorizontal, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Paper,
-  Alert,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
-  FormControl,
-  InputLabel,
   Select,
-  MenuItem,
-  Avatar,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-  SelectChangeEvent,
-} from '@mui/material';
-import { Search, Message, Visibility, FilterList } from '@mui/icons-material';
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import Avatar from '../components/common/Avatar';
 import { useAuth } from '../hooks/auth';
 import { useUserSearch, useSendMessage } from '../hooks/users';
 import type { User } from '../types';
@@ -52,6 +50,9 @@ interface UserWithId extends Omit<User, 'id'> {
   _id: string;
   id?: string;
 }
+
+const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
+const ANY = '__any__';
 
 const MemberSearch: React.FC = () => {
   // Auth and messaging
@@ -151,119 +152,126 @@ const MemberSearch: React.FC = () => {
   const typedResults = searchResults as UserWithId[];
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
+    <div className="mx-auto max-w-6xl px-4">
+      <div className="mb-8 mt-8">
+        <p className={`${metaLabel} text-center`}>find collaborators</p>
+        <h1 className="text-center text-3xl font-bold tracking-tight text-foreground">
           Find Collaborators
-        </Typography>
-        <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 4 }}>
+        </h1>
+        <p className="mb-8 mt-2 text-center text-muted-foreground">
           Search for members with specific skills and experience
-        </Typography>
+        </p>
 
         {/* Search Form */}
-        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-          <Box component="form" onSubmit={handleSearch}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Search by name, skills, or bio"
-                  name="query"
-                  value={searchParams.query}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setSearchParams((prev) => ({ ...prev, query: e.target.value }))
-                  }
-                  placeholder="e.g., React, Python, Full Stack"
-                />
-              </Grid>
+        <Card className="mb-8">
+          <CardContent className="pt-6">
+            <form onSubmit={handleSearch}>
+              <div className="grid items-end gap-4 md:grid-cols-12">
+                <div className="space-y-1.5 md:col-span-4">
+                  <Label htmlFor="query">Search by name, skills, or bio</Label>
+                  <Input
+                    id="query"
+                    name="query"
+                    value={searchParams.query}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setSearchParams((prev) => ({ ...prev, query: e.target.value }))
+                    }
+                    placeholder="e.g., React, Python, Full Stack"
+                  />
+                </div>
 
-              <Grid item xs={12} md={3}>
-                <TextField
-                  fullWidth
-                  label="Skills (comma-separated)"
-                  name="skills"
-                  value={searchParams.skills}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setSearchParams((prev) => ({ ...prev, skills: e.target.value }))
-                  }
-                  placeholder="React, Node.js, MongoDB"
-                />
-              </Grid>
+                <div className="space-y-1.5 md:col-span-3">
+                  <Label htmlFor="skills">Skills (comma-separated)</Label>
+                  <Input
+                    id="skills"
+                    name="skills"
+                    value={searchParams.skills}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setSearchParams((prev) => ({ ...prev, skills: e.target.value }))
+                    }
+                    placeholder="React, Node.js, MongoDB"
+                  />
+                </div>
 
-              <Grid item xs={12} md={2}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => setShowFilters(!showFilters)}
-                  startIcon={<FilterList />}
-                >
-                  Filters
-                </Button>
-              </Grid>
+                <div className="md:col-span-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
+                    <SlidersHorizontal className="size-4" />
+                    Filters
+                  </Button>
+                </div>
 
-              <Grid item xs={12} md={3}>
-                <Button
-                  fullWidth
-                  type="submit"
-                  variant="contained"
-                  disabled={searchLoading}
-                  startIcon={<Search />}
-                >
-                  {searchLoading ? 'Searching...' : 'Search'}
-                </Button>
-              </Grid>
-            </Grid>
+                <div className="md:col-span-3">
+                  <Button type="submit" className="w-full" disabled={searchLoading}>
+                    <Search className="size-4" />
+                    {searchLoading ? 'Searching...' : 'Search'}
+                  </Button>
+                </div>
+              </div>
 
-            {/* Advanced Filters */}
-            {showFilters && (
-              <Box sx={{ mt: 3 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
-                    <FormControl fullWidth>
-                      <InputLabel>Experience Level</InputLabel>
-                      <Select
-                        name="experience"
-                        value={searchParams.experience}
-                        onChange={(e: SelectChangeEvent) =>
-                          setSearchParams((prev) => ({ ...prev, experience: e.target.value }))
-                        }
-                        label="Experience Level"
-                      >
-                        <MenuItem value="">Any Experience</MenuItem>
+              {/* Advanced Filters */}
+              {showFilters && (
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="experience">Experience Level</Label>
+                    <Select
+                      name="experience"
+                      value={searchParams.experience || ANY}
+                      onValueChange={(value) =>
+                        setSearchParams((prev) => ({
+                          ...prev,
+                          experience: value === ANY ? '' : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="experience" className="w-full">
+                        <SelectValue placeholder="Any Experience" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ANY}>Any Experience</SelectItem>
                         {experienceLevels.map((level) => (
-                          <MenuItem key={level.value} value={level.value}>
+                          <SelectItem key={level.value} value={level.value}>
                             {level.label}
-                          </MenuItem>
+                          </SelectItem>
                         ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Grid item xs={12} md={4}>
-                    <FormControl fullWidth>
-                      <InputLabel>Availability</InputLabel>
-                      <Select
-                        name="availability"
-                        value={searchParams.availability}
-                        onChange={(e: SelectChangeEvent) =>
-                          setSearchParams((prev) => ({ ...prev, availability: e.target.value }))
-                        }
-                        label="Availability"
-                      >
-                        <MenuItem value="">Any Availability</MenuItem>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="availability">Availability</Label>
+                    <Select
+                      name="availability"
+                      value={searchParams.availability || ANY}
+                      onValueChange={(value) =>
+                        setSearchParams((prev) => ({
+                          ...prev,
+                          availability: value === ANY ? '' : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="availability" className="w-full">
+                        <SelectValue placeholder="Any Availability" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ANY}>Any Availability</SelectItem>
                         {availabilityOptions.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
+                          <SelectItem key={option.value} value={option.value}>
                             {option.label}
-                          </MenuItem>
+                          </SelectItem>
                         ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Location"
+                  <div className="space-y-1.5">
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
                       name="location"
                       value={searchParams.location}
                       onChange={(e: ChangeEvent<HTMLInputElement>) =>
@@ -271,175 +279,177 @@ const MemberSearch: React.FC = () => {
                       }
                       placeholder="City, Country"
                     />
-                  </Grid>
-                </Grid>
-              </Box>
-            )}
-          </Box>
-        </Paper>
+                  </div>
+                </div>
+              )}
+            </form>
+          </CardContent>
+        </Card>
 
         {/* Error Display */}
         {searchError && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {(searchError as Error & { response?: { data?: { message?: string } } })?.response?.data
-              ?.message ||
-              (searchError as Error)?.message ||
-              'Search failed'}
+          <Alert variant="destructive" className="mb-6">
+            <AlertDescription>
+              {(searchError as Error & { response?: { data?: { message?: string } } })?.response
+                ?.data?.message ||
+                (searchError as Error)?.message ||
+                'Search failed'}
+            </AlertDescription>
           </Alert>
         )}
 
         {/* Search Results */}
         {typedResults.length > 0 && (
-          <Grid container spacing={3}>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {typedResults.map((member) => (
-              <Grid item xs={12} md={6} lg={4} key={member._id}>
-                <Card elevation={2}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Avatar sx={{ mr: 2 }}>
-                        {member.firstName ? member.firstName[0] : member.username[0]}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6">
-                          {member.firstName && member.lastName
-                            ? `${member.firstName} ${member.lastName}`
-                            : member.username}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          @{member.username}
-                        </Typography>
-                      </Box>
-                    </Box>
+              <Card
+                key={member._id}
+                className="flex flex-col transition-colors hover:border-primary/40"
+              >
+                <CardContent className="flex-1 pt-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <Avatar user={member as unknown as User} size="md" />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-foreground">
+                        {member.firstName && member.lastName
+                          ? `${member.firstName} ${member.lastName}`
+                          : member.username}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">@{member.username}</p>
+                    </div>
+                  </div>
 
-                    {member.bio && (
-                      <Typography variant="body2" sx={{ mb: 2 }}>
-                        {member.bio}
-                      </Typography>
+                  {member.bio && <p className="mb-4 text-sm text-foreground">{member.bio}</p>}
+
+                  {member.skills && member.skills.length > 0 && (
+                    <div className="mb-4">
+                      <p className={`${metaLabel} mb-1.5`}>Skills</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {member.skills.slice(0, 5).map((skill) => (
+                          <Badge key={skill} variant="secondary">
+                            {skill}
+                          </Badge>
+                        ))}
+                        {member.skills.length > 5 && (
+                          <Badge variant="secondary">{`+${member.skills.length - 5} more`}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {member.experience && (
+                      <Badge variant="outline" className="text-primary">
+                        {member.experience}
+                      </Badge>
                     )}
-
-                    {member.skills && member.skills.length > 0 && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Skills:
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {member.skills.slice(0, 5).map((skill) => (
-                            <Chip key={skill} label={skill} size="small" />
-                          ))}
-                          {member.skills.length > 5 && (
-                            <Chip label={`+${member.skills.length - 5} more`} size="small" />
-                          )}
-                        </Box>
-                      </Box>
+                    {member.availability && (
+                      <Badge variant="outline">{member.availability}</Badge>
                     )}
+                  </div>
 
-                    <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                      {member.experience && (
-                        <Chip
-                          label={member.experience}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                        />
-                      )}
-                      {member.availability && (
-                        <Chip
-                          label={member.availability}
-                          size="small"
-                          color="secondary"
-                          variant="outlined"
-                        />
-                      )}
-                    </Box>
+                  {member.location && (
+                    <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <MapPin className="size-3.5" />
+                      {member.location}
+                    </p>
+                  )}
+                </CardContent>
 
-                    {member.location && (
-                      <Typography variant="body2" color="text.secondary">
-                        📍 {member.location}
-                      </Typography>
-                    )}
-                  </CardContent>
-
-                  <CardActions>
+                <CardFooter className="gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleViewProfile(member)}
+                  >
+                    <Eye className="size-4" />
+                    View Profile
+                  </Button>
+                  {member._id !== (user as UserWithId | null)?._id && (
                     <Button
-                      size="small"
-                      startIcon={<Visibility />}
-                      onClick={() => handleViewProfile(member)}
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleMessageUser(member)}
                     >
-                      View Profile
+                      <MessageSquare className="size-4" />
+                      Message
                     </Button>
-                    {member._id !== (user as UserWithId | null)?._id && (
-                      <Button
-                        size="small"
-                        startIcon={<Message />}
-                        onClick={() => handleMessageUser(member)}
-                      >
-                        Message
-                      </Button>
-                    )}
-                  </CardActions>
-                </Card>
-              </Grid>
+                  )}
+                </CardFooter>
+              </Card>
             ))}
-          </Grid>
+          </div>
         )}
 
         {typedResults.length === 0 && !searchLoading && hasSearchQuery && (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h6" color="text.secondary">
+          <div className="py-8 text-center">
+            <p className="text-lg font-medium text-muted-foreground">
               No members found matching your criteria
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Try adjusting your search parameters
-            </Typography>
-          </Box>
+            </p>
+            <p className="text-sm text-muted-foreground">Try adjusting your search parameters</p>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Message Dialog */}
-      <Dialog open={messageDialog} onClose={() => setMessageDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Send Message to{' '}
-          {selectedUser?.firstName && selectedUser?.lastName
-            ? `${selectedUser.firstName} ${selectedUser.lastName}`
-            : selectedUser?.username}
-        </DialogTitle>
+      <Dialog
+        open={messageDialog}
+        onOpenChange={(open) => {
+          if (!open) setMessageDialog(false);
+        }}
+      >
         <DialogContent>
-          <TextField
-            fullWidth
-            label="Subject"
-            value={messageData.subject}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setMessageData((prev) => ({ ...prev, subject: e.target.value }))
-            }
-            sx={{ mb: 2, mt: 1 }}
-          />
-          <TextField
-            fullWidth
-            label="Message"
-            multiline
-            rows={4}
-            value={messageData.content}
-            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-              setMessageData((prev) => ({ ...prev, content: e.target.value }))
-            }
-          />
+          <DialogHeader>
+            <DialogTitle>
+              Send Message to{' '}
+              {selectedUser?.firstName && selectedUser?.lastName
+                ? `${selectedUser.firstName} ${selectedUser.lastName}`
+                : selectedUser?.username}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="message-subject">Subject</Label>
+              <Input
+                id="message-subject"
+                value={messageData.subject}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setMessageData((prev) => ({ ...prev, subject: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="message-content">Message</Label>
+              <Textarea
+                id="message-content"
+                rows={4}
+                value={messageData.content}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                  setMessageData((prev) => ({ ...prev, content: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMessageDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendMessage}
+              disabled={
+                !messageData.subject.trim() ||
+                !messageData.content.trim() ||
+                sendMessageMutation.isPending
+              }
+            >
+              {sendMessageMutation.isPending ? 'Sending...' : 'Send Message'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMessageDialog(false)}>Cancel</Button>
-          <Button
-            onClick={handleSendMessage}
-            variant="contained"
-            disabled={
-              !messageData.subject.trim() ||
-              !messageData.content.trim() ||
-              sendMessageMutation.isPending
-            }
-          >
-            {sendMessageMutation.isPending ? 'Sending...' : 'Send Message'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 

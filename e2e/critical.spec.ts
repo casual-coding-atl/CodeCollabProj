@@ -11,9 +11,9 @@ const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
 
 async function login(page: Page) {
   await page.goto('/login');
-  // Wait for client hydration before interacting, otherwise a click can trigger
-  // a native form submit before React attaches its handler.
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
+  await page.locator('input[name="email"]').waitFor({ timeout: 15000 });
+  await page.waitForTimeout(600); // allow hydration before interacting
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASSWORD);
   await Promise.all([
@@ -49,7 +49,7 @@ test('the projects list shows at least one project', async ({ page }) => {
 test('a user can open a project detail page', async ({ page }) => {
   await login(page);
   await page.goto('/projects');
-  await page.waitForLoadState('networkidle');
+  await page.getByTestId('project-list').waitFor({ timeout: 20000 });
   // Find a real project link (/projects/<24-hex-id>), not /projects/create.
   const hrefs = await page
     .locator('a[href^="/projects/"]')

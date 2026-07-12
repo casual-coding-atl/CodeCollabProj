@@ -1,25 +1,21 @@
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
 import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Link,
-  Box,
-  Alert,
-  AlertTitle,
-} from '@mui/material';
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useAuth, useRegister } from '../../hooks/auth';
-import type { RegisterFormData } from '../../types/forms';
-
-interface RegisterFormErrors {
-  username?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
-}
 
 interface AxiosError {
   response?: {
@@ -41,6 +37,34 @@ interface RegisterResponse {
   message?: string;
 }
 
+// Mirrors the previous inline validation and the server policy (8+ chars with
+// upper, lower, digit, and special character).
+const registerSchema = z
+  .object({
+    username: z
+      .string()
+      .min(1, 'Username is required')
+      .min(3, 'Username must be at least 3 characters'),
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
+    password: z
+      .string()
+      .min(1, 'Password is required')
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
+        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character'
+      ),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterSchema = z.infer<typeof registerSchema>;
+
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -48,15 +72,19 @@ const Register: React.FC = () => {
   // TanStack Query mutation
   const registerMutation = useRegister();
 
-  const [formData, setFormData] = useState<RegisterFormData>({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+  const form = useForm<RegisterSchema>({
+    resolver: zodResolver(registerSchema),
+    mode: 'onTouched',
+    defaultValues: {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
   });
 
-  const [formErrors, setFormErrors] = useState<RegisterFormErrors>({});
   const [registrationSuccess, setRegistrationSuccess] = useState<boolean>(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string>('');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -64,61 +92,18 @@ const Register: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const validateForm = (): boolean => {
-    const errors: RegisterFormErrors = {};
-    if (!formData.username) {
-      errors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      errors.username = 'Username must be at least 3 characters';
-    }
-
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    } else if (
-      // Match the server policy: 8+ chars with upper, lower, digit, and special.
-      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(formData.password)
-    ) {
-      errors.password =
-        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character';
-    }
-
-    if (!formData.confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
+  const handleSubmit = (values: RegisterSchema): void => {
+    const { confirmPassword: _confirmPassword, ...registerData } = values;
+    setSubmittedEmail(values.email);
+    registerMutation.mutate(registerData, {
+      onSuccess: (data: RegisterResponse) => {
+        setRegistrationSuccess(true);
+        // If auto-login in development mode, navigate to dashboard
+        if (data.token && data.user) {
+          navigate('/dashboard');
+        }
+      },
     });
-  };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (validateForm()) {
-      const { confirmPassword: _, ...registerData } = formData;
-      registerMutation.mutate(registerData, {
-        onSuccess: (data: RegisterResponse) => {
-          setRegistrationSuccess(true);
-          // If auto-login in development mode, navigate to dashboard
-          if (data.token && data.user) {
-            navigate('/dashboard');
-          }
-        },
-      });
-    }
   };
 
   const getErrorMessage = (): string => {
@@ -138,132 +123,140 @@ const Register: React.FC = () => {
 
   if (registrationSuccess) {
     return (
-      <Container maxWidth="sm">
-        <Box sx={{ mt: 8, mb: 4 }}>
-          <Paper elevation={3} sx={{ p: 4 }}>
-            <Alert severity="success" sx={{ mb: 3 }}>
-              <AlertTitle>Registration Successful!</AlertTitle>
-              We&apos;ve sent a verification email to <strong>{formData.email}</strong>. Please
-              check your inbox and click the verification link to activate your account.
-            </Alert>
+      <div className="px-4 py-12">
+        <Card className="mx-auto w-full max-w-md">
+          <CardHeader className="text-center">
+            <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              welcome aboard
+            </p>
+            <CardTitle className="text-2xl">Registration Successful!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              role="alert"
+              className="mb-4 flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary"
+            >
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              <span>
+                We&apos;ve sent a verification email to <strong>{submittedEmail}</strong>. Please
+                check your inbox and click the verification link to activate your account.
+              </span>
+            </div>
 
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <p className="mb-4 text-sm text-muted-foreground">
               If you don&apos;t see the email, please check your spam folder. You can also request a
               new verification email from the login page.
-            </Typography>
+            </p>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Button
-                component={RouterLink}
-                to="/login"
-                variant="contained"
-                color="primary"
-                size="large"
-              >
-                Go to Login
-              </Button>
-            </Box>
-          </Paper>
-        </Box>
-      </Container>
+            <Button asChild className="w-full" size="lg">
+              <RouterLink to="/login">Go to Login</RouterLink>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" align="center" gutterBottom>
-            Register
-          </Typography>
-
+    <div className="px-4 py-12">
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader className="text-center">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            create your account
+          </p>
+          <CardTitle className="text-2xl">Register</CardTitle>
+        </CardHeader>
+        <CardContent>
           {registerMutation.error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {getErrorMessage()}
-            </Alert>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              error={!!formErrors.username}
-              helperText={formErrors.username}
-              margin="normal"
-              required
-            />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              error={!!formErrors.email}
-              helperText={formErrors.email}
-              margin="normal"
-              required
-            />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <TextField
-              fullWidth
-              label="Password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              error={!!formErrors.password}
-              helperText={formErrors.password}
-              margin="normal"
-              required
-              inputProps={{ 'data-testid': 'password-input' }}
-              // @ts-ignore - data-testid is valid DOM attribute but missing from MUI types
-              FormHelperTextProps={
-                { 'data-testid': formErrors.password ? 'password-error' : undefined } as any
-              }
-            />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" data-testid="password-input" {...field} />
+                    </FormControl>
+                    <FormMessage data-testid="password-error" />
+                  </FormItem>
+                )}
+              />
 
-            <TextField
-              fullWidth
-              label="Confirm Password"
-              name="confirmPassword"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              error={!!formErrors.confirmPassword}
-              helperText={formErrors.confirmPassword}
-              margin="normal"
-              required
-            />
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              color="primary"
-              size="large"
-              disabled={registerMutation.isPending}
-              sx={{ mt: 3 }}
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? 'Registering…' : 'Register'}
+              </Button>
+            </form>
+          </Form>
+
+          <p className="mt-5 text-center text-sm text-muted-foreground">
+            Already have an account?{' '}
+            <RouterLink
+              to="/login"
+              className="font-medium text-primary underline-offset-4 hover:underline"
             >
-              {registerMutation.isPending ? 'Registering...' : 'Register'}
-            </Button>
-          </form>
-
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Typography variant="body2">
-              Already have an account?{' '}
-              <Link component={RouterLink} to="/login">
-                Login here
-              </Link>
-            </Typography>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+              Login here
+            </RouterLink>
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

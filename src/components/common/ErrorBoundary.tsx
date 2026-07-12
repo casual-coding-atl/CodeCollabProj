@@ -1,5 +1,6 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Typography, Button, Container, Paper } from '@mui/material';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import logger from '../../utils/logger';
 
 interface ErrorBoundaryProps {
@@ -52,40 +53,34 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.state.hasError) {
       // Custom fallback UI
       return (
-        <Container maxWidth="md" sx={{ mt: 8 }}>
-          <Paper elevation={3} sx={{ p: 4 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" gutterBottom color="error">
+        <div className="mx-auto mt-16 w-full max-w-3xl px-4">
+          <Card>
+            <CardContent className="flex flex-col items-center text-center">
+              <h2 className="text-2xl font-bold tracking-tight text-destructive">
                 Something went wrong
-              </Typography>
-              <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
+              </h2>
+              <p className="mt-2 mb-6 text-muted-foreground">
                 We&apos;re sorry, but something unexpected happened. Please try refreshing the page.
-              </Typography>
+              </p>
 
               {process.env.NODE_ENV === 'development' && this.state.error && (
-                <Box
-                  sx={{ mt: 3, p: 2, bgcolor: 'error.light', borderRadius: 1, textAlign: 'left' }}
-                >
-                  <Typography variant="subtitle2" gutterBottom>
+                <div className="mt-2 w-full rounded-md border border-destructive/30 bg-destructive/10 p-4 text-left">
+                  <p className="mb-2 text-sm font-semibold text-foreground">
                     Error Details (Development Only):
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    component="pre"
-                    sx={{ fontSize: '0.75rem', overflow: 'auto' }}
-                  >
+                  </p>
+                  <pre className="overflow-auto font-mono text-xs text-muted-foreground">
                     {this.state.error.toString()}
                     {this.state.errorInfo?.componentStack}
-                  </Typography>
-                </Box>
+                  </pre>
+                </div>
               )}
 
-              <Button variant="contained" color="primary" onClick={this.handleReset} sx={{ mt: 3 }}>
+              <Button className="mt-6" onClick={this.handleReset}>
                 Reload Page
               </Button>
-            </Box>
-          </Paper>
-        </Container>
+            </CardContent>
+          </Card>
+        </div>
       );
     }
 

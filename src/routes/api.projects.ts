@@ -49,6 +49,7 @@ export const Route = createFileRoute('/api/projects')({
 
         const projects = await Project.find(filter)
           .populate('owner', '_id username')
+          .populate('collaborators.userId', '_id username profileImage')
           .sort({ createdAt: -1 })
           .exec();
 
