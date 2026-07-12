@@ -135,17 +135,18 @@ test.describe('command palette', () => {
 });
 
 test.describe('mobile navigation', () => {
-  test('hamburger opens a sheet with links', async ({ page }) => {
+  test('a persistent bottom tab bar navigates between primary destinations', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await login(page);
     await page.goto('/dashboard');
-    const trigger = page.getByTestId('mobile-nav-trigger');
-    await expect(trigger).toBeVisible({ timeout: 15_000 });
-    await trigger.click();
-    const projectsLink = page.getByRole('link', { name: /^projects$/i }).first();
-    await expect(projectsLink).toBeVisible();
-    await projectsLink.click();
+    const tabbar = page.getByTestId('mobile-tabbar');
+    await expect(tabbar).toBeVisible({ timeout: 15_000 });
+    const projectsTab = tabbar.getByRole('link', { name: /projects/i });
+    await expect(projectsTab).toBeVisible();
+    await projectsTab.click();
     await expect(page).toHaveURL(/\/projects/, { timeout: 10_000 });
+    // active destination is highlighted in the bar
+    await expect(tabbar.getByRole('link', { name: /projects/i })).toHaveClass(/text-brand-amber/);
   });
 });
 
