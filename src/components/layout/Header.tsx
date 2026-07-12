@@ -23,6 +23,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 const Header: FC = () => {
@@ -153,22 +154,29 @@ const Header: FC = () => {
                 Dashboard
               </NavLink>
 
-              <Button
-                asChild
-                variant="ghost"
-                size="icon"
-                aria-label={`Messages${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-                className="relative"
-              >
-                <RouterLink to="/messages">
-                  <MessageSquare className="size-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-brand-amber px-1 font-mono text-[10px] font-semibold leading-4 text-brand-amber-foreground">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </RouterLink>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Messages${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+                    className="relative"
+                  >
+                    <RouterLink to="/messages">
+                      <MessageSquare className="size-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-brand-amber px-1 font-mono text-[10px] font-semibold leading-4 text-brand-amber-foreground">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </RouterLink>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Messages{unreadCount > 0 ? ` · ${unreadCount} unread` : ''}
+                </TooltipContent>
+              </Tooltip>
 
               {isStaff && (
                 <Button

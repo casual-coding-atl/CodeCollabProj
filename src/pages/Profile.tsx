@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -29,8 +30,11 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { addTag, removeTag } from '@/lib/tags';
+import { Link as RouterLink } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../hooks/auth';
 import { useMyProfile, useUpdateProfile, useUploadAvatar, useDeleteAvatar } from '../hooks/users';
+import { useProjects } from '../hooks/projects';
 import Avatar from '../components/common/Avatar';
 import type { User, PortfolioLink } from '../types';
 
@@ -254,6 +258,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
                     <Camera className="size-4" />
                   </Button>
                 </div>
+                {uploadAvatarMutation.isPending && (
+                  <div className="mb-2 w-40">
+                    <Progress value={undefined} className="h-1" />
+                    <p className="mt-1 text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Uploading…
+                    </p>
+                  </div>
+                )}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -646,6 +658,45 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
   );
 };
 
+const ProfileProjects: React.FC<{ userId?: string }> = ({ userId }) => {
+  const { data: projects = [] } = useProjects();
+  const mine = (projects as unknown as { _id: string; title: string; owner?: { _id: string } | string }[]).filter(
+    (p) => {
+      const ownerId = typeof p.owner === 'object' && p.owner ? p.owner._id : p.owner;
+      return ownerId?.toString() === userId;
+    }
+  );
+  return (
+    <Card>
+      <CardContent className="grid gap-2 pt-6">
+        <h2 className="text-lg font-semibold">Your projects</h2>
+        {mine.length > 0 ? (
+          <ul className="grid gap-1.5">
+            {mine.map((p) => (
+              <li key={p._id}>
+                <RouterLink
+                  to={`/projects/${p._id}`}
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  {p.title}
+                </RouterLink>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            You haven’t created any projects yet.{' '}
+            <RouterLink to="/projects/create" className="text-primary hover:underline">
+              Create one
+            </RouterLink>
+            .
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const Profile: React.FC = () => {
   // Auth and profile data
   const { isAuthenticated } = useAuth();
@@ -682,14 +733,35 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <ProfileForm
-      profile={typedProfile}
-      profileError={profileError}
-      // Re-seed the form only when the server data actually changes (post-save or an
-      // out-of-band edit) — updatedAt changes then, but stays stable across no-op
-      // refetches, so in-progress edits aren't clobbered by background revalidation.
-      key={typedProfile?.updatedAt ?? typedProfile?._id}
-    />
+    <div className="mx-auto max-w-3xl">
+      <Tabs defaultValue="overview">
+        <TabsList className="mb-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">
+          <ProfileForm
+            profile={typedProfile}
+            profileError={profileError}
+            // Re-seed the form only when the server data actually changes (post-save or an
+            // out-of-band edit) — updatedAt changes then, but stays stable across no-op
+            // refetches, so in-progress edits aren't clobbered by background revalidation.
+            key={typedProfile?.updatedAt ?? typedProfile?._id}
+          />
+        </TabsContent>
+        <TabsContent value="projects">
+          <ProfileProjects userId={typedProfile?._id} />
+        </TabsContent>
+        <TabsContent value="activity">
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              No recent activity to show yet.
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

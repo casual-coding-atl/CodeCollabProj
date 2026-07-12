@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUsers } from '../hooks/users';
 import { useProjects } from '../hooks/projects';
 import MessageForm from '../components/messaging/MessageForm';
@@ -165,10 +166,13 @@ const Members: React.FC = () => {
                   <TableCell>
                     <HoverCard openDelay={150}>
                       <HoverCardTrigger asChild>
-                        <button type="button" className="flex items-center gap-3 text-left">
+                        <RouterLink
+                          to={`/members/${user._id}`}
+                          className="flex items-center gap-3 text-left hover:text-primary"
+                        >
                           <Avatar user={user} size="sm" />
                           <span className="font-medium">{user.username}</span>
-                        </button>
+                        </RouterLink>
                       </HoverCardTrigger>
                       <HoverCardContent className="w-72">
                         <div className="flex items-start gap-3">
@@ -192,6 +196,12 @@ const Members: React.FC = () => {
                                 ))}
                               </div>
                             )}
+                            <RouterLink
+                              to={`/members/${user._id}`}
+                              className="mt-3 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              View full profile →
+                            </RouterLink>
                           </div>
                         </div>
                       </HoverCardContent>
@@ -242,17 +252,22 @@ const Members: React.FC = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={`Message ${user.username}`}
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setShowMessageForm(true);
-                      }}
-                    >
-                      <MessageSquare className="size-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Message ${user.username}`}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowMessageForm(true);
+                          }}
+                        >
+                          <MessageSquare className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Message {user.username}</TooltipContent>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               );

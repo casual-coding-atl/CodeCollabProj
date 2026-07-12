@@ -4,6 +4,7 @@ import { Search, Plus, Users, Calendar, X, Star } from 'lucide-react';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
 import { ProjectListSkeleton } from '../components/common/Skeletons';
+import AvatarGroup from '../components/common/AvatarGroup';
 import {
   toProjectQuery,
   sortProjects,
@@ -36,7 +37,10 @@ interface ProjectWithId {
   createdAt: string;
   collaboratorCount?: number;
   owner?: { _id: string; username?: string } | string | null;
-  collaborators?: Array<{ _id?: string; userId?: string }>;
+  collaborators?: Array<{
+    status?: string;
+    userId?: { _id?: string; username?: string; profileImage?: string } | string;
+  }>;
 }
 interface UserWithId {
   _id?: string;
@@ -252,6 +256,13 @@ const ProjectList: React.FC = () => {
                       <Calendar className="size-3.5" />
                       {new Date(project.createdAt).toLocaleDateString()}
                     </span>
+                    <AvatarGroup
+                      className="ml-auto"
+                      max={4}
+                      members={(project.collaborators ?? [])
+                        .filter((c) => c.status === 'accepted' && typeof c.userId === 'object')
+                        .map((c) => c.userId as { _id?: string; username?: string; profileImage?: string })}
+                    />
                   </div>
                 </CardContent>
                 <CardFooter className="gap-2">

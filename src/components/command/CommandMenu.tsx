@@ -96,7 +96,11 @@ export function CommandMenu() {
         {isAuthenticated && (users as unknown as UserRow[]).length > 0 && (
           <CommandGroup heading="Members">
             {(users as unknown as UserRow[]).slice(0, 20).map((u) => (
-              <CommandItem key={u._id} value={`member ${u.username}`} onSelect={() => go('/members')}>
+              <CommandItem
+                key={u._id}
+                value={`member ${u.username}`}
+                onSelect={() => go(`/members/${u._id}`)}
+              >
                 <Users className="size-4" />
                 {u.username}
               </CommandItem>

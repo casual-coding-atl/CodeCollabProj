@@ -174,3 +174,17 @@ test.describe('project detail tabs + breadcrumb', () => {
     await expect(page.getByPlaceholder(/write a comment/i)).toBeVisible();
   });
 });
+
+test.describe('member profile', () => {
+  test('a member name links to their profile page', async ({ page }) => {
+    await login(page);
+    await page.goto('/members');
+    await expect(page.getByTestId('members-table')).toBeVisible({ timeout: 20000 });
+    // click the first member link in the table
+    await page.locator('a[href^="/members/"]').first().click();
+    // the member name links to that member's profile page
+    await expect(page).toHaveURL(/\/members\/[a-f0-9]{24}/i);
+    // the profile page rendered (either the profile or a not-found for a private one)
+    await expect(page.getByRole('link', { name: 'Members' }).first()).toBeVisible();
+  });
+});

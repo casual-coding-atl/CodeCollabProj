@@ -392,8 +392,57 @@ const ProjectDetail: React.FC = () => {
       <Tabs defaultValue="overview">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="collaborators">Collaborators</TabsTrigger>
           <TabsTrigger value="comments">Comments</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="collaborators">
+          <Card>
+            <CardContent className="grid gap-4">
+              <h2 className="text-lg font-semibold">Collaborators</h2>
+              {(() => {
+                const accepted = (currentProject.collaborators ?? []).filter(
+                  (c) => c.status === 'accepted'
+                );
+                if (accepted.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground">No collaborators yet.</p>
+                  );
+                }
+                return (
+                  <ul className="grid gap-3">
+                    {accepted.map((c, i) => {
+                      const u = c.userId as unknown as {
+                        _id?: string;
+                        username?: string;
+                        profileImage?: string;
+                      };
+                      return (
+                        <li key={u?._id ?? i} className="flex items-center gap-3">
+                          <Avatar className="size-8">
+                            <AvatarFallback>
+                              {u?.username?.[0]?.toUpperCase() ?? 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          {u?._id ? (
+                            <RouterLink
+                              to={`/members/${u._id}`}
+                              className="text-sm font-medium hover:text-primary"
+                            >
+                              {u?.username ?? 'Member'}
+                            </RouterLink>
+                          ) : (
+                            <span className="text-sm font-medium">{u?.username ?? 'Member'}</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="overview" className="grid gap-6">
         {/* Project Details */}
         <Card>
