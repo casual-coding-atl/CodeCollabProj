@@ -5,6 +5,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import '../styles/globals.css';
 
 export const Route = createRootRoute({
@@ -23,10 +25,12 @@ function RootComponent() {
   return (
     <RootDocument>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <Outlet />
-          <Toaster richColors closeButton />
-        </QueryClientProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <Outlet />
+            <Toaster richColors closeButton />
+          </QueryClientProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </RootDocument>
   );
@@ -48,8 +52,10 @@ function NotFoundShell() {
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Set the theme class before first paint to avoid a flash of the wrong theme. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

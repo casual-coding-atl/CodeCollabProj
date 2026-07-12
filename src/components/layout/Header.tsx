@@ -5,6 +5,7 @@ import { useAuth, useLogout } from '../../hooks/auth';
 import { useMessages } from '../../hooks/users/useMessaging';
 import { useMyProfile } from '../../hooks/users';
 import Avatar from '../common/Avatar';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -51,6 +52,7 @@ const Header: FC = () => {
         </RouterLink>
 
         <nav className="ml-auto flex items-center gap-1">
+          <ThemeToggle />
           <NavLink to="/projects">Projects</NavLink>
 
           {isAuthenticated ? (
