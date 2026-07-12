@@ -50,3 +50,17 @@ npm run typecheck  # tsc --noEmit
 ## Known gaps
 
 Email sending (reset/verify) and avatar binary storage are stubbed; email verification is disabled (register creates verified accounts). Some `/users/:id/*` endpoints were never implemented in the original backend and remain absent.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in `casual-coding-atl/CodeCollabProj` (via the `gh` CLI); external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical label names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) — all exist on the repo except `needs-info` (created on first use). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` (created lazily) + `docs/adr/`. See `docs/agents/domain.md`.
