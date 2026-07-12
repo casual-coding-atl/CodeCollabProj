@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -56,13 +57,11 @@ const Dashboard: React.FC = () => {
     handleCollaborationMutation.mutate(
       { projectId, userId, status },
       {
-        onSuccess: (result) => {
-          console.log('✅ Collaboration request handled:', result);
-          // The user data should automatically refresh through TanStack Query
+        onSuccess: () => {
+          toast.success(`Request ${status}`);
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
-          console.error('❌ Error handling collaboration request:', error);
-          alert(
+          toast.error(
             error?.response?.data?.message ||
               error?.message ||
               'Failed to handle collaboration request'

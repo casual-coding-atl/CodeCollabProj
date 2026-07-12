@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Plus, Inbox, Send } from 'lucide-react';
+import { useConfirm } from '@/components/common/confirm';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,6 +32,7 @@ interface MessageWithId {
 }
 
 const Messages: React.FC = () => {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedMessage, setSelectedMessage] = useState<MessageWithId | null>(null);
   const [showCompose, setShowCompose] = useState(false);
@@ -104,10 +107,18 @@ const Messages: React.FC = () => {
     refetchSent();
   };
 
-  const handleDeleteMessage = (messageId: string): void => {
-    if (window.confirm('Are you sure you want to delete this message?')) {
-      deleteMessageMutation.mutate(messageId);
-    }
+  const handleDeleteMessage = async (messageId: string): Promise<void> => {
+    const ok = await confirm({
+      title: 'Delete message?',
+      description: 'This permanently removes the message.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteMessageMutation.mutate(messageId, {
+      onSuccess: () => toast.success('Message deleted'),
+      onError: () => toast.error('Couldn’t delete message'),
+    });
   };
 
   const getCurrentMessages = (): MessageWithId[] => {

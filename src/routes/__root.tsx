@@ -6,6 +6,7 @@ import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { ConfirmProvider } from '@/components/common/confirm';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import '../styles/globals.css';
 
@@ -27,7 +28,9 @@ function RootComponent() {
       <ErrorBoundary>
         <ThemeProvider>
           <QueryClientProvider client={queryClient}>
-            <Outlet />
+            <ConfirmProvider>
+              <Outlet />
+            </ConfirmProvider>
             <Toaster richColors closeButton />
           </QueryClientProvider>
         </ThemeProvider>

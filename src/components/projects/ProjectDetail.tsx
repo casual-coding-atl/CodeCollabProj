@@ -1,4 +1,5 @@
 import React, { useState, useMemo, type ChangeEvent, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Pencil,
@@ -121,7 +122,6 @@ const ProjectDetail: React.FC = () => {
   // Local state
   const [comment, setComment] = useState<string>('');
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
-  const [commentSuccess, setCommentSuccess] = useState<boolean>(false);
 
   // Helper to get user ID from various user object shapes
   const getUserId = (
@@ -178,9 +178,11 @@ const ProjectDetail: React.FC = () => {
     deleteProjectMutation.mutate(projectId, {
       onSuccess: () => {
         setShowDeleteDialog(false);
+        toast.success('Project deleted');
         navigate('/projects');
       },
       onError: () => {
+        toast.error('Couldn’t delete project');
         // Keep the dialog open so the user can see it failed and retry.
       },
     });
@@ -188,7 +190,7 @@ const ProjectDetail: React.FC = () => {
 
   const handleCollaborate = async (): Promise<void> => {
     if (!user) {
-      alert('Please log in to request collaboration');
+      toast.error('Please log in to request collaboration');
       return;
     }
 
@@ -202,20 +204,17 @@ const ProjectDetail: React.FC = () => {
     });
 
     if (isAlreadyCollaborator) {
-      alert('You have already requested collaboration or are already a collaborator');
+      toast.info('You’ve already requested to collaborate or are already a collaborator');
       return;
     }
 
     requestCollaborationMutation.mutate(projectId as string, {
-      onSuccess: (result) => {
-        console.log('✅ Collaboration request sent:', result);
-        alert('Collaboration request sent successfully!');
-        // TanStack Query will automatically refetch the project data
+      onSuccess: () => {
+        toast.success('Collaboration request sent');
         refetchProject();
       },
       onError: (error: Error & { response?: { data?: { message?: string } } }) => {
-        console.error('❌ Error requesting collaboration:', error);
-        alert(
+        toast.error(
           error?.response?.data?.message || error?.message || 'Failed to request collaboration'
         );
       },
@@ -229,15 +228,12 @@ const ProjectDetail: React.FC = () => {
     handleCollaborationMutation.mutate(
       { projectId: projectId as string, userId, status },
       {
-        onSuccess: (result) => {
-          console.log('✅ Collaboration request handled:', result);
-          alert(`Collaboration request ${status} successfully!`);
-          // TanStack Query will automatically refetch the project data
+        onSuccess: () => {
+          toast.success(`Collaboration request ${status}`);
           refetchProject();
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
-          console.error('❌ Error handling collaboration request:', error);
-          alert(
+          toast.error(
             error?.response?.data?.message ||
               error?.message ||
               'Failed to handle collaboration request'
@@ -253,17 +249,12 @@ const ProjectDetail: React.FC = () => {
       createCommentMutation.mutate(
         { projectId: projectId as string, content: comment },
         {
-          onSuccess: (result) => {
-            console.log('✅ Comment created successfully:', result);
+          onSuccess: () => {
             setComment('');
-            setCommentSuccess(true);
-            setTimeout(() => setCommentSuccess(false), 3000);
-            // TanStack Query will automatically refetch comments
+            toast.success('Comment posted');
             refetchComments();
           },
-          onError: (error) => {
-            console.error('❌ Error creating comment:', error);
-          },
+          onError: () => toast.error('Couldn’t post comment'),
         }
       );
     }
@@ -723,12 +714,6 @@ const ProjectDetail: React.FC = () => {
                   </Button>
                 </div>
               </form>
-            )}
-
-            {commentSuccess && (
-              <Alert className="border-primary/40">
-                <AlertDescription>Comment posted successfully!</AlertDescription>
-              </Alert>
             )}
 
             {(commentsError || createCommentMutation.error) && (

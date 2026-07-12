@@ -1,4 +1,5 @@
 import React, { useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { toast } from 'sonner';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, X, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
@@ -276,7 +277,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
       errorMessage = 'Server error. Please try again later.';
     }
 
-    alert(errorMessage);
+    toast.error(errorMessage);
   };
 
   const commonSkills: string[] = [
@@ -409,9 +410,8 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
         updateProjectMutation.mutate(
           { projectId, projectData },
           {
-            onSuccess: (result) => {
-              console.log('✅ Project updated successfully:', result);
-              console.log('🚀 Navigating to projects page');
+            onSuccess: () => {
+              toast.success('Project updated');
               navigate('/projects');
             },
             onError: (error) => {
@@ -424,9 +424,8 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
       } else {
         console.log('➕ Creating new project:', projectData);
         createProjectMutation.mutate(projectData, {
-          onSuccess: (result) => {
-            console.log('✅ Project created successfully:', result);
-            console.log('🚀 Navigating to projects page');
+          onSuccess: () => {
+            toast.success('Project created');
             navigate('/projects');
           },
           onError: (error) => {
@@ -437,8 +436,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
         });
       }
     } else {
-      console.log('❌ Form validation failed:', formErrors);
-      alert('Please fix the form errors before submitting.');
+      toast.error('Please fix the form errors before submitting.');
     }
   };
 

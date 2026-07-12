@@ -1,5 +1,7 @@
 import React, { useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { Pencil, Trash2, Send, Loader2 } from 'lucide-react';
+import { useConfirm } from '@/components/common/confirm';
 import { useAuth } from '../../hooks/auth';
 import {
   useComments,
@@ -40,6 +42,7 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
     refetch: () => void;
   };
 
+  const confirm = useConfirm();
   const createCommentMutation = useCreateComment();
   const updateCommentMutation = useUpdateComment();
   const deleteCommentMutation = useDeleteComment();
@@ -54,11 +57,11 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
       createCommentMutation.mutate(
         { projectId, content: newComment },
         {
-          onSuccess: (data) => {
-            console.log('✅ Comment added successfully:', data);
+          onSuccess: () => {
             setNewComment('');
+            toast.success('Comment posted');
           },
-          onError: (error) => console.error('❌ Failed to add comment:', error),
+          onError: () => toast.error('Couldn’t post comment'),
         }
       );
     }
@@ -80,16 +83,21 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
     }
   };
 
-  const handleDeleteComment = (commentId: string): void => {
-    if (window.confirm('Are you sure you want to delete this comment?')) {
-      deleteCommentMutation.mutate(
-        { projectId, commentId },
-        {
-          onSuccess: (data) => console.log('✅ Comment deleted successfully:', data),
-          onError: (error) => console.error('❌ Failed to delete comment:', error),
-        }
-      );
-    }
+  const handleDeleteComment = async (commentId: string): Promise<void> => {
+    const ok = await confirm({
+      title: 'Delete comment?',
+      description: 'This permanently removes the comment. This can’t be undone.',
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteCommentMutation.mutate(
+      { projectId, commentId },
+      {
+        onSuccess: () => toast.success('Comment deleted'),
+        onError: () => toast.error('Couldn’t delete comment'),
+      }
+    );
   };
 
   const startEditing = (comment: CommentApiResponse): void => {
