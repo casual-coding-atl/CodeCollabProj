@@ -1,22 +1,20 @@
-import React, { ChangeEvent, FormEvent } from 'react';
-import { Paper, Typography, TextField, Button, Link, Box, Alert } from '@mui/material';
+import { type ChangeEvent, type FC, type FormEvent } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { LoginFormData } from '../../types/forms';
 
 interface LoginFormErrors {
   email?: string;
   password?: string;
 }
-
 interface AxiosError {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
+  response?: { data?: { message?: string } };
   message?: string;
 }
-
 interface LoginFormProps {
   formData: LoginFormData;
   formErrors: LoginFormErrors;
@@ -26,11 +24,7 @@ interface LoginFormProps {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }
 
-/**
- * Login Form Component
- * Handles the login form UI and validation
- */
-const LoginForm: React.FC<LoginFormProps> = ({
+const LoginForm: FC<LoginFormProps> = ({
   formData,
   formErrors,
   isLoading,
@@ -39,95 +33,101 @@ const LoginForm: React.FC<LoginFormProps> = ({
   onSubmit,
 }) => {
   const handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    onChange({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    onChange({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const getErrorMessage = (): string => {
-    if (!error) return '';
-    const axiosError = error as AxiosError;
-    return axiosError?.response?.data?.message || error.message || 'Login failed';
-  };
+  const errorMessage = error
+    ? (error as AxiosError)?.response?.data?.message || error.message || 'Login failed'
+    : '';
 
   return (
-    <Paper elevation={3} sx={{ p: 4 }}>
-      <Typography variant="h4" component="h1" align="center" gutterBottom>
-        Login
-      </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {getErrorMessage()}
-        </Alert>
-      )}
-
-      <form onSubmit={onSubmit}>
-        <TextField
-          fullWidth
-          label="Email"
-          name="email"
-          type="email"
-          value={formData.email}
-          onChange={handleChange}
-          error={!!formErrors.email}
-          helperText={formErrors.email}
-          margin="normal"
-          required
-          autoComplete="email"
-          autoFocus
-          aria-label="Email address"
-        />
-
-        <TextField
-          fullWidth
-          label="Password"
-          name="password"
-          type="password"
-          value={formData.password}
-          onChange={handleChange}
-          error={!!formErrors.password}
-          helperText={formErrors.password}
-          margin="normal"
-          required
-          autoComplete="current-password"
-          aria-label="Password"
-        />
-
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          color="primary"
-          size="large"
-          disabled={isLoading}
-          sx={{ mt: 3 }}
-          aria-label="Submit login form"
-        >
-          {isLoading ? 'Logging in...' : 'Login'}
-        </Button>
-      </form>
-
-      <Box sx={{ mt: 2, textAlign: 'center' }}>
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          <Link
-            component={RouterLink}
-            to="/forgot-password"
-            variant="body2"
-            aria-label="Forgot password"
+    <Card className="mx-auto w-full max-w-md">
+      <CardHeader className="text-center">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+          welcome back
+        </p>
+        <CardTitle className="text-2xl">Sign in</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
-            Forgot your password?
-          </Link>
-        </Typography>
-        <Typography variant="body2">
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              autoComplete="email"
+              autoFocus
+              aria-label="Email address"
+              aria-invalid={!!formErrors.email}
+              className={cn(formErrors.email && 'border-destructive')}
+            />
+            {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <RouterLink
+                to="/forgot-password"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                aria-label="Forgot password"
+              >
+                Forgot password?
+              </RouterLink>
+            </div>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              autoComplete="current-password"
+              aria-label="Password"
+              aria-invalid={!!formErrors.password}
+              className={cn(formErrors.password && 'border-destructive')}
+            />
+            {formErrors.password && (
+              <p className="text-xs text-destructive">{formErrors.password}</p>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            size="lg"
+            disabled={isLoading}
+            aria-label="Submit login form"
+          >
+            {isLoading ? 'Signing in…' : 'Sign in'}
+          </Button>
+        </form>
+
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link component={RouterLink} to="/register" aria-label="Register new account">
-            Register here
-          </Link>
-        </Typography>
-      </Box>
-    </Paper>
+          <RouterLink
+            to="/register"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+            aria-label="Register new account"
+          >
+            Join the group
+          </RouterLink>
+        </p>
+      </CardContent>
+    </Card>
   );
 };
 
