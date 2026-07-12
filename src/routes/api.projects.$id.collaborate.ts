@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project } from '../server/models';
+import { createNotification } from '../server/notifications';
 
 /**
  * POST /api/projects/$id/collaborate  →  projectController.requestCollaboration
@@ -28,6 +29,14 @@ export const Route = createFileRoute('/api/projects/$id/collaborate')({
 
         project.collaborators.push({ userId: user._id, status: 'pending' });
         await project.save();
+
+        // Notify the owner that someone wants to join.
+        await createNotification({
+          userId: String(project.owner),
+          type: 'join_requested',
+          actor: String(user._id),
+          projectId: String(project._id),
+        });
 
         return json({ message: 'Collaboration request sent successfully' });
       }),

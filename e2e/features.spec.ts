@@ -7,18 +7,36 @@ import { test, expect, type Page } from '@playwright/test';
 
 const EMAIL = process.env.E2E_EMAIL || 'e2e@codecollab.test';
 const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
+const EMAIL2 = process.env.E2E_EMAIL2 || 'e2e2@codecollab.test';
+
+/**
+ * Sign in via the form. Robust against slow hydration under parallel load: if the
+ * submit fires before React attaches (a native GET form submit puts creds in the
+ * URL and never reaches /dashboard), it waits longer and retries once.
+ */
+async function loginAs(page: Page, email: string, password: string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.goto('/login');
+    await page.waitForLoadState('load');
+    await page.locator('input[name="email"]').waitFor({ timeout: 15000 });
+    await page.waitForTimeout(attempt === 0 ? 600 : 1200); // allow hydration before interacting
+    await page.fill('input[name="email"]', email);
+    await page.fill('input[name="password"]', password);
+    try {
+      await Promise.all([
+        page.waitForURL('**/dashboard', { timeout: 10_000 }),
+        page.click('button[type="submit"]'),
+      ]);
+      return;
+    } catch (err) {
+      if (attempt === 1) throw err;
+      // likely a pre-hydration native submit; loop and try again (now hydrated).
+    }
+  }
+}
 
 async function login(page: Page) {
-  await page.goto('/login');
-  await page.waitForLoadState('load');
-  await page.locator('input[name="email"]').waitFor({ timeout: 15000 });
-  await page.waitForTimeout(600); // allow hydration before interacting
-  await page.fill('input[name="email"]', EMAIL);
-  await page.fill('input[name="password"]', PASSWORD);
-  await Promise.all([
-    page.waitForURL('**/dashboard', { timeout: 15_000 }),
-    page.click('button[type="submit"]'),
-  ]);
+  await loginAs(page, EMAIL, PASSWORD);
 }
 
 test.describe('dark mode', () => {
@@ -195,5 +213,38 @@ test.describe('member profile', () => {
     await expect(page).toHaveURL(/\/members\/[a-f0-9]{24}/i);
     // the profile page rendered (either the profile or a not-found for a private one)
     await expect(page.getByRole('link', { name: 'Members' }).first()).toBeVisible();
+  });
+});
+
+test.describe('notifications', () => {
+  test('a join request notifies the owner, who accepts it inline', async ({ page, context }) => {
+    // 1. Sign in as the requester (second seeded user) and request to join the
+    //    owner's seeded project via the API (shares the context's auth cookie).
+    await loginAs(page, EMAIL2, PASSWORD);
+
+    const projects = await page.request.get('/api/projects').then((r) => r.json());
+    const project = projects.find((p: { title: string }) => p.title === 'E2E Sample Project');
+    expect(project?._id).toBeTruthy();
+    // Clear any prior membership (idempotent across retries), then request to join.
+    await page.request.post(`/api/projects/${project._id}/leave`);
+    const req = await page.request.post(`/api/projects/${project._id}/collaborate`);
+    expect(req.ok()).toBeTruthy();
+
+    // 2. Switch to the owner (first seeded user, who owns the project).
+    await context.clearCookies();
+    await loginAs(page, EMAIL, PASSWORD);
+
+    // 3. The owner sees an unread bell badge, opens the feed, and accepts inline.
+    const bell = page.getByTestId('notification-bell');
+    await expect(bell).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('notification-badge')).toBeVisible({ timeout: 15_000 });
+
+    await bell.click();
+    const feed = page.getByTestId('notification-feed');
+    await expect(feed.getByText(/requested to join/i)).toBeVisible({ timeout: 10_000 });
+
+    await feed.getByRole('button', { name: /accept/i }).click();
+    // once handled, the request notification is marked read → inline actions vanish
+    await expect(feed.getByRole('button', { name: /accept/i })).toHaveCount(0, { timeout: 10_000 });
   });
 });

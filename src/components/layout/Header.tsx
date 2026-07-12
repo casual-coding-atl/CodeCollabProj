@@ -18,6 +18,7 @@ import { useMessages } from '../../hooks/users/useMessaging';
 import { useMyProfile } from '../../hooks/users';
 import Avatar from '../common/Avatar';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { CommandMenu } from '@/components/command/CommandMenu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -152,6 +153,9 @@ const Header: FC = () => {
                 </TooltipContent>
               </Tooltip>
             )}
+
+            {/* Bell shows on all viewports for signed-in users (self-hides otherwise) */}
+            <NotificationBell />
 
             <ThemeToggle />
 

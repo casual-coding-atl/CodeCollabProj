@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project } from '../server/models';
+import { createNotification } from '../server/notifications';
 
 /**
  * PUT /api/projects/$id/collaborate/$userId  →  projectController.handleCollaborationRequest
@@ -48,6 +49,14 @@ export const Route = createFileRoute('/api/projects/$id/collaborate/$userId')({
         }
 
         await project.save();
+
+        // Notify the requester of the owner's decision.
+        await createNotification({
+          userId: params.userId,
+          type: status === 'accepted' ? 'join_accepted' : 'join_rejected',
+          actor: String(user._id),
+          projectId: String(project._id),
+        });
 
         return json({ message: `Collaboration request ${status} successfully` });
       }),
