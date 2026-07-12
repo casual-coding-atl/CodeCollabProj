@@ -34,6 +34,9 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm run test:unit
+
   e2e:
     name: Critical E2E
     runs-on: ubuntu-latest
