@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ConfirmProvider } from '@/components/common/confirm';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
@@ -28,9 +29,11 @@ function RootComponent() {
       <ErrorBoundary>
         <ThemeProvider>
           <QueryClientProvider client={queryClient}>
-            <ConfirmProvider>
-              <Outlet />
-            </ConfirmProvider>
+            <TooltipProvider delayDuration={200}>
+              <ConfirmProvider>
+                <Outlet />
+              </ConfirmProvider>
+            </TooltipProvider>
             <Toaster richColors closeButton />
           </QueryClientProvider>
         </ThemeProvider>

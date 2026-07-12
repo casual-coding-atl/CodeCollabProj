@@ -1,6 +1,16 @@
 import React, { useState, useMemo, type ChangeEvent, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import AvatarGroup from '../common/AvatarGroup';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 import {
   Pencil,
   Trash2,
@@ -352,17 +362,39 @@ const ProjectDetail: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-5xl">
+      <Breadcrumb className="mb-4">
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <RouterLink to="/projects">Projects</RouterLink>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="max-w-[240px] truncate">
+              {currentProject?.title || 'Project'}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       {/* Page Title */}
       <div className="mb-8">
         <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
           <span className="text-brand-amber">//</span> project details
         </p>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Project Details</h1>
-        <p className="mt-1 text-sm text-muted-foreground">View and manage project information</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          {currentProject?.title || 'Project Details'}
+        </h1>
       </div>
 
-      <div className="grid gap-6">
+      <Tabs defaultValue="overview">
+        <TabsList className="mb-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="comments">Comments</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="grid gap-6">
         {/* Project Details */}
         <Card>
           <CardContent className="grid gap-6">
@@ -457,12 +489,28 @@ const ProjectDetail: React.FC = () => {
                       {new Date(currentProject.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <UserIcon className="size-4" />
                     <span>
                       <strong className="text-foreground">Collaborators:</strong>{' '}
                       {currentProject.collaborators?.length || 0}
                     </span>
+                    <AvatarGroup
+                      members={(currentProject.collaborators ?? [])
+                        .filter((c) => c.status === 'accepted')
+                        .map((c) => {
+                          const u = c.userId as unknown as {
+                            _id?: string;
+                            username?: string;
+                            profileImage?: string;
+                          };
+                          return {
+                            _id: u?._id,
+                            username: u?.username,
+                            profileImage: u?.profileImage,
+                          };
+                        })}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-2">
@@ -685,6 +733,9 @@ const ProjectDetail: React.FC = () => {
           </CardContent>
         </Card>
 
+        </TabsContent>
+
+        <TabsContent value="comments">
         {/* Comments Section */}
         <Card>
           <CardContent className="grid gap-4">
@@ -789,7 +840,8 @@ const ProjectDetail: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

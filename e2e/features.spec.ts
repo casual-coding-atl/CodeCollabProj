@@ -59,6 +59,8 @@ test.describe('toasts', () => {
     test.skip(!detail, 'no project available to comment on');
     await page.goto(detail!);
     await page.waitForLoadState('load');
+    // comments live under the Comments tab
+    await page.getByRole('tab', { name: /comments/i }).click();
 
     const body = `e2e comment ${Date.now()}`;
     const textarea = page.getByPlaceholder(/write a comment/i);
@@ -149,5 +151,26 @@ test.describe('members table', () => {
       await next.click();
       await expect(page.getByText(/page 2 of/i)).toBeVisible();
     }
+  });
+});
+
+test.describe('project detail tabs + breadcrumb', () => {
+  test('switch to Comments tab and show a breadcrumb', async ({ page }) => {
+    await login(page);
+    await page.goto('/projects');
+    await page.getByTestId('project-list').waitFor({ timeout: 20000 });
+    const hrefs = await page
+      .locator('a[href^="/projects/"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+    const detail = hrefs.find((h) => h && /^\/projects\/[a-f0-9]{24}$/i.test(h));
+    test.skip(!detail, 'no project available');
+    await page.goto(detail!);
+    // breadcrumb back to projects
+    await expect(page.getByRole('navigation', { name: /breadcrumb/i })).toBeVisible();
+    // tabs: comment form hidden until Comments tab is active
+    const overview = page.getByRole('tab', { name: /overview/i });
+    await expect(overview).toBeVisible();
+    await page.getByRole('tab', { name: /comments/i }).click();
+    await expect(page.getByPlaceholder(/write a comment/i)).toBeVisible();
   });
 });
