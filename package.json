@@ -8,7 +8,9 @@
     "build": "vite build",
     "start": "node server.mjs",
     "typecheck": "tsc --noEmit",
-    "serve": "node server.mjs"
+    "serve": "node server.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:seed": "node scripts/seed-e2e.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -23,12 +25,14 @@
     "bcryptjs": "^2.4.3",
     "date-fns": "^3.6.0",
     "dotenv": "^16.6.1",
+    "hono": "^4.12.29",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/react": "^19.0.0",
