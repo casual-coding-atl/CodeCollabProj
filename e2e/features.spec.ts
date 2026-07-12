@@ -25,6 +25,7 @@ test.describe('dark mode', () => {
   test('toggles the app to dark and persists across reload', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('load');
+    await page.waitForTimeout(600); // allow hydration before interacting (React attaches the click handler on hydrate)
 
     const html = page.locator('html');
     const toggle = page.getByTestId('theme-toggle');

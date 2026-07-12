@@ -32,6 +32,12 @@ export function toProjectQuery(state: ProjectFilterState): ProjectQuery {
 interface SortableProject {
   createdAt?: string | null;
   collaboratorCount?: number;
+  collaborators?: unknown[];
+}
+
+/** The /api/projects list returns a populated `collaborators` array, not a count. */
+function collabCount(p: SortableProject): number {
+  return p.collaboratorCount ?? (Array.isArray(p.collaborators) ? p.collaborators.length : 0);
 }
 
 /** Client-side sort (the API only sorts by createdAt desc). Returns a new array. Pure. */
@@ -42,7 +48,7 @@ export function sortProjects<T extends SortableProject>(list: T[], sort: Project
     case 'oldest':
       return copy.sort((a, b) => time(a) - time(b));
     case 'collaborators':
-      return copy.sort((a, b) => (b.collaboratorCount ?? 0) - (a.collaboratorCount ?? 0));
+      return copy.sort((a, b) => collabCount(b) - collabCount(a));
     case 'newest':
     default:
       return copy.sort((a, b) => time(b) - time(a));

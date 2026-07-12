@@ -746,39 +746,7 @@ const ProjectDetail: React.FC = () => {
                   </ul>
                 </div>
               )}
-
-            {/* Collaborators */}
-            {currentProject.collaborators &&
-              currentProject.collaborators.filter((c) => c.status === 'accepted').length > 0 && (
-                <div>
-                  <h3 className="mb-3 text-base font-semibold">Collaborators</h3>
-                  <ul className="grid gap-2">
-                    {currentProject.collaborators
-                      .filter((collaborator) => collaborator.status === 'accepted')
-                      .map((collaborator) => (
-                        <li
-                          key={collaborator._id || getUserId(collaborator.userId)}
-                          className="flex items-center gap-3 rounded-lg border border-border p-3"
-                        >
-                          <Avatar>
-                            <AvatarFallback>
-                              {getCollaboratorUsername(collaborator)[0] || 'C'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-foreground">
-                              {getCollaboratorUsername(collaborator)}
-                            </p>
-                            <p className="truncate text-sm text-muted-foreground">
-                              {getCollaboratorEmail(collaborator)}
-                            </p>
-                          </div>
-                          <Badge>Accepted</Badge>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
+            {/* Accepted collaborators live in the dedicated Collaborators tab — not duplicated here. */}
           </CardContent>
         </Card>
 

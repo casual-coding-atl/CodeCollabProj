@@ -58,7 +58,9 @@ const DEFAULT_STATE: ProjectFilterState = {
 };
 
 function readFiltersFromUrl(): ProjectFilterState {
-  if (typeof window === 'undefined') return { ...DEFAULT_STATE };
+  // import.meta.env.SSR is the reliable SSR signal — the Nitro/unenv runtime
+  // shims `window` with a throwing stub, so `typeof window` is not safe here.
+  if (import.meta.env.SSR) return { ...DEFAULT_STATE };
   const sp = new URLSearchParams(window.location.search);
   return {
     search: sp.get('q') ?? '',
@@ -82,7 +84,7 @@ const ProjectList: React.FC = () => {
   const patch = (partial: Partial<ProjectFilterState>): void => {
     setState((prev) => {
       const next = { ...prev, ...partial };
-      if (typeof window !== 'undefined') {
+      if (!import.meta.env.SSR) {
         const sp = new URLSearchParams();
         if (next.search) sp.set('q', next.search);
         if (next.status && next.status !== 'all') sp.set('status', next.status);
@@ -98,7 +100,7 @@ const ProjectList: React.FC = () => {
 
   const clearFilters = (): void => {
     setState({ ...DEFAULT_STATE });
-    if (typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+    if (!import.meta.env.SSR) window.history.replaceState(null, '', window.location.pathname);
   };
 
   const hasActiveFilters =
@@ -108,23 +110,44 @@ const ProjectList: React.FC = () => {
     !!state.featured ||
     (state.sort && state.sort !== 'newest');
 
+  // Server-side filters (status/tech/featured) change infrequently, so they
+  // drive the query. Free-text search is applied CLIENT-SIDE over the loaded
+  // list (title/description/technologies) — no per-keystroke refetch, and the
+  // full match coverage the previous list had.
   const filters = useMemo(
-    () => toProjectQuery(state) as ProjectFilters,
-    [state.search, state.status, state.technology, state.featured]
+    () =>
+      toProjectQuery({
+        status: state.status,
+        technology: state.technology,
+        featured: state.featured,
+      }) as ProjectFilters,
+    [state.status, state.technology, state.featured]
   );
 
   const { data: projects = [], isLoading, error, refetch } = useProjects(filters);
   const typed = projects as unknown as ProjectWithId[];
-  const displayProjects = useMemo(
-    () => sortProjects(typed, state.sort ?? 'newest'),
-    [typed, state.sort]
-  );
+
+  const displayProjects = useMemo(() => {
+    const q = state.search?.trim().toLowerCase() ?? '';
+    const matched = q
+      ? typed.filter(
+          (p) =>
+            p.title?.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q) ||
+            p.technologies?.some((t) => t.toLowerCase().includes(q))
+        )
+      : typed;
+    return sortProjects(matched, state.sort ?? 'newest');
+  }, [typed, state.search, state.sort]);
 
   useEffect(() => {
-    if (window.location.hash) {
-      const id = window.location.hash.replace('#', '');
-      setTimeout(() => projectRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
-    }
+    if (import.meta.env.SSR || !window.location.hash) return;
+    const id = window.location.hash.replace('#', '');
+    const t = setTimeout(
+      () => projectRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      200
+    );
+    return () => clearTimeout(t);
   }, [projects]);
 
   const header = (

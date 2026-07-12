@@ -46,6 +46,29 @@ interface ProjectWithId {
 const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
 const PER_PAGE = 10;
 
+function SortHeader({
+  label,
+  k,
+  onSort,
+}: {
+  label: string;
+  k: keyof UserWithId;
+  onSort: (key: keyof UserWithId) => void;
+}) {
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className="inline-flex items-center gap-1 hover:text-foreground"
+      >
+        {label}
+        <ArrowUpDown className="size-3" />
+      </button>
+    </TableHead>
+  );
+}
+
 const Members: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithId | null>(null);
@@ -59,9 +82,15 @@ const Members: React.FC = () => {
     error: usersError,
     refetch: refetchUsers,
   } = useUsers();
-  const { data: projects = [], isLoading: projectsLoading, refetch: refetchProjects } = useProjects();
+  const {
+    data: projects = [],
+    isLoading: projectsLoading,
+    error: projectsError,
+    refetch: refetchProjects,
+  } = useProjects();
 
   const loading = usersLoading || projectsLoading;
+  const loadError = usersError || projectsError;
   const typedUsers = users as unknown as UserWithId[];
   const typedProjects = projects as unknown as ProjectWithId[];
 
@@ -93,19 +122,6 @@ const Members: React.FC = () => {
     setPage(1);
   };
 
-  const SortHeader = ({ label, k }: { label: string; k: keyof UserWithId }) => (
-    <TableHead>
-      <button
-        type="button"
-        onClick={() => toggleSort(k)}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        {label}
-        <ArrowUpDown className="size-3" />
-      </button>
-    </TableHead>
-  );
-
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -120,12 +136,12 @@ const Members: React.FC = () => {
     );
   }
 
-  if (usersError) {
+  if (loadError) {
     return (
       <div className="mx-auto max-w-6xl">
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Error loading members</AlertTitle>
-          <AlertDescription>{(usersError as Error)?.message || 'Failed to load members'}</AlertDescription>
+          <AlertDescription>{(loadError as Error)?.message || 'Failed to load members'}</AlertDescription>
         </Alert>
         <Button
           onClick={() => {
@@ -151,8 +167,8 @@ const Members: React.FC = () => {
         <Table data-testid="members-table">
           <TableHeader>
             <TableRow>
-              <SortHeader label="Member" k="username" />
-              <SortHeader label="Experience" k="experience" />
+              <SortHeader label="Member" k="username" onSort={toggleSort} />
+              <SortHeader label="Experience" k="experience" onSort={toggleSort} />
               <TableHead>Skills</TableHead>
               <TableHead>Projects</TableHead>
               <TableHead className="text-right">Message</TableHead>

@@ -740,7 +740,10 @@ const Profile: React.FC = () => {
           <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview">
+        {/* forceMount keeps the edit form mounted across tab switches — Radix hides
+            it with the `hidden` attribute when inactive, so in-progress edits survive
+            a trip to the Projects/Activity tabs instead of being reset on remount. */}
+        <TabsContent value="overview" forceMount className="data-[state=inactive]:hidden">
           <ProfileForm
             profile={typedProfile}
             profileError={profileError}
