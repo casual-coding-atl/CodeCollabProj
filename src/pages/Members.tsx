@@ -1,29 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Container,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Alert,
-  Button,
-  Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  IconButton,
-} from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { Message as MessageIcon, Close as CloseIcon } from '@mui/icons-material';
+import { MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useUsers } from '../hooks/users';
 import { useProjects } from '../hooks/projects';
 import MessageForm from '../components/messaging/MessageForm';
 import Avatar from '../components/common/Avatar';
-import { MembersTableSkeleton } from '../components/common/Skeletons';
 import type { User } from '../types';
 
 // API response types - standalone interfaces to handle _id fields
@@ -64,6 +56,8 @@ interface ProjectWithId {
       | string;
   }>;
 }
+
+const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
 
 const Members: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
@@ -128,45 +122,49 @@ const Members: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Members
-        </Typography>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Username</TableCell>
-                <TableCell>Skills</TableCell>
-                <TableCell>Experience</TableCell>
-                <TableCell>Availability</TableCell>
-                <TableCell>Project Name(s)</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <MembersTableSkeleton count={5} />
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Container>
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <p className={metaLabel}>the group</p>
+        <h1 className="mb-6 text-3xl font-bold tracking-tight text-foreground">Members</h1>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-10 rounded-full" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
+                <div className="flex gap-1.5 pt-1">
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-8 w-24 rounded-md" />
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Error Loading Members
-          </Typography>
-          {(error as Error & { response?: { data?: { message?: string } } })?.response?.data
-            ?.message ||
-            (error as Error)?.message ||
-            'Failed to load members data'}
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error Loading Members</AlertTitle>
+          <AlertDescription>
+            {(error as Error & { response?: { data?: { message?: string } } })?.response?.data
+              ?.message ||
+              (error as Error)?.message ||
+              'Failed to load members data'}
+          </AlertDescription>
         </Alert>
         <Button
-          variant="contained"
           onClick={() => {
             refetchUsers();
             refetchProjects();
@@ -174,92 +172,101 @@ const Members: React.FC = () => {
         >
           Try Again
         </Button>
-      </Container>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Members
-      </Typography>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Member</TableCell>
-              <TableCell>Skills</TableCell>
-              <TableCell>Experience</TableCell>
-              <TableCell>Availability</TableCell>
-              <TableCell>Project Name(s)</TableCell>
-              <TableCell align="center">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {typedUsers.map((user) => {
-              const userProjects = getUserProjects(user._id);
-              return (
-                <TableRow key={user._id}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <Avatar user={user} size="sm" />
-                      <Typography variant="body2" fontWeight={500}>
-                        {user.username}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    {user.skills && user.skills.length > 0 ? user.skills.join(', ') : '—'}
-                  </TableCell>
-                  <TableCell>{user.experience ? user.experience : '—'}</TableCell>
-                  <TableCell>{user.availability ? user.availability : '—'}</TableCell>
-                  <TableCell>
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <p className={metaLabel}>the group</p>
+      <h1 className="mb-6 text-3xl font-bold tracking-tight text-foreground">Members</h1>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {typedUsers.map((user) => {
+          const userProjects = getUserProjects(user._id);
+          return (
+            <Card key={user._id} className="flex flex-col transition-colors hover:border-primary/40">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Avatar user={user} size="md" />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{user.username}</p>
+                    {user.experience && (
+                      <Badge variant="secondary" className="mt-1 font-mono text-[10px] uppercase tracking-wide">
+                        {user.experience}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="flex-1 space-y-4 text-sm">
+                <div>
+                  <p className={metaLabel}>Skills</p>
+                  {user.skills && user.skills.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {user.skills.map((skill) => (
+                        <Badge key={skill} variant="outline">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-muted-foreground">—</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className={metaLabel}>Availability</p>
+                  <p className="mt-1 text-foreground">{user.availability ? user.availability : '—'}</p>
+                </div>
+
+                <div>
+                  <p className={metaLabel}>Project Name(s)</p>
+                  <p className="mt-1">
                     {userProjects.length > 0
                       ? userProjects.map((p, idx) => (
                           <span key={p._id}>
-                            <Typography
-                              variant="h6"
-                              component={RouterLink}
+                            <RouterLink
                               to={`/projects#${p._id}`}
-                              style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 500 }}
-                              gutterBottom
+                              className="font-medium text-primary underline-offset-4 hover:underline"
                             >
                               {p.title}
-                            </Typography>
+                            </RouterLink>
                             {idx < userProjects.length - 1 && ', '}
                           </span>
                         ))
-                      : '—'}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<MessageIcon />}
-                      onClick={() => handleMessageUser(user)}
-                      sx={{ minWidth: 'auto' }}
-                    >
-                      Message
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                      : <span className="text-muted-foreground">—</span>}
+                  </p>
+                </div>
+              </CardContent>
+
+              <CardFooter>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMessageUser(user)}
+                >
+                  <MessageSquare className="size-4" />
+                  Message
+                </Button>
+              </CardFooter>
+            </Card>
+          );
+        })}
+      </div>
 
       {/* Message Form Dialog */}
-      <Dialog open={showMessageForm} onClose={handleCloseMessageForm} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box display="flex" justifyContent="between" alignItems="center">
-            Send Message to {selectedUser?.username}
-            <IconButton onClick={handleCloseMessageForm} sx={{ ml: 'auto' }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={showMessageForm}
+        onOpenChange={(open) => {
+          if (!open) handleCloseMessageForm();
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Send Message to {selectedUser?.username}</DialogTitle>
+          </DialogHeader>
           {selectedUser && (
             <MessageForm
               recipientId={selectedUser._id}
@@ -270,7 +277,7 @@ const Members: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 

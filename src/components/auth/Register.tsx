@@ -1,16 +1,11 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Link,
-  Box,
-  Alert,
-  AlertTitle,
-} from '@mui/material';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuth, useRegister } from '../../hooks/auth';
 import type { RegisterFormData } from '../../types/forms';
 
@@ -138,132 +133,150 @@ const Register: React.FC = () => {
 
   if (registrationSuccess) {
     return (
-      <Container maxWidth="sm">
-        <Box sx={{ mt: 8, mb: 4 }}>
-          <Paper elevation={3} sx={{ p: 4 }}>
-            <Alert severity="success" sx={{ mb: 3 }}>
-              <AlertTitle>Registration Successful!</AlertTitle>
-              We&apos;ve sent a verification email to <strong>{formData.email}</strong>. Please
-              check your inbox and click the verification link to activate your account.
-            </Alert>
+      <div className="px-4 py-12">
+        <Card className="mx-auto w-full max-w-md">
+          <CardHeader className="text-center">
+            <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              welcome aboard
+            </p>
+            <CardTitle className="text-2xl">Registration Successful!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              role="alert"
+              className="mb-4 flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary"
+            >
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              <span>
+                We&apos;ve sent a verification email to <strong>{formData.email}</strong>. Please
+                check your inbox and click the verification link to activate your account.
+              </span>
+            </div>
 
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <p className="mb-4 text-sm text-muted-foreground">
               If you don&apos;t see the email, please check your spam folder. You can also request a
               new verification email from the login page.
-            </Typography>
+            </p>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Button
-                component={RouterLink}
-                to="/login"
-                variant="contained"
-                color="primary"
-                size="large"
-              >
-                Go to Login
-              </Button>
-            </Box>
-          </Paper>
-        </Box>
-      </Container>
+            <Button asChild className="w-full" size="lg">
+              <RouterLink to="/login">Go to Login</RouterLink>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" align="center" gutterBottom>
-            Register
-          </Typography>
-
+    <div className="px-4 py-12">
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader className="text-center">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            create your account
+          </p>
+          <CardTitle className="text-2xl">Register</CardTitle>
+        </CardHeader>
+        <CardContent>
           {registerMutation.error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {getErrorMessage()}
-            </Alert>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              error={!!formErrors.username}
-              helperText={formErrors.username}
-              margin="normal"
-              required
-            />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+                aria-invalid={!!formErrors.username}
+                className={cn(formErrors.username && 'border-destructive')}
+              />
+              {formErrors.username && (
+                <p className="text-xs text-destructive">{formErrors.username}</p>
+              )}
+            </div>
 
-            <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              error={!!formErrors.email}
-              helperText={formErrors.email}
-              margin="normal"
-              required
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                aria-invalid={!!formErrors.email}
+                className={cn(formErrors.email && 'border-destructive')}
+              />
+              {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
+            </div>
 
-            <TextField
-              fullWidth
-              label="Password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              error={!!formErrors.password}
-              helperText={formErrors.password}
-              margin="normal"
-              required
-              inputProps={{ 'data-testid': 'password-input' }}
-              // @ts-ignore - data-testid is valid DOM attribute but missing from MUI types
-              FormHelperTextProps={
-                { 'data-testid': formErrors.password ? 'password-error' : undefined } as any
-              }
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                data-testid="password-input"
+                aria-invalid={!!formErrors.password}
+                className={cn(formErrors.password && 'border-destructive')}
+              />
+              {formErrors.password && (
+                <p data-testid="password-error" className="text-xs text-destructive">
+                  {formErrors.password}
+                </p>
+              )}
+            </div>
 
-            <TextField
-              fullWidth
-              label="Confirm Password"
-              name="confirmPassword"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              error={!!formErrors.confirmPassword}
-              helperText={formErrors.confirmPassword}
-              margin="normal"
-              required
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                aria-invalid={!!formErrors.confirmPassword}
+                className={cn(formErrors.confirmPassword && 'border-destructive')}
+              />
+              {formErrors.confirmPassword && (
+                <p className="text-xs text-destructive">{formErrors.confirmPassword}</p>
+              )}
+            </div>
 
             <Button
               type="submit"
-              fullWidth
-              variant="contained"
-              color="primary"
-              size="large"
+              className="w-full"
+              size="lg"
               disabled={registerMutation.isPending}
-              sx={{ mt: 3 }}
             >
-              {registerMutation.isPending ? 'Registering...' : 'Register'}
+              {registerMutation.isPending ? 'Registering…' : 'Register'}
             </Button>
           </form>
 
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Typography variant="body2">
-              Already have an account?{' '}
-              <Link component={RouterLink} to="/login">
-                Login here
-              </Link>
-            </Typography>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+          <p className="mt-5 text-center text-sm text-muted-foreground">
+            Already have an account?{' '}
+            <RouterLink
+              to="/login"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Login here
+            </RouterLink>
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

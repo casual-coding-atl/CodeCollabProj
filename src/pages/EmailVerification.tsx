@@ -1,15 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  Box,
-  Alert,
-  AlertTitle,
-  Button,
-  CircularProgress,
-} from '@mui/material';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import api from '../utils/api';
 
 type VerificationStatus = 'verifying' | 'success' | 'error';
@@ -79,26 +72,38 @@ const EmailVerification: React.FC = () => {
     switch (status) {
       case 'verifying':
         return (
-          <Box sx={{ textAlign: 'center' }}>
-            <CircularProgress sx={{ mb: 2 }} />
-            <Typography variant="h6">Verifying your email...</Typography>
-          </Box>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-base font-medium">Verifying your email...</p>
+          </div>
         );
 
       case 'success':
         return (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            <AlertTitle>Email Verified Successfully!</AlertTitle>
-            {message}
-          </Alert>
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary"
+          >
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-medium">Email Verified Successfully!</p>
+              <p className="text-primary/90">{message}</p>
+            </div>
+          </div>
         );
 
       case 'error':
         return (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            <AlertTitle>Verification Failed</AlertTitle>
-            {message}
-          </Alert>
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            <XCircle className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-medium">Verification Failed</p>
+              <p className="text-destructive/90">{message}</p>
+            </div>
+          </div>
         );
 
       default:
@@ -107,30 +112,25 @@ const EmailVerification: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" align="center" gutterBottom>
-            Email Verification
-          </Typography>
-
+    <div className="px-4 py-12">
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader className="text-center">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            account activation
+          </p>
+          <CardTitle className="text-2xl">Email Verification</CardTitle>
+        </CardHeader>
+        <CardContent>
           {getContent()}
 
           {(status === 'success' || status === 'error') && (
-            <Box sx={{ textAlign: 'center' }}>
-              <Button
-                onClick={() => navigate('/login')}
-                variant="contained"
-                color="primary"
-                size="large"
-              >
-                Go to Login
-              </Button>
-            </Box>
+            <Button onClick={() => navigate('/login')} className="mt-4 w-full" size="lg">
+              Go to Login
+            </Button>
           )}
-        </Paper>
-      </Box>
-    </Container>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

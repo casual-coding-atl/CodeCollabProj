@@ -1,30 +1,26 @@
 import React from 'react';
 import {
-  Box,
-  Grid,
-  Paper,
-  Typography,
-  CircularProgress,
-  Alert,
-  Card,
-  CardContent,
-  Chip,
-} from '@mui/material';
-import {
-  People as PeopleIcon,
-  FolderOpen as ProjectIcon,
-  Comment as CommentIcon,
-  Security as SecurityIcon,
-  TrendingUp as TrendingUpIcon,
-  AdminPanelSettings as AdminIcon,
-} from '@mui/icons-material';
+  Users,
+  FolderOpen,
+  MessageSquare,
+  Shield,
+  TrendingUp,
+  ShieldCheck,
+  Loader2,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import { useAdminDashboard } from '../../hooks/admin';
+
+type StatColor = 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info';
 
 interface StatCardProps {
   title: string;
   value: number | string;
   icon: React.ReactNode;
-  color?: 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info';
+  color?: StatColor;
   subtitle?: string;
 }
 
@@ -52,25 +48,33 @@ interface AdminStats {
   };
 }
 
+const iconTileColors: Record<StatColor, string> = {
+  primary: 'bg-primary/10 text-primary',
+  secondary: 'bg-muted text-muted-foreground',
+  success: 'bg-primary/10 text-primary',
+  info: 'bg-primary/10 text-primary',
+  warning: 'bg-brand-amber/10 text-brand-amber',
+  error: 'bg-destructive/10 text-destructive',
+};
+
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color = 'primary', subtitle }) => (
   <Card>
-    <CardContent>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography color="textSecondary" gutterBottom variant="h6">
-            {title}
-          </Typography>
-          <Typography variant="h4" component="div">
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="body2" color="textSecondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-        <Box sx={{ color: `${color}.main` }}>{icon}</Box>
-      </Box>
+    <CardContent className="flex items-center justify-between">
+      <div className="space-y-1">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+          {title}
+        </p>
+        <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
+        {subtitle && <p className="font-mono text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+      <div
+        className={cn(
+          'flex size-12 shrink-0 items-center justify-center rounded-lg',
+          iconTileColors[color]
+        )}
+      >
+        {icon}
+      </div>
     </CardContent>
   </Card>
 );
@@ -80,191 +84,178 @@ const AdminDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
   if (isError) {
     return (
-      <Box p={3}>
-        <Alert severity="error">
-          Failed to load dashboard data: {(error as Error)?.message || 'Unknown error'}
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertDescription>
+            Failed to load dashboard data: {(error as Error)?.message || 'Unknown error'}
+          </AlertDescription>
         </Alert>
-      </Box>
+      </div>
     );
   }
 
   const typedStats = stats as AdminStats | undefined;
 
+  const regularUsers =
+    (typedStats?.users?.total || 0) -
+    (typedStats?.users?.admins || 0) -
+    (typedStats?.users?.moderators || 0);
+
   return (
-    <Box p={3}>
+    <div className="p-6">
       {/* Header */}
-      <Box mb={3}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Admin Dashboard
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          System overview and key metrics
-        </Typography>
-      </Box>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Admin Dashboard</h1>
+        <p className="mt-1 text-muted-foreground">System overview and key metrics</p>
+      </div>
 
-      {/* Stats Grid */}
-      <Grid container spacing={3}>
-        {/* User Statistics */}
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Users"
-            value={typedStats?.users?.total || 0}
-            icon={<PeopleIcon sx={{ fontSize: 40 }} />}
-            color="primary"
-            subtitle={`${typedStats?.users?.newThisWeek || 0} new this week`}
-          />
-        </Grid>
+      {/* Stat tiles */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <StatCard
+          title="Total Users"
+          value={typedStats?.users?.total || 0}
+          icon={<Users className="size-6" />}
+          color="primary"
+          subtitle={`${typedStats?.users?.newThisWeek || 0} new this week`}
+        />
+        <StatCard
+          title="Active Users"
+          value={typedStats?.users?.active || 0}
+          icon={<TrendingUp className="size-6" />}
+          color="success"
+          subtitle={`${typedStats?.users?.suspended || 0} suspended`}
+        />
+        <StatCard
+          title="Total Projects"
+          value={typedStats?.content?.projects?.total || 0}
+          icon={<FolderOpen className="size-6" />}
+          color="info"
+          subtitle={`${typedStats?.content?.projects?.active || 0} active`}
+        />
+        <StatCard
+          title="Active Sessions"
+          value={typedStats?.system?.activeSessions || 0}
+          icon={<Shield className="size-6" />}
+          color="warning"
+        />
+      </div>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Active Users"
-            value={typedStats?.users?.active || 0}
-            icon={<TrendingUpIcon sx={{ fontSize: 40 }} />}
-            color="success"
-            subtitle={`${typedStats?.users?.suspended || 0} suspended`}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Total Projects"
-            value={typedStats?.content?.projects?.total || 0}
-            icon={<ProjectIcon sx={{ fontSize: 40 }} />}
-            color="info"
-            subtitle={`${typedStats?.content?.projects?.active || 0} active`}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Active Sessions"
-            value={typedStats?.system?.activeSessions || 0}
-            icon={<SecurityIcon sx={{ fontSize: 40 }} />}
-            color="warning"
-          />
-        </Grid>
-
+      {/* Roles + Content overview */}
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* User Roles Breakdown */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              User Roles
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <AdminIcon color="error" />
-                  <Typography>Administrators</Typography>
-                </Box>
-                <Chip label={typedStats?.users?.admins || 0} color="error" />
-              </Box>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">User Roles</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-destructive" />
+                <span className="text-sm">Administrators</span>
+              </div>
+              <Badge variant="destructive" className="font-mono">
+                {typedStats?.users?.admins || 0}
+              </Badge>
+            </div>
 
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <SecurityIcon color="warning" />
-                  <Typography>Moderators</Typography>
-                </Box>
-                <Chip label={typedStats?.users?.moderators || 0} color="warning" />
-              </Box>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="size-4 text-brand-amber" />
+                <span className="text-sm">Moderators</span>
+              </div>
+              <Badge className="bg-brand-amber font-mono text-brand-amber-foreground hover:bg-brand-amber/90">
+                {typedStats?.users?.moderators || 0}
+              </Badge>
+            </div>
 
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <PeopleIcon color="primary" />
-                  <Typography>Regular Users</Typography>
-                </Box>
-                <Chip
-                  label={
-                    (typedStats?.users?.total || 0) -
-                    (typedStats?.users?.admins || 0) -
-                    (typedStats?.users?.moderators || 0)
-                  }
-                  color="primary"
-                />
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="size-4 text-primary" />
+                <span className="text-sm">Regular Users</span>
+              </div>
+              <Badge className="font-mono">{regularUsers}</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Content Statistics */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Content Overview
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <ProjectIcon color="info" />
-                  <Typography>Total Projects</Typography>
-                </Box>
-                <Typography variant="h6">{typedStats?.content?.projects?.total || 0}</Typography>
-              </Box>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Content Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="size-4 text-primary" />
+                <span className="text-sm">Total Projects</span>
+              </div>
+              <span className="font-mono text-base font-semibold">
+                {typedStats?.content?.projects?.total || 0}
+              </span>
+            </div>
 
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <TrendingUpIcon color="success" />
-                  <Typography>Active Projects</Typography>
-                </Box>
-                <Typography variant="h6">{typedStats?.content?.projects?.active || 0}</Typography>
-              </Box>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="size-4 text-primary" />
+                <span className="text-sm">Active Projects</span>
+              </div>
+              <span className="font-mono text-base font-semibold">
+                {typedStats?.content?.projects?.active || 0}
+              </span>
+            </div>
 
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <CommentIcon color="primary" />
-                  <Typography>Total Comments</Typography>
-                </Box>
-                <Typography variant="h6">{typedStats?.content?.comments?.total || 0}</Typography>
-              </Box>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="size-4 text-primary" />
+                <span className="text-sm">Total Comments</span>
+              </div>
+              <span className="font-mono text-base font-semibold">
+                {typedStats?.content?.comments?.total || 0}
+              </span>
+            </div>
 
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2" color="textSecondary">
-                  New projects this week
-                </Typography>
-                <Chip
-                  label={typedStats?.content?.projects?.newThisWeek || 0}
-                  size="small"
-                  color="info"
-                />
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">New projects this week</span>
+              <Badge variant="outline" className="font-mono">
+                {typedStats?.content?.projects?.newThisWeek || 0}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Activity Summary
-            </Typography>
-            <Box display="flex" gap={2} flexWrap="wrap">
-              <Chip
-                label={`${typedStats?.users?.newThisWeek || 0} new users this week`}
-                color="primary"
-                variant="outlined"
-              />
-              <Chip
-                label={`${typedStats?.content?.projects?.newThisWeek || 0} new projects this week`}
-                color="info"
-                variant="outlined"
-              />
-              <Chip
-                label={`${typedStats?.users?.suspended || 0} suspended accounts`}
-                color={(typedStats?.users?.suspended || 0) > 0 ? 'warning' : 'default'}
-                variant="outlined"
-              />
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Box>
+      {/* Recent Activity Summary */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-base">Recent Activity Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="font-mono">
+            {typedStats?.users?.newThisWeek || 0} new users this week
+          </Badge>
+          <Badge variant="outline" className="font-mono">
+            {typedStats?.content?.projects?.newThisWeek || 0} new projects this week
+          </Badge>
+          <Badge
+            variant="outline"
+            className={cn(
+              'font-mono',
+              (typedStats?.users?.suspended || 0) > 0 && 'border-brand-amber/40 text-brand-amber'
+            )}
+          >
+            {typedStats?.users?.suspended || 0} suspended accounts
+          </Badge>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

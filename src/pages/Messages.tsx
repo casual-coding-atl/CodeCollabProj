@@ -1,24 +1,15 @@
 import React, { useState } from 'react';
+import { Plus, Inbox, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Box,
-  Container,
-  Typography,
-  Tabs,
-  Tab,
-  Button,
   Dialog,
-  DialogTitle,
   DialogContent,
-  IconButton,
-  Alert,
-  Badge,
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Close as CloseIcon,
-  Inbox as InboxIcon,
-  Send as SendIcon,
-} from '@mui/icons-material';
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useMessages, useDeleteMessage } from '../hooks/users/useMessaging';
 import MessageList from '../components/messaging/MessageList';
 import MessageForm from '../components/messaging/MessageForm';
@@ -71,8 +62,8 @@ const Messages: React.FC = () => {
     },
   });
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number): void => {
-    setActiveTab(newValue);
+  const handleTabChange = (value: string): void => {
+    setActiveTab(value === 'inbox' ? 0 : 1);
     setSelectedMessage(null);
   };
 
@@ -137,49 +128,60 @@ const Messages: React.FC = () => {
 
   if (selectedMessage) {
     return (
-      <Container maxWidth="md" sx={{ py: 3 }}>
+      <div className="mx-auto max-w-3xl px-4 py-6">
         <MessageThread
           message={selectedMessage}
           onBack={handleBackToList}
           onReply={handleReplyMessage}
           onDelete={handleDeleteMessage}
         />
-      </Container>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <div className="mx-auto max-w-5xl px-4 py-6">
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Messages
-        </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleComposeMessage}>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            your inbox
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Messages</h1>
+        </div>
+        <Button onClick={handleComposeMessage}>
+          <Plus className="size-4" />
           Compose Message
         </Button>
-      </Box>
+      </div>
 
       {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange}>
-          <Tab
-            icon={
-              <Badge badgeContent={getUnreadCount()} color="primary">
-                <InboxIcon />
+      <Tabs
+        value={activeTab === 0 ? 'inbox' : 'sent'}
+        onValueChange={handleTabChange}
+        className="mb-6"
+      >
+        <TabsList>
+          <TabsTrigger value="inbox">
+            <Inbox className="size-4" />
+            Inbox
+            {getUnreadCount() > 0 && (
+              <Badge className="ml-1 h-5 min-w-5 justify-center bg-brand-amber px-1 text-brand-amber-foreground hover:bg-brand-amber">
+                {getUnreadCount()}
               </Badge>
-            }
-            label="Inbox"
-            iconPosition="start"
-          />
-          <Tab icon={<SendIcon />} label="Sent" iconPosition="start" />
-        </Tabs>
-      </Box>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="sent">
+            <Send className="size-4" />
+            Sent
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Error handling */}
       {getCurrentError() && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Failed to load messages: {getCurrentError()?.message}
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>Failed to load messages: {getCurrentError()?.message}</AlertDescription>
         </Alert>
       )}
 
@@ -193,31 +195,31 @@ const Messages: React.FC = () => {
       />
 
       {/* Compose Message Dialog */}
-      <Dialog open={showCompose} onClose={handleCloseCompose} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box display="flex" justifyContent="between" alignItems="center">
-            Compose New Message
-            <IconButton onClick={handleCloseCompose} sx={{ ml: 'auto' }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={showCompose}
+        onOpenChange={(open) => {
+          if (!open) handleCloseCompose();
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Compose New Message</DialogTitle>
+          </DialogHeader>
           <MessageForm onSuccess={handleComposeSuccess} onCancel={handleCloseCompose} />
         </DialogContent>
       </Dialog>
 
       {/* Reply Message Dialog */}
-      <Dialog open={showReply} onClose={handleCloseReply} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box display="flex" justifyContent="between" alignItems="center">
-            Reply to Message
-            <IconButton onClick={handleCloseReply} sx={{ ml: 'auto' }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={showReply}
+        onOpenChange={(open) => {
+          if (!open) handleCloseReply();
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Reply to Message</DialogTitle>
+          </DialogHeader>
           <MessageForm
             replyToMessage={replyToMessage as unknown as Message}
             recipientId={replyToMessage?.sender?._id}
@@ -227,7 +229,7 @@ const Messages: React.FC = () => {
           />
         </DialogContent>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 

@@ -1,21 +1,5 @@
-import React, { useState, type FormEvent, type ChangeEvent } from 'react';
-import {
-  Box,
-  Typography,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  IconButton,
-  Paper,
-  Divider,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, Send as SendIcon } from '@mui/icons-material';
+import React, { useState, type FormEvent } from 'react';
+import { Pencil, Trash2, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
 import {
   useComments,
@@ -23,27 +7,26 @@ import {
   useUpdateComment,
   useDeleteComment,
 } from '../../hooks/comments';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import type { Comment } from '../../types';
 
-// Props interface
 interface CommentsProps {
   projectId: string;
 }
 
-// Extended Comment type for API responses with author data
 interface CommentApiResponse extends Omit<Comment, 'id' | 'userId'> {
   _id: string;
-  author: {
-    _id: string;
-    name: string;
-    avatar?: string;
-  };
+  author: { _id: string; name: string; avatar?: string };
   content: string;
   createdAt: string;
 }
 
 const Comments: React.FC<CommentsProps> = ({ projectId }) => {
-  // Auth and data fetching
   const { user } = useAuth();
   const {
     data: comments = [],
@@ -57,12 +40,10 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
     refetch: () => void;
   };
 
-  // Mutations
   const createCommentMutation = useCreateComment();
   const updateCommentMutation = useUpdateComment();
   const deleteCommentMutation = useDeleteComment();
 
-  // Local state
   const [newComment, setNewComment] = useState<string>('');
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
@@ -71,18 +52,13 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
     e.preventDefault();
     if (newComment.trim()) {
       createCommentMutation.mutate(
-        {
-          projectId,
-          content: newComment,
-        },
+        { projectId, content: newComment },
         {
           onSuccess: (data) => {
             console.log('✅ Comment added successfully:', data);
             setNewComment('');
           },
-          onError: (error) => {
-            console.error('❌ Failed to add comment:', error);
-          },
+          onError: (error) => console.error('❌ Failed to add comment:', error),
         }
       );
     }
@@ -91,22 +67,14 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
   const handleUpdateComment = (commentId: string): void => {
     if (editContent.trim()) {
       updateCommentMutation.mutate(
-        {
-          commentId,
-          commentData: {
-            projectId,
-            content: editContent,
-          },
-        },
+        { commentId, commentData: { projectId, content: editContent } },
         {
           onSuccess: (data) => {
             console.log('✅ Comment updated successfully:', data);
             setEditingComment(null);
             setEditContent('');
           },
-          onError: (error) => {
-            console.error('❌ Failed to update comment:', error);
-          },
+          onError: (error) => console.error('❌ Failed to update comment:', error),
         }
       );
     }
@@ -115,17 +83,10 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
   const handleDeleteComment = (commentId: string): void => {
     if (window.confirm('Are you sure you want to delete this comment?')) {
       deleteCommentMutation.mutate(
+        { projectId, commentId },
         {
-          projectId,
-          commentId,
-        },
-        {
-          onSuccess: (data) => {
-            console.log('✅ Comment deleted successfully:', data);
-          },
-          onError: (error) => {
-            console.error('❌ Failed to delete comment:', error);
-          },
+          onSuccess: (data) => console.log('✅ Comment deleted successfully:', data),
+          onError: (error) => console.error('❌ Failed to delete comment:', error),
         }
       );
     }
@@ -141,155 +102,159 @@ const Comments: React.FC<CommentsProps> = ({ projectId }) => {
     setEditContent('');
   };
 
-  // Get the current user's ID, handling both 'id' and '_id' formats
   const getCurrentUserId = (): string | undefined => {
     if (!user) return undefined;
     return user.id || (user as unknown as { _id?: string })._id;
   };
 
+  const heading = (
+    <div className="mb-3 flex items-baseline gap-2">
+      <h2 className="text-lg font-semibold tracking-tight">Comments</h2>
+      {!loading && !error && (
+        <span className="font-mono text-xs text-muted-foreground">{comments.length}</span>
+      )}
+    </div>
+  );
+
   if (loading) {
     return (
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Comments
-        </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      </Box>
+      <section className="mt-8">
+        {heading}
+        <div className="flex justify-center py-8">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      </section>
     );
   }
 
   if (error) {
     const errorObj = error as Error & { response?: { data?: { message?: string } } };
     return (
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Comments
-        </Typography>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Error Loading Comments
-          </Typography>
-          {errorObj?.response?.data?.message || errorObj?.message || 'Failed to load comments'}
+      <section className="mt-8">
+        {heading}
+        <Alert variant="destructive" className="mb-3">
+          <AlertTitle>Error loading comments</AlertTitle>
+          <AlertDescription>
+            {errorObj?.response?.data?.message || errorObj?.message || 'Failed to load comments'}
+          </AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={refetchComments}>
-          Try Again
-        </Button>
-      </Box>
+        <Button onClick={refetchComments}>Try again</Button>
+      </section>
     );
   }
 
   const currentUserId = getCurrentUserId();
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h6" gutterBottom>
-        Comments
-      </Typography>
+    <section className="mt-8">
+      {heading}
 
-      {/* Add Comment Form */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <form onSubmit={handleAddComment}>
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            placeholder="Add a comment..."
-            value={newComment}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setNewComment(e.target.value)}
-            sx={{ mb: 1 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            endIcon={<SendIcon />}
-            disabled={!newComment.trim() || createCommentMutation.isPending}
-          >
-            {createCommentMutation.isPending ? 'Posting...' : 'Post Comment'}
-          </Button>
-        </form>
-      </Paper>
-
-      {/* Comments List */}
-      <List>
-        {comments.map((comment) => (
-          <React.Fragment key={comment._id}>
-            <ListItem
-              alignItems="flex-start"
-              sx={{
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                mb: 2,
-              }}
+      {/* Add comment */}
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <form onSubmit={handleAddComment} className="space-y-3">
+            <Textarea
+              placeholder="Add a comment…"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              rows={2}
+            />
+            <Button
+              type="submit"
+              disabled={!newComment.trim() || createCommentMutation.isPending}
+              className="gap-1.5"
             >
-              <Box sx={{ display: 'flex', width: '100%', mb: 1 }}>
-                <ListItemAvatar>
-                  <Avatar src={comment.author.avatar}>{comment.author.name[0]}</Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={<Typography variant="subtitle1">{comment.author.name}</Typography>}
-                  secondary={
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </Typography>
-                  }
-                />
-                {user && currentUserId === comment.author._id && (
-                  <Box>
-                    <IconButton
-                      size="small"
-                      onClick={() => startEditing(comment)}
-                      disabled={editingComment === comment._id || updateCommentMutation.isPending}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteComment(comment._id)}
-                      disabled={deleteCommentMutation.isPending}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Box>
-                )}
-              </Box>
-
-              {editingComment === comment._id ? (
-                <Box sx={{ width: '100%', mt: 1 }}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={2}
-                    value={editContent}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEditContent(e.target.value)}
-                    sx={{ mb: 1 }}
-                  />
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => handleUpdateComment(comment._id)}
-                      disabled={!editContent.trim() || updateCommentMutation.isPending}
-                    >
-                      {updateCommentMutation.isPending ? 'Saving...' : 'Save'}
-                    </Button>
-                    <Button variant="outlined" size="small" onClick={cancelEditing}>
-                      Cancel
-                    </Button>
-                  </Box>
-                </Box>
+              {createCommentMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                <Typography variant="body1" sx={{ ml: 7, whiteSpace: 'pre-wrap' }}>
-                  {comment.content}
-                </Typography>
+                <Send className="size-4" />
               )}
-            </ListItem>
-            <Divider />
+              {createCommentMutation.isPending ? 'Posting…' : 'Post comment'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* List */}
+      <div className="space-y-4">
+        {comments.length === 0 && (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No comments yet. Start the conversation.
+          </p>
+        )}
+        {comments.map((comment, i) => (
+          <React.Fragment key={comment._id}>
+            <div className="flex gap-3">
+              <Avatar className="size-9">
+                <AvatarImage src={comment.author.avatar} alt={comment.author.name} />
+                <AvatarFallback>{comment.author.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{comment.author.name}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {new Date(comment.createdAt).toLocaleString()}
+                  </span>
+                  {user && currentUserId === comment.author._id && (
+                    <div className="ml-auto flex gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        aria-label="Edit comment"
+                        onClick={() => startEditing(comment)}
+                        disabled={
+                          editingComment === comment._id || updateCommentMutation.isPending
+                        }
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground hover:text-destructive"
+                        aria-label="Delete comment"
+                        onClick={() => handleDeleteComment(comment._id)}
+                        disabled={deleteCommentMutation.isPending}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {editingComment === comment._id ? (
+                  <div className="mt-2 space-y-2">
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleUpdateComment(comment._id)}
+                        disabled={!editContent.trim() || updateCommentMutation.isPending}
+                      >
+                        {updateCommentMutation.isPending ? 'Saving…' : 'Save'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEditing}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">
+                    {comment.content}
+                  </p>
+                )}
+              </div>
+            </div>
+            {i < comments.length - 1 && <Separator />}
           </React.Fragment>
         ))}
-      </List>
-    </Box>
+      </div>
+    </section>
   );
 };
 

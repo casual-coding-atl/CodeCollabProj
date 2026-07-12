@@ -1,16 +1,11 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Link,
-  Box,
-  Alert,
-  AlertTitle,
-} from '@mui/material';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useRequestPasswordReset } from '../../hooks/auth';
 import type { PasswordResetRequestResponseDev } from '../../types/auth';
 
@@ -77,120 +72,131 @@ const ForgotPassword: React.FC = () => {
 
   if (passwordResetData) {
     return (
-      <Container maxWidth="sm">
-        <Box sx={{ mt: 8, mb: 4 }}>
-          <Paper elevation={3} sx={{ p: 4 }}>
-            <Alert severity="success" sx={{ mb: 3 }}>
-              <AlertTitle>Password Reset Link Generated</AlertTitle>
-              {process.env.NODE_ENV === 'development' ? (
-                <>
-                  Development mode: A password reset link has been generated. You can copy the link
-                  below or click it to reset your password.
-                  <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                    <Typography variant="body2" sx={{ wordBreak: 'break-all', mb: 1 }}>
-                      {passwordResetData.resetUrl}
-                    </Typography>
-                    <Button
-                      component={RouterLink}
-                      to={`/reset-password?token=${passwordResetData.resetToken}`}
-                      variant="contained"
-                      size="small"
-                      sx={{ mt: 1 }}
-                    >
-                      Click to Reset Password
-                    </Button>
-                  </Box>
-                </>
-              ) : (
-                <>
-                  If an account with that email exists, a password reset link has been sent to your
-                  email address. Please check your inbox and follow the instructions to reset your
-                  password.
-                </>
-              )}
-            </Alert>
+      <div className="px-4 py-12">
+        <Card className="mx-auto w-full max-w-md">
+          <CardHeader className="text-center">
+            <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              check your inbox
+            </p>
+            <CardTitle className="text-2xl">Password Reset Link Generated</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-primary/30 bg-primary/10 px-3 py-3 text-sm text-primary"
+            >
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                <div className="w-full">
+                  {process.env.NODE_ENV === 'development' ? (
+                    <>
+                      Development mode: A password reset link has been generated. You can copy the
+                      link below or click it to reset your password.
+                      <div className="mt-2 rounded-md bg-muted p-3">
+                        <p className="mb-2 break-all text-xs text-muted-foreground">
+                          {passwordResetData.resetUrl}
+                        </p>
+                        <Button asChild size="sm">
+                          <RouterLink to={`/reset-password?token=${passwordResetData.resetToken}`}>
+                            Click to Reset Password
+                          </RouterLink>
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      If an account with that email exists, a password reset link has been sent to
+                      your email address. Please check your inbox and follow the instructions to
+                      reset your password.
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Button
-                component={RouterLink}
-                to="/login"
-                variant="contained"
-                color="primary"
-                sx={{ mr: 2 }}
-              >
-                Back to Login
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild className="w-full">
+                <RouterLink to="/login">Back to Login</RouterLink>
               </Button>
               <Button
                 onClick={() => {
                   setPasswordResetData(null);
                   setEmail('');
                 }}
-                variant="outlined"
-                color="primary"
+                variant="outline"
+                className="w-full"
               >
                 Send Another Email
               </Button>
-            </Box>
-          </Paper>
-        </Box>
-      </Container>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography component="h1" variant="h4" align="center" gutterBottom>
-            Forgot Password
-          </Typography>
-
-          <Typography variant="body1" align="center" sx={{ mb: 3 }}>
+    <div className="px-4 py-12">
+      <Card className="mx-auto w-full max-w-md">
+        <CardHeader className="text-center">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            reset your password
+          </p>
+          <CardTitle className="text-2xl">Forgot Password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-center text-sm text-muted-foreground">
             Enter your email address and we&apos;ll send you a link to reset your password.
-          </Typography>
+          </p>
 
           {requestPasswordResetMutation.error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {getErrorMessage()}
-            </Alert>
+            </div>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Email Address"
-              name="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={handleEmailChange}
-              error={!!emailError}
-              helperText={emailError}
-              disabled={requestPasswordResetMutation.isPending}
-            />
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                name="email"
+                autoComplete="email"
+                autoFocus
+                required
+                value={email}
+                onChange={handleEmailChange}
+                disabled={requestPasswordResetMutation.isPending}
+                aria-invalid={!!emailError}
+                className={cn(emailError && 'border-destructive')}
+              />
+              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            </div>
 
             <Button
               type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
+              className="w-full"
+              size="lg"
               disabled={requestPasswordResetMutation.isPending}
             >
-              {requestPasswordResetMutation.isPending ? 'Sending...' : 'Send Reset Link'}
+              {requestPasswordResetMutation.isPending ? 'Sending…' : 'Send Reset Link'}
             </Button>
 
-            <Box sx={{ textAlign: 'center' }}>
-              <Link component={RouterLink} to="/login" variant="body2">
+            <p className="text-center text-sm">
+              <RouterLink
+                to="/login"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
                 Back to Login
-              </Link>
-            </Box>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+              </RouterLink>
+            </p>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

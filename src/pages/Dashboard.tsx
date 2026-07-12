@@ -1,18 +1,10 @@
 import React, { useMemo } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
-  Alert,
-} from '@mui/material';
-import { Add, People, CalendarToday } from '@mui/icons-material';
+import { Plus, Users, CalendarDays, FolderGit2, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '../hooks/auth';
 import { useProjects } from '../hooks/projects';
 import { DashboardSkeleton } from '../components/common/Skeletons';
@@ -78,207 +70,163 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4, mb: 4 }}>
-          <DashboardSkeleton />
-        </Box>
-      </Container>
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <DashboardSkeleton />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="error" sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Error Loading Dashboard
-            </Typography>
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error Loading Dashboard</AlertTitle>
+          <AlertDescription>
             {(error as Error & { response?: { data?: { message?: string } } })?.response?.data
               ?.message ||
               (error as Error)?.message ||
               'Failed to load dashboard data'}
-          </Alert>
-          <Button variant="contained" onClick={() => refetch()}>
-            Try Again
-          </Button>
-        </Box>
-      </Container>
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => refetch()}>Try Again</Button>
+      </div>
     );
   }
 
+  const stats = [
+    {
+      icon: FolderGit2,
+      label: 'total projects',
+      value: userProjects.length,
+    },
+    {
+      icon: Users,
+      label: 'active collaborations',
+      value: userProjects.reduce((sum, project) => sum + (project.collaborators?.length || 0), 0),
+    },
+    {
+      icon: TrendingUp,
+      label: 'technologies used',
+      value: new Set(userProjects.flatMap((p) => p.technologies || [])).size,
+    },
+  ];
+
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        {/* Welcome Section */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Welcome back, {typedUser?.username || 'User'}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Here&apos;s what&apos;s happening with your projects today.
-          </Typography>
-        </Box>
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <p className="mb-2 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+          <span className="text-brand-amber">//</span> dashboard
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Welcome back, {typedUser?.username || 'User'}!
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          Here&apos;s what&apos;s happening with your projects today.
+        </p>
+      </div>
 
-        {/* User Stats */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Total Projects
-                </Typography>
-                <Typography variant="h4">{userProjects.length}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Active Collaborations
-                </Typography>
-                <Typography variant="h4">
-                  {userProjects.reduce(
-                    (sum, project) => sum + (project.collaborators?.length || 0),
-                    0
-                  )}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Technologies Used
-                </Typography>
-                <Typography variant="h4">
-                  {new Set(userProjects.flatMap((p) => p.technologies || [])).size}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+      {/* User Stats */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        {stats.map(({ icon: Icon, label, value }) => (
+          <Card key={label}>
+            <CardContent className="flex items-center gap-4">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="size-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{value}</p>
+                <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                  {label}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-        {/* My Projects Section */}
-        <Box sx={{ mb: 4 }}>
-          <Box
-            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}
-          >
-            <Typography variant="h5" component="h2">
-              My Projects
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              component={RouterLink}
-              to="/projects/create"
-            >
+      {/* My Projects Section */}
+      <div className="mb-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl font-bold tracking-tight">My Projects</h2>
+          <Button asChild>
+            <RouterLink to="/projects/create">
+              <Plus className="size-4" />
               Create New Project
-            </Button>
-          </Box>
+            </RouterLink>
+          </Button>
+        </div>
 
-          <Grid container spacing={3}>
-            {userProjects.map((project) => {
-              const ownerId =
-                typeof project.owner === 'object' && project.owner !== null
-                  ? project.owner._id
-                  : project.owner;
-              const isOwner = ownerId === typedUser?._id;
-              return (
-                <Grid item xs={12} sm={6} md={4} key={project._id}>
-                  <Card>
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          mb: 2,
-                        }}
-                      >
-                        <Typography variant="h6" component="h3" gutterBottom>
-                          {project.title}
-                        </Typography>
-                        <Chip
-                          label={isOwner ? 'Owner' : 'Collaborator'}
-                          size="small"
-                          color={isOwner ? 'primary' : 'secondary'}
-                        />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {project.description}
-                      </Typography>
-                      <Box sx={{ mb: 2 }}>
-                        {project.technologies &&
-                          project.technologies.map((tech) => (
-                            <Chip key={tech} label={tech} size="small" sx={{ mr: 1, mb: 1 }} />
-                          ))}
-                      </Box>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          color: 'text.secondary',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <People sx={{ fontSize: 16, mr: 0.5 }} />
-                          <Typography variant="body2">
-                            {project.collaborators?.length || 0}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
-                          <Typography variant="body2">
-                            {new Date(project.createdAt).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                    <CardActions>
-                      <Button size="small" component={RouterLink} to={`/projects/${project._id}`}>
-                        View Details
-                      </Button>
-                      {isOwner && (
-                        <Button
-                          size="small"
-                          component={RouterLink}
-                          to={`/projects/${project._id}/edit`}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                    </CardActions>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {userProjects.map((project) => {
+            const ownerId =
+              typeof project.owner === 'object' && project.owner !== null
+                ? project.owner._id
+                : project.owner;
+            const isOwner = ownerId === typedUser?._id;
+            return (
+              <Card key={project._id} className="flex flex-col">
+                <CardContent className="flex-1">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-foreground">{project.title}</h3>
+                    <Badge variant={isOwner ? 'default' : 'secondary'}>
+                      {isOwner ? 'Owner' : 'Collaborator'}
+                    </Badge>
+                  </div>
+                  <p className="mb-3 text-sm text-muted-foreground">{project.description}</p>
+                  {project.technologies && project.technologies.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {project.technologies.map((tech) => (
+                        <Badge key={tech} variant="outline">
+                          {tech}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Users className="size-4" />
+                      <span className="text-sm">{project.collaborators?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <CalendarDays className="size-4" />
+                      <span className="text-sm">
+                        {new Date(project.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="gap-2">
+                  <Button asChild variant="ghost" size="sm">
+                    <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                  </Button>
+                  {isOwner && (
+                    <Button asChild variant="ghost" size="sm">
+                      <RouterLink to={`/projects/${project._id}/edit`}>Edit</RouterLink>
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
 
-          {userProjects.length === 0 && (
-            <Box sx={{ textAlign: 'center', mt: 4 }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No projects yet
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Start by creating your first project or joining an existing one.
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<Add />}
-                component={RouterLink}
-                to="/projects/create"
-              >
+        {userProjects.length === 0 && (
+          <div className="mt-8 text-center">
+            <h3 className="text-lg font-semibold text-foreground">No projects yet</h3>
+            <p className="mb-4 mt-1 text-sm text-muted-foreground">
+              Start by creating your first project or joining an existing one.
+            </p>
+            <Button asChild>
+              <RouterLink to="/projects/create">
+                <Plus className="size-4" />
                 Create Your First Project
-              </Button>
-            </Box>
-          )}
-        </Box>
-      </Box>
-    </Container>
+              </RouterLink>
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

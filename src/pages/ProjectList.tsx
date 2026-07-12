@@ -1,24 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Card,
-  CardContent,
-  CardActions,
-  CardMedia,
-  Grid,
-  TextField,
-  InputAdornment,
-  Chip,
-  Alert,
-} from '@mui/material';
-import { Search, Add, People, CalendarToday } from '@mui/icons-material';
+import { Search, Plus, Users, Calendar } from 'lucide-react';
 import { useProjects } from '../hooks/projects';
 import { useAuth } from '../hooks/auth';
 import { ProjectListSkeleton } from '../components/common/Skeletons';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // API response types - standalone interfaces to handle _id fields
 interface ProjectWithId {
@@ -87,160 +77,147 @@ const ProjectList: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4, mb: 4 }}>
-          <Box
-            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}
-          >
-            <Typography variant="h4" component="h1">
-              Projects
-            </Typography>
-          </Box>
-          <ProjectListSkeleton count={6} />
-        </Box>
-      </Container>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              <span className="text-brand-amber">//</span> projects
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
+          </div>
+        </div>
+        <ProjectListSkeleton count={6} />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert
-            severity="error"
-            action={
-              <Button color="inherit" size="small" onClick={() => refetch()}>
-                Retry
-              </Button>
-            }
-          >
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="flex items-center justify-between gap-4">
+          <AlertDescription>
             Failed to load projects: {(error as Error).message}
-          </Alert>
-        </Box>
-      </Container>
+          </AlertDescription>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Alert>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h4" component="h1">
-            Projects
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            component={RouterLink}
-            to="/projects/create"
-          >
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            <span className="text-brand-amber">//</span> projects
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Projects</h1>
+        </div>
+        <Button asChild>
+          <RouterLink to="/projects/create">
+            <Plus className="size-4" />
             Create Project
-          </Button>
-        </Box>
+          </RouterLink>
+        </Button>
+      </div>
 
-        <TextField
-          fullWidth
-          variant="outlined"
+      <div className="relative mb-8">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="text"
           placeholder="Search projects..."
           value={searchTerm}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ mb: 4 }}
+          className="pl-9"
         />
+      </div>
 
-        <Grid container spacing={3} data-testid="project-list">
-          {filteredProjects.map((project) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
-              key={project._id}
-              ref={(el: HTMLDivElement | null) => {
-                projectRefs.current[project._id] = el;
-              }}
+      <div
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        data-testid="project-list"
+      >
+        {filteredProjects.map((project) => (
+          <div
+            key={project._id}
+            ref={(el: HTMLDivElement | null) => {
+              projectRefs.current[project._id] = el;
+            }}
+          >
+            <Card
+              data-testid="project-card"
+              className="group flex h-full flex-col gap-0 overflow-hidden py-0 transition-colors hover:border-primary/40 hover:shadow-sm"
             >
-              <Card data-testid="project-card">
-                {project.image && (
-                  <CardMedia
-                    component="img"
-                    height="200"
-                    image={`http://localhost:5000${project.image}`}
-                    alt={project.title}
-                    sx={{ objectFit: 'cover' }}
-                  />
-                )}
-                <CardContent>
-                  <Typography variant="h6" component="h2" gutterBottom>
-                    {project.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {project.description}
-                  </Typography>
-                  <Box sx={{ mb: 2 }}>
-                    {project.technologies &&
-                      project.technologies.map((tech) => (
-                        <Chip key={tech} label={tech} size="small" sx={{ mr: 1, mb: 1 }} />
-                      ))}
-                  </Box>
-                  <Box
-                    sx={{ display: 'flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}
+              {project.image && (
+                <img
+                  src={`http://localhost:5000${project.image}`}
+                  alt={project.title}
+                  className="h-48 w-full object-cover"
+                />
+              )}
+              <CardContent className="flex flex-1 flex-col gap-3 p-6">
+                <h2 className="text-lg font-semibold leading-tight">
+                  <RouterLink
+                    to={`/projects/${project._id}`}
+                    className="transition-colors hover:text-primary"
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <People sx={{ fontSize: 16, mr: 0.5 }} />
-                      <Typography variant="body2">
-                        {project.collaborators ? project.collaborators.length : 0}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
-                      <Typography variant="body2">
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-                <CardActions>
-                  <Button size="small" component={RouterLink} to={`/projects/${project._id}`}>
-                    View Details
-                  </Button>
-                  {project.owner &&
-                    typeof project.owner === 'object' &&
-                    project.owner._id === typedUser?._id && (
-                      <Button
-                        size="small"
-                        component={RouterLink}
-                        to={`/projects/${project._id}/edit`}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                    {project.title}
+                  </RouterLink>
+                </h2>
+                <p className="line-clamp-3 text-sm text-muted-foreground">
+                  {project.description}
+                </p>
+                {project.technologies && project.technologies.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {project.technologies.map((tech) => (
+                      <Badge key={tech} variant="secondary">
+                        {tech}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-auto flex items-center gap-4 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Users className="size-3.5" />
+                    {project.collaborators ? project.collaborators.length : 0}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="size-3.5" />
+                    {new Date(project.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </CardContent>
+              <CardFooter className="gap-2 px-6 pb-6">
+                <Button asChild variant="outline" size="sm">
+                  <RouterLink to={`/projects/${project._id}`}>View Details</RouterLink>
+                </Button>
+                {project.owner &&
+                  typeof project.owner === 'object' &&
+                  project.owner._id === typedUser?._id && (
+                    <Button asChild variant="ghost" size="sm">
+                      <RouterLink to={`/projects/${project._id}/edit`}>Edit</RouterLink>
+                    </Button>
+                  )}
+              </CardFooter>
+            </Card>
+          </div>
+        ))}
+      </div>
 
-        {filteredProjects.length === 0 && (
-          <Box sx={{ textAlign: 'center', mt: 4 }}>
-            <Typography variant="h6" color="text.secondary">
-              {typedProjects.length === 0 ? 'No projects yet' : 'No projects found'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {typedProjects.length === 0
-                ? 'Be the first to create a project!'
-                : 'Try adjusting your search terms or create a new project.'}
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </Container>
+      {filteredProjects.length === 0 && (
+        <div className="mt-8 text-center">
+          <p className="text-lg font-semibold text-muted-foreground">
+            {typedProjects.length === 0 ? 'No projects yet' : 'No projects found'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {typedProjects.length === 0
+              ? 'Be the first to create a project!'
+              : 'Try adjusting your search terms or create a new project.'}
+          </p>
+        </div>
+      )}
+    </div>
   );
 };
 

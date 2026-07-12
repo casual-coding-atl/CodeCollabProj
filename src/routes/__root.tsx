@@ -1,35 +1,11 @@
 /// <reference types="vite/client" />
-import {
-  HeadContent,
-  Outlet,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router';
+import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
 import queryClient from '../config/queryClient';
 import ErrorBoundary from '../components/common/ErrorBoundary';
-// Tailwind + shadcn theme (includes a layered preflight reset). The legacy
-// CRA global.css / styles.css are intentionally dropped — their unlayered
-// `* { margin:0 }` reset overrode Tailwind's layered utilities.
+import { Toaster } from '@/components/ui/sonner';
 import '../styles/globals.css';
-
-const theme = createTheme({
-  palette: {
-    primary: { main: '#1976d2' },
-    secondary: { main: '#dc004e' },
-  },
-  components: {
-    MuiCssBaseline: {
-      styleOverrides: {
-        '*': { boxSizing: 'border-box' },
-        html: { WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' },
-      },
-    },
-  },
-});
 
 export const Route = createRootRoute({
   head: () => ({
@@ -48,10 +24,8 @@ function RootComponent() {
     <RootDocument>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <Outlet />
-          </ThemeProvider>
+          <Outlet />
+          <Toaster richColors closeButton />
         </QueryClientProvider>
       </ErrorBoundary>
     </RootDocument>
@@ -61,9 +35,12 @@ function RootComponent() {
 function NotFoundShell() {
   return (
     <RootDocument>
-      <div style={{ padding: 32, fontFamily: 'system-ui' }}>
-        <h1>404 — Not Found</h1>
-        <a href="/">Go home</a>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">error 404</p>
+        <h1 className="text-2xl font-bold tracking-tight">Page not found</h1>
+        <a href="/" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          Go home
+        </a>
       </div>
     </RootDocument>
   );

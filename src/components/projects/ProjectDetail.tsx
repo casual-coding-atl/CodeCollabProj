@@ -1,39 +1,16 @@
 import React, { useState, useMemo, type ChangeEvent, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Container,
-  Paper,
-  Typography,
-  Box,
-  Grid,
-  Chip,
-  Button,
-  Divider,
-  TextField,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Link,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Send as SendIcon,
-  GitHub as GitHubIcon,
-  Language as LanguageIcon,
-  CalendarToday as CalendarIcon,
-  Person as PersonIcon,
-  Code as CodeIcon,
-} from '@mui/icons-material';
+  Pencil,
+  Trash2,
+  Send,
+  GitBranch,
+  ExternalLink,
+  Calendar,
+  User as UserIcon,
+  Code2,
+  Loader2,
+} from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
 import {
   useProject,
@@ -50,6 +27,21 @@ import type {
   CollaboratorStatus,
   Comment,
 } from '../../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // Extended Collaborator type for API responses that may include populated user data
 interface CollaboratorWithUserData extends Omit<Collaborator, 'userId'> {
@@ -74,6 +66,18 @@ interface CommentApiResponse extends Omit<Comment, 'id' | 'userId'> {
   content: string;
   createdAt: string;
 }
+
+// Small badge that reflects a project's status using design tokens.
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
+  <Badge
+    variant={
+      status === 'completed' ? 'default' : status === 'in_progress' ? 'secondary' : 'outline'
+    }
+    className="font-mono text-[11px] uppercase tracking-widest"
+  >
+    {status}
+  </Badge>
+);
 
 const ProjectDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -267,21 +271,14 @@ const ProjectDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <div className="flex min-h-[300px] items-center justify-center gap-3">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <span className="text-lg font-semibold text-muted-foreground">
             Loading project details...
-          </Typography>
-        </Box>
-      </Container>
+          </span>
+        </div>
+      </div>
     );
   }
 
@@ -294,50 +291,40 @@ const ProjectDetail: React.FC = () => {
         : String(error);
 
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Error Loading Project
-          </Typography>
-          {errorMessage}
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error Loading Project</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => refetchProject()}>
-          Try Again
-        </Button>
-      </Container>
+        <Button onClick={() => refetchProject()}>Try Again</Button>
+      </div>
     );
   }
 
   if (!currentProject) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Project Not Found
-          </Typography>
-          The project you&apos;re looking for doesn&apos;t exist or has been removed.
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Alert className="mb-6 border-brand-amber/40">
+          <AlertTitle>Project Not Found</AlertTitle>
+          <AlertDescription>
+            The project you&apos;re looking for doesn&apos;t exist or has been removed.
+          </AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => navigate('/projects')}>
-          Back to Projects
-        </Button>
-      </Container>
+        <Button onClick={() => navigate('/projects')}>Back to Projects</Button>
+      </div>
     );
   }
 
   // Additional safety check to ensure currentProject is valid
   if (typeof currentProject !== 'object' || currentProject === null) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Invalid Project Data
-          </Typography>
-          The project data is corrupted or invalid.
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Invalid Project Data</AlertTitle>
+          <AlertDescription>The project data is corrupted or invalid.</AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => refetchProject()}>
-          Reload Project
-        </Button>
-      </Container>
+        <Button onClick={() => refetchProject()}>Reload Project</Button>
+      </div>
     );
   }
 
@@ -374,73 +361,72 @@ const ProjectDetail: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Page Title */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          Project Details
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          View and manage project information
-        </Typography>
-      </Box>
+      <div className="mb-8">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+          <span className="text-brand-amber">//</span> project details
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Project Details</h1>
+        <p className="mt-1 text-sm text-muted-foreground">View and manage project information</p>
+      </div>
 
-      <Grid container spacing={3}>
+      <div className="grid gap-6">
         {/* Project Details */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Box
-              sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
-            >
-              <Box>
-                <Typography variant="h4" gutterBottom>
+        <Card>
+          <CardContent className="grid gap-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">
                   {typeof currentProject.title === 'string'
                     ? currentProject.title
                     : 'Untitled Project'}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  <Chip
-                    label={
+                </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={
                       typeof currentProject.status === 'string' ? currentProject.status : 'Unknown'
                     }
-                    color={
-                      currentProject.status === 'completed'
-                        ? 'success'
-                        : currentProject.status === 'in_progress'
-                          ? 'primary'
-                          : 'default'
-                    }
                   />
-                  <Chip label={`Owner: ${getOwnerUsername()}`} variant="outlined" />
-                </Box>
-              </Box>
+                  <Badge variant="outline" className="font-mono text-[11px] tracking-widest">
+                    Owner: {getOwnerUsername()}
+                  </Badge>
+                </div>
+              </div>
               {isOwner ? (
-                <Box>
-                  <IconButton onClick={handleEdit} color="primary">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={handleDelete} color="error">
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleEdit}
+                    aria-label="Edit project"
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDelete}
+                    aria-label="Delete project"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               ) : (
-                <Box>
+                <div>
                   {!user ? (
-                    <Button variant="outlined" color="primary" onClick={() => navigate('/login')}>
+                    <Button variant="outline" onClick={() => navigate('/login')}>
                       Login to Collaborate
                     </Button>
                   ) : collaborationStatus === 'pending' ? (
-                    <Button variant="outlined" color="warning" disabled>
+                    <Button variant="outline" disabled>
                       Request Pending
                     </Button>
                   ) : collaborationStatus === 'accepted' ? (
-                    <Button variant="contained" color="success" disabled>
-                      Collaborator
-                    </Button>
+                    <Button disabled>Collaborator</Button>
                   ) : (
                     <Button
-                      variant="contained"
-                      color="primary"
                       onClick={handleCollaborate}
                       disabled={requestCollaborationMutation.isPending}
                     >
@@ -449,186 +435,199 @@ const ProjectDetail: React.FC = () => {
                         : 'Request Collaboration'}
                     </Button>
                   )}
-                </Box>
+                </div>
               )}
-            </Box>
+            </div>
 
-            <Typography variant="body1" paragraph>
+            <p className="text-sm leading-relaxed text-foreground">
               {typeof currentProject.description === 'string'
                 ? currentProject.description
                 : 'No description available.'}
-            </Typography>
+            </p>
+
+            <Separator />
 
             {/* Project Metadata */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Project Information
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <CalendarIcon sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">
-                      <strong>Created:</strong>{' '}
+            <div>
+              <h3 className="mb-3 text-base font-semibold">Project Information</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="size-4" />
+                    <span>
+                      <strong className="text-foreground">Created:</strong>{' '}
                       {new Date(currentProject.createdAt).toLocaleDateString()}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <CalendarIcon sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">
-                      <strong>Updated:</strong>{' '}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="size-4" />
+                    <span>
+                      <strong className="text-foreground">Updated:</strong>{' '}
                       {new Date(currentProject.updatedAt).toLocaleDateString()}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <PersonIcon sx={{ mr: 1, fontSize: 20 }} />
-                    <Typography variant="body2">
-                      <strong>Collaborators:</strong> {currentProject.collaborators?.length || 0}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <UserIcon className="size-4" />
+                    <span>
+                      <strong className="text-foreground">Collaborators:</strong>{' '}
+                      {currentProject.collaborators?.length || 0}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-2">
                   {currentProject.githubUrl && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <GitHubIcon sx={{ mr: 1, fontSize: 20 }} />
-                      <Link
+                    <div className="flex items-center gap-2 text-sm">
+                      <GitBranch className="size-4 text-muted-foreground" />
+                      <a
                         href={currentProject.githubUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="text-primary hover:underline"
                       >
-                        <Typography variant="body2">GitHub Repository</Typography>
-                      </Link>
-                    </Box>
+                        GitHub Repository
+                      </a>
+                    </div>
                   )}
                   {currentProject.liveUrl && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                      <LanguageIcon sx={{ mr: 1, fontSize: 20 }} />
-                      <Link href={currentProject.liveUrl} target="_blank" rel="noopener noreferrer">
-                        <Typography variant="body2">Live Demo</Typography>
-                      </Link>
-                    </Box>
+                    <div className="flex items-center gap-2 text-sm">
+                      <ExternalLink className="size-4 text-muted-foreground" />
+                      <a
+                        href={currentProject.liveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Live Demo
+                      </a>
+                    </div>
                   )}
-                </Grid>
-              </Grid>
-            </Box>
+                </div>
+              </div>
+            </div>
 
             {/* Technologies */}
             {currentProject.technologies && currentProject.technologies.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  <CodeIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+                  <Code2 className="size-4" />
                   Technologies
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
                   {currentProject.technologies.map((tech) => (
-                    <Chip key={tech} label={tech} color="primary" variant="outlined" />
+                    <Badge key={tech} variant="outline" className="text-primary">
+                      {tech}
+                    </Badge>
                   ))}
-                </Box>
-              </Box>
+                </div>
+              </div>
             )}
 
             {/* Project Incentives - Simple Indicator */}
             {currentProject.incentives && currentProject.incentives.enabled && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom color="success.main">
+              <div>
+                <h3 className="mb-3 text-base font-semibold text-foreground">
                   💰 Project Incentives Available
-                </Typography>
-                <Paper sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="h6" sx={{ mr: 1 }}>
-                      🎁
-                    </Typography>
-                    <Typography variant="h6">Incentives Available</Typography>
-                  </Box>
+                </h3>
+                <div className="rounded-lg border border-border bg-muted p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-lg">🎁</span>
+                    <span className="text-base font-semibold">Incentives Available</span>
+                  </div>
 
-                  <Typography variant="body1" sx={{ mb: 1 }}>
+                  <p className="mb-1 text-sm">
                     This project offers incentives to contributors. Details will be discussed
                     privately with accepted collaborators.
-                  </Typography>
+                  </p>
 
-                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                  <p className="text-sm italic text-muted-foreground">
                     💬 Contact the project owner for more information about available rewards.
-                  </Typography>
-                </Paper>
-              </Box>
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Required Skills */}
             {currentProject.requiredSkills && currentProject.requiredSkills.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Required Skills
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <div>
+                <h3 className="mb-3 text-base font-semibold">Required Skills</h3>
+                <div className="flex flex-wrap gap-1.5">
                   {currentProject.requiredSkills.map((skill) => (
-                    <Chip key={skill} label={skill} />
+                    <Badge key={skill} variant="secondary">
+                      {skill}
+                    </Badge>
                   ))}
-                </Box>
-              </Box>
+                </div>
+              </div>
             )}
 
             {/* Tags */}
             {currentProject.tags && currentProject.tags.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Tags
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <div>
+                <h3 className="mb-3 text-base font-semibold">Tags</h3>
+                <div className="flex flex-wrap gap-1.5">
                   {currentProject.tags.map((tag) => (
-                    <Chip key={tag} label={tag} variant="outlined" />
+                    <Badge key={tag} variant="outline">
+                      {tag}
+                    </Badge>
                   ))}
-                </Box>
-              </Box>
+                </div>
+              </div>
             )}
 
             {/* Resources */}
             {currentProject.resources && currentProject.resources.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Resources
-                </Typography>
-                <List>
+              <div>
+                <h3 className="mb-3 text-base font-semibold">Resources</h3>
+                <ul className="grid gap-3">
                   {currentProject.resources.map((resource) => (
-                    <ListItem key={(resource as { _id?: string })._id || resource.url}>
-                      <ListItemText
-                        primary={resource.name}
-                        secondary={
-                          <Link href={resource.url} target="_blank" rel="noopener noreferrer">
-                            {resource.url}
-                          </Link>
-                        }
-                      />
-                    </ListItem>
+                    <li key={(resource as { _id?: string })._id || resource.url}>
+                      <p className="text-sm font-medium text-foreground">{resource.name}</p>
+                      <a
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {resource.url}
+                      </a>
+                    </li>
                   ))}
-                </List>
-              </Box>
+                </ul>
+              </div>
             )}
 
             {/* Pending Collaboration Requests (for project owners) */}
             {isOwner &&
               currentProject.collaborators &&
               currentProject.collaborators.filter((c) => c.status === 'pending').length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" gutterBottom color="warning.main">
+                <div>
+                  <h3 className="mb-3 text-base font-semibold text-brand-amber">
                     Pending Collaboration Requests
-                  </Typography>
-                  <List>
+                  </h3>
+                  <ul className="grid gap-2">
                     {currentProject.collaborators
                       .filter((collaborator) => collaborator.status === 'pending')
                       .map((collaborator) => (
-                        <ListItem key={collaborator._id || getUserId(collaborator.userId)}>
-                          <ListItemAvatar>
-                            <Avatar>{getCollaboratorUsername(collaborator)[0] || 'C'}</Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={getCollaboratorUsername(collaborator)}
-                            secondary={getCollaboratorEmail(collaborator)}
-                          />
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+                        <li
+                          key={collaborator._id || getUserId(collaborator.userId)}
+                          className="flex items-center gap-3 rounded-lg border border-border p-3"
+                        >
+                          <Avatar>
+                            <AvatarFallback>
+                              {getCollaboratorUsername(collaborator)[0] || 'C'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {getCollaboratorUsername(collaborator)}
+                            </p>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {getCollaboratorEmail(collaborator)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <Button
-                              size="small"
-                              variant="contained"
-                              color="success"
+                              size="sm"
                               onClick={() =>
                                 handleCollaborationResponse(
                                   getUserId(collaborator.userId) || '',
@@ -640,9 +639,8 @@ const ProjectDetail: React.FC = () => {
                               {handleCollaborationMutation.isPending ? 'Processing...' : 'Accept'}
                             </Button>
                             <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
+                              size="sm"
+                              variant="outline"
                               onClick={() =>
                                 handleCollaborationResponse(
                                   getUserId(collaborator.userId) || '',
@@ -650,110 +648,118 @@ const ProjectDetail: React.FC = () => {
                                 )
                               }
                               disabled={handleCollaborationMutation.isPending}
+                              className="text-destructive hover:text-destructive"
                             >
                               {handleCollaborationMutation.isPending ? 'Processing...' : 'Reject'}
                             </Button>
-                          </Box>
-                        </ListItem>
+                          </div>
+                        </li>
                       ))}
-                  </List>
-                </Box>
+                  </ul>
+                </div>
               )}
 
             {/* Collaborators */}
             {currentProject.collaborators &&
               currentProject.collaborators.filter((c) => c.status === 'accepted').length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Collaborators
-                  </Typography>
-                  <List>
+                <div>
+                  <h3 className="mb-3 text-base font-semibold">Collaborators</h3>
+                  <ul className="grid gap-2">
                     {currentProject.collaborators
                       .filter((collaborator) => collaborator.status === 'accepted')
                       .map((collaborator) => (
-                        <ListItem key={collaborator._id || getUserId(collaborator.userId)}>
-                          <ListItemAvatar>
-                            <Avatar>{getCollaboratorUsername(collaborator)[0] || 'C'}</Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={getCollaboratorUsername(collaborator)}
-                            secondary={getCollaboratorEmail(collaborator)}
-                          />
-                          <Chip label="Accepted" color="success" size="small" sx={{ ml: 1 }} />
-                        </ListItem>
+                        <li
+                          key={collaborator._id || getUserId(collaborator.userId)}
+                          className="flex items-center gap-3 rounded-lg border border-border p-3"
+                        >
+                          <Avatar>
+                            <AvatarFallback>
+                              {getCollaboratorUsername(collaborator)[0] || 'C'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {getCollaboratorUsername(collaborator)}
+                            </p>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {getCollaboratorEmail(collaborator)}
+                            </p>
+                          </div>
+                          <Badge>Accepted</Badge>
+                        </li>
                       ))}
-                  </List>
-                </Box>
+                  </ul>
+                </div>
               )}
-          </Paper>
-        </Grid>
+          </CardContent>
+        </Card>
 
         {/* Comments Section */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              Comments
-            </Typography>
+        <Card>
+          <CardContent className="grid gap-4">
+            <h2 className="text-xl font-semibold">Comments</h2>
 
             {user && (
-              <Box component="form" onSubmit={handleCommentSubmit} sx={{ mb: 3 }}>
-                <TextField
-                  fullWidth
-                  multiline
+              <form onSubmit={handleCommentSubmit} className="grid gap-2">
+                <Textarea
                   rows={3}
                   placeholder="Write a comment..."
                   value={comment}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setComment(e.target.value)}
-                  sx={{ mb: 1 }}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setComment(e.target.value)}
                 />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  endIcon={<SendIcon />}
-                  disabled={!comment.trim() || createCommentMutation.isPending}
-                >
-                  {createCommentMutation.isPending ? (
-                    <CircularProgress size={20} />
-                  ) : (
-                    'Post Comment'
-                  )}
-                </Button>
-              </Box>
+                <div>
+                  <Button
+                    type="submit"
+                    disabled={!comment.trim() || createCommentMutation.isPending}
+                  >
+                    {createCommentMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        Post Comment
+                        <Send className="size-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
             )}
 
             {commentSuccess && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                Comment posted successfully!
+              <Alert className="border-primary/40">
+                <AlertDescription>Comment posted successfully!</AlertDescription>
               </Alert>
             )}
 
             {(commentsError || createCommentMutation.error) && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {(commentsError as Error & { response?: { data?: { message?: string } } })?.response
-                  ?.data?.message ||
-                  commentsError?.message ||
-                  (
-                    createCommentMutation.error as Error & {
-                      response?: { data?: { message?: string } };
-                    }
-                  )?.response?.data?.message ||
-                  createCommentMutation.error?.message ||
-                  'Error loading or posting comments'}
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {(commentsError as Error & { response?: { data?: { message?: string } } })
+                    ?.response?.data?.message ||
+                    commentsError?.message ||
+                    (
+                      createCommentMutation.error as Error & {
+                        response?: { data?: { message?: string } };
+                      }
+                    )?.response?.data?.message ||
+                    createCommentMutation.error?.message ||
+                    'Error loading or posting comments'}
+                </AlertDescription>
               </Alert>
             )}
 
             {commentsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress />
-              </Box>
+              <div className="flex justify-center py-4">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
             ) : (
-              <List>
+              <ul className="grid gap-4">
                 {comments && comments.length > 0 ? (
                   comments.map((commentItem) => (
                     <React.Fragment key={commentItem._id}>
-                      <ListItem alignItems="flex-start">
-                        <ListItemAvatar>
-                          <Avatar>
+                      <li className="flex items-start gap-3">
+                        <Avatar>
+                          <AvatarFallback>
                             {(
                               commentItem.userId as
                                 | User
@@ -761,61 +767,65 @@ const ProjectDetail: React.FC = () => {
                                 | { username?: string }
                                 | undefined
                             )?.username?.[0] || 'U'}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <Typography component="span" variant="subtitle2">
-                                {(
-                                  commentItem.userId as
-                                    | User
-                                    | UserSummary
-                                    | { username?: string }
-                                    | undefined
-                                )?.username || 'Unknown User'}
-                              </Typography>
-                              <Typography component="span" variant="caption" color="text.secondary">
-                                {new Date(commentItem.createdAt).toLocaleDateString()}
-                              </Typography>
-                            </Box>
-                          }
-                          secondary={commentItem.content}
-                        />
-                      </ListItem>
-                      <Divider variant="inset" component="li" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-foreground">
+                              {(
+                                commentItem.userId as
+                                  | User
+                                  | UserSummary
+                                  | { username?: string }
+                                  | undefined
+                              )?.username || 'Unknown User'}
+                            </span>
+                            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                              {new Date(commentItem.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {commentItem.content}
+                          </p>
+                        </div>
+                      </li>
+                      <Separator />
                     </React.Fragment>
                   ))
                 ) : (
-                  <ListItem>
-                    <ListItemText
-                      primary="No comments yet"
-                      secondary="Be the first to comment on this project!"
-                    />
-                  </ListItem>
+                  <li>
+                    <p className="text-sm font-medium text-foreground">No comments yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Be the first to comment on this project!
+                    </p>
+                  </li>
                 )}
-              </List>
+              </ul>
             )}
-          </Paper>
-        </Grid>
-      </Grid>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)}>
-        <DialogTitle>Delete Project</DialogTitle>
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete this project? This action cannot be undone.
-          </Typography>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this project? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-          <Button onClick={confirmDelete} color="error">
-            Delete
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 

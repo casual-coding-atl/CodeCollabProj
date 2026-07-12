@@ -1,15 +1,19 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
+import { Send, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Box,
-  Button,
-  TextField,
-  Typography,
-  Paper,
-  Autocomplete,
-  Alert,
-  CircularProgress,
-} from '@mui/material';
-import { Send as SendIcon } from '@mui/icons-material';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { useUsers } from '../../hooks/users';
 import { useSendMessage } from '../../hooks/users/useMessaging';
 import type { User, Message } from '../../types';
@@ -86,6 +90,14 @@ const MessageForm: React.FC<MessageFormProps> = ({
     }
   };
 
+  const getUserId = (option: User): string =>
+    (option as User & { _id?: string })._id || option.id || '';
+
+  const handleRecipientSelect = (value: string): void => {
+    const found = (users as User[]).find((option) => getUserId(option) === value) || null;
+    handleRecipientChange({} as React.SyntheticEvent, found);
+  };
+
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -124,100 +136,125 @@ const MessageForm: React.FC<MessageFormProps> = ({
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        {replyToMessage ? 'Reply to Message' : 'Send New Message'}
-      </Typography>
-
-      <Box component="form" onSubmit={handleSubmit}>
-        {/* Recipient Selection */}
-        {!recipientId && (
-          <Autocomplete
-            options={users}
-            getOptionLabel={(option: User) =>
-              `${option.username} (${option.firstName} ${option.lastName})`
-            }
-            value={selectedRecipient}
-            onChange={handleRecipientChange}
-            loading={loadingUsers}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Recipient"
-                error={!!errors.recipientId}
-                helperText={errors.recipientId}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {loadingUsers ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-                sx={{ mb: 2 }}
-              />
-            )}
-          />
-        )}
-
-        {/* Subject */}
-        <TextField
-          fullWidth
-          label="Subject"
-          value={formData.subject}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            handleInputChange('subject', e.target.value)
-          }
-          error={!!errors.subject}
-          helperText={errors.subject || `${formData.subject.length}/100 characters`}
-          inputProps={{ maxLength: 100 }}
-          sx={{ mb: 2 }}
-        />
-
-        {/* Content */}
-        <TextField
-          fullWidth
-          label="Message"
-          multiline
-          rows={6}
-          value={formData.content}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-            handleInputChange('content', e.target.value)
-          }
-          error={!!errors.content}
-          helperText={errors.content || `${formData.content.length}/1000 characters`}
-          inputProps={{ maxLength: 1000 }}
-          sx={{ mb: 2 }}
-        />
-
-        {/* Error Alert */}
-        {errors.submit && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {errors.submit}
-          </Alert>
-        )}
-
-        {/* Actions */}
-        <Box display="flex" gap={2} justifyContent="flex-end">
-          {onCancel && (
-            <Button variant="outlined" onClick={onCancel} disabled={sendMessageMutation.isPending}>
-              Cancel
-            </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">
+          {replyToMessage ? 'Reply to Message' : 'Send New Message'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Recipient Selection */}
+          {!recipientId && (
+            <div className="space-y-1.5">
+              <Label htmlFor="recipient">Recipient</Label>
+              <Select
+                value={selectedRecipient ? getUserId(selectedRecipient) : ''}
+                onValueChange={handleRecipientSelect}
+                disabled={loadingUsers}
+              >
+                <SelectTrigger
+                  id="recipient"
+                  className={cn('w-full', errors.recipientId && 'border-destructive')}
+                  aria-invalid={!!errors.recipientId}
+                >
+                  <SelectValue
+                    placeholder={loadingUsers ? 'Loading recipients…' : 'Select a recipient'}
+                  />
+                  {loadingUsers && <Loader2 className="size-4 animate-spin" />}
+                </SelectTrigger>
+                <SelectContent>
+                  {(users as User[]).map((option) => (
+                    <SelectItem key={getUserId(option)} value={getUserId(option)}>
+                      {`${option.username} (${option.firstName} ${option.lastName})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.recipientId && (
+                <p className="text-xs text-destructive">{errors.recipientId}</p>
+              )}
+            </div>
           )}
-          <Button
-            type="submit"
-            variant="contained"
-            startIcon={
-              sendMessageMutation.isPending ? <CircularProgress size={20} /> : <SendIcon />
-            }
-            disabled={sendMessageMutation.isPending}
-          >
-            {sendMessageMutation.isPending ? 'Sending...' : 'Send Message'}
-          </Button>
-        </Box>
-      </Box>
-    </Paper>
+
+          {/* Subject */}
+          <div className="space-y-1.5">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              value={formData.subject}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                handleInputChange('subject', e.target.value)
+              }
+              maxLength={100}
+              aria-invalid={!!errors.subject}
+              className={cn(errors.subject && 'border-destructive')}
+            />
+            <p
+              className={cn(
+                'text-xs',
+                errors.subject ? 'text-destructive' : 'text-muted-foreground'
+              )}
+            >
+              {errors.subject || `${formData.subject.length}/100 characters`}
+            </p>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-1.5">
+            <Label htmlFor="content">Message</Label>
+            <Textarea
+              id="content"
+              rows={6}
+              value={formData.content}
+              onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                handleInputChange('content', e.target.value)
+              }
+              maxLength={1000}
+              aria-invalid={!!errors.content}
+              className={cn(errors.content && 'border-destructive')}
+            />
+            <p
+              className={cn(
+                'text-xs',
+                errors.content ? 'text-destructive' : 'text-muted-foreground'
+              )}
+            >
+              {errors.content || `${formData.content.length}/1000 characters`}
+            </p>
+          </div>
+
+          {/* Error Alert */}
+          {errors.submit && (
+            <Alert variant="destructive">
+              <AlertDescription>{errors.submit}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            {onCancel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={sendMessageMutation.isPending}
+              >
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" disabled={sendMessageMutation.isPending}>
+              {sendMessageMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              {sendMessageMutation.isPending ? 'Sending...' : 'Send Message'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 

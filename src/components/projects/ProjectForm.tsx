@@ -1,25 +1,6 @@
-import React, { useState, type ChangeEvent, type FormEvent } from 'react';
+import React, { useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  Autocomplete,
-  IconButton,
-  Grid,
-  Alert,
-  CircularProgress,
-  type SelectChangeEvent,
-} from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Plus, Trash2, X, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
 import { useProject, useCreateProject, useUpdateProject } from '../../hooks/projects';
 import type {
@@ -30,6 +11,21 @@ import type {
   User,
   UserSummary,
 } from '../../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Extended Project type for API responses
 interface ProjectApiResponse extends Omit<Project, 'id' | 'owner' | 'resources'> {
@@ -128,6 +124,102 @@ const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): F
       customReward: initialProject.incentives?.customReward ?? '',
     },
   };
+};
+
+interface TagEditorProps {
+  id: string;
+  label: string;
+  value: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  options?: string[];
+  error?: string;
+}
+
+// Free-form tag editor: type + Enter/comma to add, click a badge's X to remove.
+// Preserves the array-of-strings state shape the previous Autocomplete produced.
+const TagEditor: React.FC<TagEditorProps> = ({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  options = [],
+  error,
+}) => {
+  const [inputValue, setInputValue] = useState('');
+
+  const addTag = (raw: string): void => {
+    const tag = raw.trim();
+    if (!tag || value.includes(tag)) {
+      setInputValue('');
+      return;
+    }
+    onChange([...value, tag]);
+    setInputValue('');
+  };
+
+  const removeTag = (tag: string): void => {
+    onChange(value.filter((t) => t !== tag));
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(inputValue);
+    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
+      removeTag(value[value.length - 1]);
+    }
+  };
+
+  const suggestions = options.filter((opt) => !value.includes(opt));
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((tag) => (
+            <Badge key={tag} variant="secondary" className="gap-1">
+              {tag}
+              <button
+                type="button"
+                onClick={() => removeTag(tag)}
+                aria-label={`Remove ${tag}`}
+                className="rounded-full outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        id={id}
+        value={inputValue}
+        placeholder={placeholder}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => addTag(inputValue)}
+        aria-invalid={!!error}
+      />
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => addTag(opt)}
+              className="rounded-full border border-border px-2 py-0.5 font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
 };
 
 interface ProjectFormFieldsProps {
@@ -232,7 +324,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
   };
 
   const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ): void => {
     const { name, value } = e.target;
     setFormData({
@@ -241,7 +333,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
     });
   };
 
-  const handleSkillsChange = (_event: React.SyntheticEvent, newValue: string[]): void => {
+  const handleSkillsChange = (newValue: string[]): void => {
     console.log('🔧 Skills changed:', newValue);
     setFormData({
       ...formData,
@@ -249,7 +341,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
     });
   };
 
-  const handleTagsChange = (_event: React.SyntheticEvent, newValue: string[]): void => {
+  const handleTagsChange = (newValue: string[]): void => {
     setFormData({
       ...formData,
       tags: newValue,
@@ -350,265 +442,258 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
     }
   };
 
+  const isSaving = createProjectMutation.isPending || updateProjectMutation.isPending;
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          {projectId ? 'Edit Project' : 'Create Project'}
-        </Typography>
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <Card>
+        <CardHeader>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            <span className="text-brand-amber">//</span> {projectId ? 'edit' : 'create'}
+          </p>
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            {projectId ? 'Edit Project' : 'Create Project'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(createProjectMutation.error || updateProjectMutation.error) && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>
+                {(
+                  createProjectMutation.error as Error & {
+                    response?: { data?: { message?: string } };
+                  }
+                )?.response?.data?.message ||
+                  (
+                    updateProjectMutation.error as Error & {
+                      response?: { data?: { message?: string } };
+                    }
+                  )?.response?.data?.message ||
+                  createProjectMutation.error?.message ||
+                  updateProjectMutation.error?.message ||
+                  'Error saving project. Please try again.'}
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {(createProjectMutation.error || updateProjectMutation.error) && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {(createProjectMutation.error as Error & { response?: { data?: { message?: string } } })
-              ?.response?.data?.message ||
-              (
-                updateProjectMutation.error as Error & {
-                  response?: { data?: { message?: string } };
-                }
-              )?.response?.data?.message ||
-              createProjectMutation.error?.message ||
-              updateProjectMutation.error?.message ||
-              'Error saving project. Please try again.'}
-          </Alert>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Project Title"
+          <form onSubmit={handleSubmit} className="grid gap-6">
+            <div className="grid gap-2">
+              <Label htmlFor="title">
+                Project Title <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="title"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                error={!!formErrors.title}
-                helperText={formErrors.title}
+                aria-invalid={!!formErrors.title}
                 required
               />
-            </Grid>
+              {formErrors.title && <p className="text-sm text-destructive">{formErrors.title}</p>}
+            </div>
 
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
+            <div className="grid gap-2">
+              <Label htmlFor="description">
+                Description <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="description"
                 name="description"
-                multiline
                 rows={4}
                 value={formData.description}
                 onChange={handleChange}
-                error={!!formErrors.description}
-                helperText={formErrors.description}
+                aria-invalid={!!formErrors.description}
                 required
               />
-            </Grid>
+              {formErrors.description && (
+                <p className="text-sm text-destructive">{formErrors.description}</p>
+              )}
+            </div>
 
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="GitHub URL (optional)"
-                name="githubUrl"
-                value={formData.githubUrl}
-                onChange={handleChange}
-                placeholder="https://github.com/username/project"
-              />
-            </Grid>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="githubUrl">GitHub URL (optional)</Label>
+                <Input
+                  id="githubUrl"
+                  name="githubUrl"
+                  value={formData.githubUrl}
+                  onChange={handleChange}
+                  placeholder="https://github.com/username/project"
+                />
+              </div>
 
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Live URL (optional)"
-                name="liveUrl"
-                value={formData.liveUrl}
-                onChange={handleChange}
-                placeholder="https://your-project.com"
-              />
-            </Grid>
+              <div className="grid gap-2">
+                <Label htmlFor="liveUrl">Live URL (optional)</Label>
+                <Input
+                  id="liveUrl"
+                  name="liveUrl"
+                  value={formData.liveUrl}
+                  onChange={handleChange}
+                  placeholder="https://your-project.com"
+                />
+              </div>
+            </div>
 
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                freeSolo
-                options={commonSkills}
-                value={formData.technologies}
-                onChange={(_event, newValue) => {
+            <TagEditor
+              id="technologies"
+              label="Technologies Used"
+              value={formData.technologies}
+              onChange={(newValue) =>
+                setFormData({
+                  ...formData,
+                  technologies: newValue,
+                })
+              }
+              placeholder="Select or type technologies"
+              options={commonSkills}
+            />
+
+            <TagEditor
+              id="requiredSkills"
+              label="Required Skills (optional)"
+              value={formData.requiredSkills}
+              onChange={handleSkillsChange}
+              options={commonSkills}
+              error={formErrors.requiredSkills}
+            />
+
+            <TagEditor
+              id="tags"
+              label="Tags (optional)"
+              value={formData.tags}
+              onChange={handleTagsChange}
+            />
+
+            <div className="grid gap-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
                   setFormData({
                     ...formData,
-                    technologies: newValue,
-                  });
-                }}
-                isOptionEqualToValue={(option, value) => option === value}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Technologies Used"
-                    placeholder="Select or type technologies"
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip label={option} {...getTagProps({ index })} key={option} />
-                  ))
+                    status: value as ProjectStatus,
+                  })
                 }
-              />
-            </Grid>
+              >
+                <SelectTrigger id="status" className="w-full">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ideation">Ideation</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                freeSolo
-                options={commonSkills}
-                value={formData.requiredSkills}
-                onChange={handleSkillsChange}
-                isOptionEqualToValue={(option, value) => option === value}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Required Skills (optional)"
-                    error={!!formErrors.requiredSkills}
-                    helperText={formErrors.requiredSkills}
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip label={option} {...getTagProps({ index })} key={option} />
-                  ))
-                }
-              />
-            </Grid>
+            <Separator />
 
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                freeSolo
-                options={[] as string[]}
-                value={formData.tags}
-                onChange={handleTagsChange}
-                renderInput={(params) => <TextField {...params} label="Tags (optional)" />}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip label={option} {...getTagProps({ index })} key={option} />
-                  ))
-                }
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  label="Status"
-                >
-                  <MenuItem value="ideation">Ideation</MenuItem>
-                  <MenuItem value="in_progress">In Progress</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Resources (optional)
-              </Typography>
+            <div className="grid gap-3">
+              <h3 className="text-base font-semibold">Resources (optional)</h3>
               {formData.resources.map((resource, index) => (
-                <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <TextField
-                    label="Resource Name"
-                    value={resource.name}
-                    onChange={(e) => handleResourceChange(index, 'name', e.target.value)}
-                    error={!!formErrors[`resource${index}Name`]}
-                    helperText={formErrors[`resource${index}Name`]}
-                    sx={{ flex: 1 }}
-                  />
-                  <TextField
-                    label="Resource URL"
-                    value={resource.url}
-                    onChange={(e) => handleResourceChange(index, 'url', e.target.value)}
-                    error={!!formErrors[`resource${index}Url`]}
-                    helperText={formErrors[`resource${index}Url`]}
-                    sx={{ flex: 2 }}
-                  />
-                  <IconButton
+                <div key={index} className="flex items-start gap-2">
+                  <div className="grid flex-1 gap-1">
+                    <Input
+                      placeholder="Resource Name"
+                      value={resource.name}
+                      onChange={(e) => handleResourceChange(index, 'name', e.target.value)}
+                      aria-invalid={!!formErrors[`resource${index}Name`]}
+                    />
+                    {formErrors[`resource${index}Name`] && (
+                      <p className="text-sm text-destructive">
+                        {formErrors[`resource${index}Name`]}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid flex-[2] gap-1">
+                    <Input
+                      placeholder="Resource URL"
+                      value={resource.url}
+                      onChange={(e) => handleResourceChange(index, 'url', e.target.value)}
+                      aria-invalid={!!formErrors[`resource${index}Url`]}
+                    />
+                    {formErrors[`resource${index}Url`] && (
+                      <p className="text-sm text-destructive">
+                        {formErrors[`resource${index}Url`]}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeResource(index)}
                     disabled={formData.resources.length === 1}
+                    aria-label="Remove resource"
                   >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               ))}
-              <Button startIcon={<AddIcon />} onClick={addResource} sx={{ mt: 1 }}>
-                Add Resource
-              </Button>
-            </Grid>
+              <div>
+                <Button type="button" variant="outline" size="sm" onClick={addResource}>
+                  <Plus className="size-4" />
+                  Add Resource
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
 
             {/* Incentives Section - Simplified */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Project Incentives (Optional)
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <div className="grid gap-3">
+              <h3 className="text-base font-semibold">Project Incentives (Optional)</h3>
+              <p className="text-sm text-muted-foreground">
                 Indicate if you will offer incentives to contributors. Specific details can be
                 discussed privately.
-              </Typography>
+              </p>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <FormControl>
-                  <InputLabel>Offer Incentives to Contributors</InputLabel>
-                  <Select
-                    value={formData.incentives.enabled ? 'yes' : 'no'}
-                    onChange={(e: SelectChangeEvent<string>) => {
-                      setFormData({
-                        ...formData,
-                        incentives: {
-                          ...formData.incentives,
-                          enabled: e.target.value === 'yes',
-                        },
-                      });
-                    }}
-                    label="Offer Incentives to Contributors"
-                  >
-                    <MenuItem value="no">No</MenuItem>
-                    <MenuItem value="yes">Yes - I will offer incentives</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+              <div className="grid gap-2">
+                <Label htmlFor="incentives-enabled">Offer Incentives to Contributors</Label>
+                <Select
+                  value={formData.incentives.enabled ? 'yes' : 'no'}
+                  onValueChange={(value) => {
+                    setFormData({
+                      ...formData,
+                      incentives: {
+                        ...formData.incentives,
+                        enabled: value === 'yes',
+                      },
+                    });
+                  }}
+                >
+                  <SelectTrigger id="incentives-enabled" className="w-full sm:w-auto sm:min-w-72">
+                    <SelectValue placeholder="Offer Incentives to Contributors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes - I will offer incentives</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               {formData.incentives.enabled && (
-                <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-                  <Typography variant="body2" color="info.contrastText">
-                    💡 <strong>Note:</strong> This will show potential contributors that incentives
-                    are available. Specific details about rewards will be discussed privately with
-                    accepted collaborators.
-                  </Typography>
-                </Box>
+                <div className="rounded-md bg-muted p-4 text-sm text-muted-foreground">
+                  💡 <strong className="text-foreground">Note:</strong> This will show potential
+                  contributors that incentives are available. Specific details about rewards will be
+                  discussed privately with accepted collaborators.
+                </div>
               )}
-            </Grid>
+            </div>
 
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                <Button variant="outlined" onClick={() => navigate('/projects')}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={createProjectMutation.isPending || updateProjectMutation.isPending}
-                >
-                  {createProjectMutation.isPending || updateProjectMutation.isPending
-                    ? 'Saving...'
-                    : projectId
-                      ? 'Update Project'
-                      : 'Create Project'}
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </form>
-      </Paper>
-    </Container>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate('/projects')}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="size-4 animate-spin" />}
+                {isSaving ? 'Saving...' : projectId ? 'Update Project' : 'Create Project'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
@@ -630,38 +715,27 @@ const ProjectForm: React.FC = () => {
   // Check authentication
   if (!isAuthenticated) {
     return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Authentication Required
-          </Typography>
-          You must be logged in to create or edit projects.
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Authentication Required</AlertTitle>
+          <AlertDescription>
+            You must be logged in to create or edit projects.
+          </AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => navigate('/login')}>
-          Go to Login
-        </Button>
-      </Container>
+        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+      </div>
     );
   }
 
   // Loading state for editing
   if (projectId && loading) {
     return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Loading project data...
-          </Typography>
-        </Box>
-      </Container>
+      <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center gap-3 px-4 py-8 sm:px-6">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <span className="text-lg font-semibold text-muted-foreground">
+          Loading project data...
+        </span>
+      </div>
     );
   }
 
@@ -669,17 +743,17 @@ const ProjectForm: React.FC = () => {
   if (projectId && projectError) {
     const errorObj = projectError as Error & { response?: { data?: { message?: string } } };
     return (
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Error Loading Project
-          </Typography>
-          {errorObj?.response?.data?.message || errorObj?.message || 'Failed to load project data'}
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Error Loading Project</AlertTitle>
+          <AlertDescription>
+            {errorObj?.response?.data?.message ||
+              errorObj?.message ||
+              'Failed to load project data'}
+          </AlertDescription>
         </Alert>
-        <Button variant="contained" onClick={() => navigate('/projects')}>
-          Back to Projects
-        </Button>
-      </Container>
+        <Button onClick={() => navigate('/projects')}>Back to Projects</Button>
+      </div>
     );
   }
 

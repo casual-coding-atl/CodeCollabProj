@@ -1,26 +1,21 @@
 import React, { useState, useRef, ChangeEvent, FormEvent, KeyboardEvent } from 'react';
+import { Plus, Trash2, Save, Camera, X, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Paper,
-  Alert,
-  Grid,
-  Chip,
-  FormControl,
-  InputLabel,
   Select,
-  MenuItem,
-  Switch,
-  FormControlLabel,
-  Divider,
-  CircularProgress,
-  IconButton,
-  SelectChangeEvent,
-} from '@mui/material';
-import { Add, Delete, Save, PhotoCamera, Close } from '@mui/icons-material';
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuth } from '../hooks/auth';
 import { useMyProfile, useUpdateProfile, useUploadAvatar, useDeleteAvatar } from '../hooks/users';
 import Avatar from '../components/common/Avatar';
@@ -80,7 +75,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
   const [validationError, setValidationError] = useState('');
 
   const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ): void => {
     const { name, value } = e.target;
     if (name.includes('.')) {
@@ -98,6 +93,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
         [name]: value,
       }));
     }
+    setValidationError('');
+  };
+
+  const handleSelectChange = (name: string, value: string): void => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
     setValidationError('');
   };
 
@@ -222,400 +225,397 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
     });
   };
 
-  return (
-    <Container maxWidth="md">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom align="center">
-            Profile Settings
-          </Typography>
-          <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 4 }}>
-            Manage your profile information and visibility
-          </Typography>
+  const errorMessage =
+    (profileError as Error & { response?: { data?: { message?: string } } })?.response?.data
+      ?.message ||
+    (profileError as Error)?.message ||
+    (
+      updateProfileMutation.error as Error & {
+        response?: { data?: { message?: string } };
+      }
+    )?.response?.data?.message ||
+    (updateProfileMutation.error as Error)?.message ||
+    validationError ||
+    'An error occurred';
 
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <Card>
+        <CardHeader className="text-center">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            account
+          </p>
+          <CardTitle className="text-2xl">Profile Settings</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Manage your profile information and visibility
+          </p>
+        </CardHeader>
+        <CardContent>
           {(profileError || updateProfileMutation.error || validationError) && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {(profileError as Error & { response?: { data?: { message?: string } } })?.response
-                ?.data?.message ||
-                (profileError as Error)?.message ||
-                (
-                  updateProfileMutation.error as Error & {
-                    response?: { data?: { message?: string } };
-                  }
-                )?.response?.data?.message ||
-                (updateProfileMutation.error as Error)?.message ||
-                validationError ||
-                'An error occurred'}
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <Grid container spacing={3}>
-              {/* Profile Picture */}
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
-                  <Box sx={{ position: 'relative', mb: 2 }}>
-                    <Avatar
-                      user={profile}
-                      size="xxl"
-                      onClick={handleAvatarClick}
-                      sx={{ cursor: 'pointer' }}
-                    />
-                    <IconButton
-                      sx={{
-                        position: 'absolute',
-                        bottom: 0,
-                        right: 0,
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'primary.dark' },
-                      }}
-                      size="small"
-                      onClick={handleAvatarClick}
-                      disabled={uploadAvatarMutation.isPending}
-                    >
-                      <PhotoCamera fontSize="small" />
-                    </IconButton>
-                  </Box>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleAvatarChange}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                  />
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleAvatarClick}
-                      disabled={uploadAvatarMutation.isPending}
-                      startIcon={
-                        uploadAvatarMutation.isPending ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <PhotoCamera />
-                        )
-                      }
-                    >
-                      {uploadAvatarMutation.isPending ? 'Uploading...' : 'Change Photo'}
-                    </Button>
-                    {profile?.profileImage && (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        color="error"
-                        onClick={handleRemoveAvatar}
-                        disabled={deleteAvatarMutation.isPending}
-                        startIcon={
-                          deleteAvatarMutation.isPending ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <Close />
-                          )
-                        }
-                      >
-                        {deleteAvatarMutation.isPending ? 'Removing...' : 'Remove'}
-                      </Button>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Profile Picture */}
+            <div className="flex flex-col items-center">
+              <div className="relative mb-3">
+                <Avatar
+                  user={profile}
+                  size="xxl"
+                  onClick={handleAvatarClick}
+                  sx={{ cursor: 'pointer' }}
+                />
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  className="absolute bottom-0 right-0 rounded-full"
+                  onClick={handleAvatarClick}
+                  disabled={uploadAvatarMutation.isPending}
+                >
+                  <Camera className="size-4" />
+                </Button>
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarChange}
+                accept="image/*"
+                style={{ display: 'none' }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAvatarClick}
+                  disabled={uploadAvatarMutation.isPending}
+                >
+                  {uploadAvatarMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Camera className="size-4" />
+                  )}
+                  {uploadAvatarMutation.isPending ? 'Uploading...' : 'Change Photo'}
+                </Button>
+                {profile?.profileImage && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={handleRemoveAvatar}
+                    disabled={deleteAvatarMutation.isPending}
+                  >
+                    {deleteAvatarMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <X className="size-4" />
                     )}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                    Click on the avatar or button to upload a new photo
-                  </Typography>
-                </Box>
-              </Grid>
+                    {deleteAvatarMutation.isPending ? 'Removing...' : 'Remove'}
+                  </Button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Click on the avatar or button to upload a new photo
+              </p>
+            </div>
 
-              {/* Basic Information */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Basic Information
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  required
-                  fullWidth
-                  label="First Name"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  required
-                  fullWidth
-                  label="Last Name"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Bio"
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Basic Information</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="firstName">
+                    First Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="firstName"
+                    required
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    disabled={updateProfileMutation.isPending}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lastName">
+                    Last Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="lastName"
+                    required
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    disabled={updateProfileMutation.isPending}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
                   name="bio"
-                  multiline
                   rows={4}
                   value={formData.bio}
                   onChange={handleChange}
                   disabled={updateProfileMutation.isPending}
-                  helperText="Tell others about yourself and your interests"
                 />
-              </Grid>
+                <p className="text-xs text-muted-foreground">
+                  Tell others about yourself and your interests
+                </p>
+              </div>
+            </div>
 
-              {/* Skills */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Skills
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  <TextField
-                    size="small"
-                    placeholder="Add a skill (e.g., React, Python)"
-                    value={newSkill}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewSkill(e.target.value)}
-                    onKeyPress={(e: KeyboardEvent<HTMLInputElement>) =>
-                      e.key === 'Enter' && (e.preventDefault(), handleAddSkill())
-                    }
-                    disabled={updateProfileMutation.isPending}
-                  />
-                  <Button
-                    variant="outlined"
-                    onClick={handleAddSkill}
-                    disabled={!newSkill.trim() || updateProfileMutation.isPending}
-                    startIcon={<Add />}
-                  >
-                    Add
-                  </Button>
-                </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {formData.skills.map((skill, index) => (
-                    <Chip
-                      key={`${skill}-${index}`}
-                      label={skill}
-                      onDelete={() => handleRemoveSkill(skill)}
-                      deleteIcon={<Delete />}
-                    />
-                  ))}
-                </Box>
-              </Grid>
+            {/* Skills */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Skills</h2>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add a skill (e.g., React, Python)"
+                  value={newSkill}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewSkill(e.target.value)}
+                  onKeyDown={(e: KeyboardEvent<HTMLInputElement>) =>
+                    e.key === 'Enter' && (e.preventDefault(), handleAddSkill())
+                  }
+                  disabled={updateProfileMutation.isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddSkill}
+                  disabled={!newSkill.trim() || updateProfileMutation.isPending}
+                >
+                  <Plus className="size-4" />
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {formData.skills.map((skill, index) => (
+                  <Badge key={`${skill}-${index}`} variant="secondary" className="gap-1 pr-1">
+                    {skill}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkill(skill)}
+                      aria-label={`Remove ${skill}`}
+                      className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
 
-              {/* Experience and Availability */}
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Experience Level</InputLabel>
-                  <Select
-                    name="experience"
-                    value={formData.experience}
-                    onChange={handleChange}
-                    disabled={updateProfileMutation.isPending}
-                    label="Experience Level"
-                  >
-                    <MenuItem value="beginner">Beginner</MenuItem>
-                    <MenuItem value="intermediate">Intermediate</MenuItem>
-                    <MenuItem value="advanced">Advanced</MenuItem>
-                    <MenuItem value="expert">Expert</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+            {/* Experience and Availability */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="experience">Experience Level</Label>
+                <Select
+                  name="experience"
+                  value={formData.experience}
+                  onValueChange={(value) => handleSelectChange('experience', value)}
+                  disabled={updateProfileMutation.isPending}
+                >
+                  <SelectTrigger id="experience" className="w-full">
+                    <SelectValue placeholder="Experience Level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="beginner">Beginner</SelectItem>
+                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                    <SelectItem value="expert">Expert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="availability">Availability</Label>
+                <Select
+                  name="availability"
+                  value={formData.availability}
+                  onValueChange={(value) => handleSelectChange('availability', value)}
+                  disabled={updateProfileMutation.isPending}
+                >
+                  <SelectTrigger id="availability" className="w-full">
+                    <SelectValue placeholder="Availability" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="full-time">Full-time</SelectItem>
+                    <SelectItem value="part-time">Part-time</SelectItem>
+                    <SelectItem value="weekends">Weekends</SelectItem>
+                    <SelectItem value="evenings">Evenings</SelectItem>
+                    <SelectItem value="flexible">Flexible</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Availability</InputLabel>
-                  <Select
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleChange}
-                    disabled={updateProfileMutation.isPending}
-                    label="Availability"
-                  >
-                    <MenuItem value="full-time">Full-time</MenuItem>
-                    <MenuItem value="part-time">Part-time</MenuItem>
-                    <MenuItem value="weekends">Weekends</MenuItem>
-                    <MenuItem value="evenings">Evenings</MenuItem>
-                    <MenuItem value="flexible">Flexible</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Location and Timezone */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Location"
+            {/* Location and Timezone */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  id="location"
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
                   disabled={updateProfileMutation.isPending}
                   placeholder="City, Country"
                 />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Timezone"
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Input
+                  id="timezone"
                   name="timezone"
                   value={formData.timezone}
                   onChange={handleChange}
                   disabled={updateProfileMutation.isPending}
                   placeholder="UTC-5, EST, etc."
                 />
-              </Grid>
+              </div>
+            </div>
 
-              {/* Social Links */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Social Links
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="GitHub"
-                  name="socialLinks.github"
-                  value={formData.socialLinks.github}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                  placeholder="https://github.com/username"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="LinkedIn"
-                  name="socialLinks.linkedin"
-                  value={formData.socialLinks.linkedin}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                  placeholder="https://linkedin.com/in/username"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Twitter"
-                  name="socialLinks.twitter"
-                  value={formData.socialLinks.twitter}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                  placeholder="https://twitter.com/username"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Website"
-                  name="socialLinks.website"
-                  value={formData.socialLinks.website}
-                  onChange={handleChange}
-                  disabled={updateProfileMutation.isPending}
-                  placeholder="https://yourwebsite.com"
-                />
-              </Grid>
-
-              {/* Portfolio Links */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  Portfolio Links
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                  <TextField
-                    size="small"
-                    placeholder="Project name"
-                    value={newPortfolioLink.name}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setNewPortfolioLink((prev) => ({ ...prev, name: e.target.value }))
-                    }
+            {/* Social Links */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Social Links</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="socialLinks.github">GitHub</Label>
+                  <Input
+                    id="socialLinks.github"
+                    name="socialLinks.github"
+                    value={formData.socialLinks.github}
+                    onChange={handleChange}
                     disabled={updateProfileMutation.isPending}
+                    placeholder="https://github.com/username"
                   />
-                  <TextField
-                    size="small"
-                    placeholder="Project URL"
-                    value={newPortfolioLink.url}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                      setNewPortfolioLink((prev) => ({ ...prev, url: e.target.value }))
-                    }
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="socialLinks.linkedin">LinkedIn</Label>
+                  <Input
+                    id="socialLinks.linkedin"
+                    name="socialLinks.linkedin"
+                    value={formData.socialLinks.linkedin}
+                    onChange={handleChange}
                     disabled={updateProfileMutation.isPending}
+                    placeholder="https://linkedin.com/in/username"
                   />
-                  <Button
-                    variant="outlined"
-                    onClick={handleAddPortfolioLink}
-                    disabled={
-                      !newPortfolioLink.name.trim() ||
-                      !newPortfolioLink.url.trim() ||
-                      updateProfileMutation.isPending
-                    }
-                    startIcon={<Add />}
-                  >
-                    Add
-                  </Button>
-                </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {formData.portfolioLinks.map((link, index) => (
-                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ flex: 1 }}>
-                        {link.name}: {link.url}
-                      </Typography>
-                      <Button
-                        size="small"
-                        onClick={() => handleRemovePortfolioLink(index)}
-                        startIcon={<Delete />}
-                      >
-                        Remove
-                      </Button>
-                    </Box>
-                  ))}
-                </Box>
-              </Grid>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="socialLinks.twitter">Twitter</Label>
+                  <Input
+                    id="socialLinks.twitter"
+                    name="socialLinks.twitter"
+                    value={formData.socialLinks.twitter}
+                    onChange={handleChange}
+                    disabled={updateProfileMutation.isPending}
+                    placeholder="https://twitter.com/username"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="socialLinks.website">Website</Label>
+                  <Input
+                    id="socialLinks.website"
+                    name="socialLinks.website"
+                    value={formData.socialLinks.website}
+                    onChange={handleChange}
+                    disabled={updateProfileMutation.isPending}
+                    placeholder="https://yourwebsite.com"
+                  />
+                </div>
+              </div>
+            </div>
 
-              {/* Profile Visibility */}
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.isProfilePublic}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                        setFormData((prev) => ({ ...prev, isProfilePublic: e.target.checked }))
-                      }
-                      disabled={updateProfileMutation.isPending}
-                    />
+            {/* Portfolio Links */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Portfolio Links</h2>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="Project name"
+                  value={newPortfolioLink.name}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setNewPortfolioLink((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  label="Make my profile public (visible to other members)"
+                  disabled={updateProfileMutation.isPending}
                 />
-              </Grid>
+                <Input
+                  placeholder="Project URL"
+                  value={newPortfolioLink.url}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setNewPortfolioLink((prev) => ({ ...prev, url: e.target.value }))
+                  }
+                  disabled={updateProfileMutation.isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddPortfolioLink}
+                  disabled={
+                    !newPortfolioLink.name.trim() ||
+                    !newPortfolioLink.url.trim() ||
+                    updateProfileMutation.isPending
+                  }
+                >
+                  <Plus className="size-4" />
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {formData.portfolioLinks.map((link, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <p className="flex-1 text-sm text-foreground">
+                      {link.name}: {link.url}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemovePortfolioLink(index)}
+                    >
+                      <Trash2 className="size-4" />
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-              {/* Submit Button */}
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    size="large"
-                    disabled={updateProfileMutation.isPending}
-                    startIcon={<Save />}
-                  >
-                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Profile'}
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+            {/* Profile Visibility */}
+            <div>
+              <Separator className="mb-6" />
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="isProfilePublic"
+                  checked={formData.isProfilePublic}
+                  onCheckedChange={(checked) =>
+                    setFormData((prev) => ({ ...prev, isProfilePublic: checked }))
+                  }
+                  disabled={updateProfileMutation.isPending}
+                />
+                <Label htmlFor="isProfilePublic">
+                  Make my profile public (visible to other members)
+                </Label>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex justify-center">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={updateProfileMutation.isPending}
+              >
+                <Save className="size-4" />
+                {updateProfileMutation.isPending ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
@@ -629,40 +629,28 @@ const Profile: React.FC = () => {
   // Authentication check
   if (!isAuthenticated) {
     return (
-      <Container maxWidth="md">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Authentication Required
-            </Typography>
-            You must be logged in to view your profile.
-          </Alert>
-          <Button variant="contained" href="/login">
-            Go to Login
-          </Button>
-        </Box>
-      </Container>
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>
+            <span className="font-semibold">Authentication Required</span> — You must be logged in
+            to view your profile.
+          </AlertDescription>
+        </Alert>
+        <Button asChild>
+          <a href="/login">Go to Login</a>
+        </Button>
+      </div>
     );
   }
 
   if (profileLoading) {
     return (
-      <Container maxWidth="md">
-        <Box
-          sx={{
-            mt: 4,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '300px',
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Loading profile...
-          </Typography>
-        </Box>
-      </Container>
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="flex min-h-[300px] items-center justify-center gap-3">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <p className="text-lg font-medium">Loading profile...</p>
+        </div>
+      </div>
     );
   }
 

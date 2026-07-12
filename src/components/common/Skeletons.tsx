@@ -1,41 +1,32 @@
-import React, { FC } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  CardActions,
-  Skeleton,
-  Grid,
-  TableRow,
-  TableCell,
-} from '@mui/material';
+import { FC } from 'react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { TableRow, TableCell } from '@/components/ui/table';
 
 // Skeleton for project cards
 export const ProjectCardSkeleton: FC = () => (
   <Card>
     <CardContent>
-      <Box
-        sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}
-      >
-        <Skeleton variant="text" width="60%" height={32} />
-        <Skeleton variant="rounded" width={80} height={24} />
-      </Box>
-      <Skeleton variant="text" width="100%" />
-      <Skeleton variant="text" width="80%" sx={{ mb: 2 }} />
-      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-        <Skeleton variant="rounded" width={60} height={24} />
-        <Skeleton variant="rounded" width={70} height={24} />
-        <Skeleton variant="rounded" width={50} height={24} />
-      </Box>
-      <Box sx={{ display: 'flex', gap: 2 }}>
-        <Skeleton variant="text" width={40} />
-        <Skeleton variant="text" width={80} />
-      </Box>
+      <div className="mb-4 flex items-start justify-between">
+        <Skeleton className="h-8 w-3/5" />
+        <Skeleton className="h-6 w-20 rounded-md" />
+      </div>
+      <Skeleton className="mb-2 h-4 w-full" />
+      <Skeleton className="mb-4 h-4 w-4/5" />
+      <div className="mb-4 flex gap-2">
+        <Skeleton className="h-6 w-[60px] rounded-md" />
+        <Skeleton className="h-6 w-[70px] rounded-md" />
+        <Skeleton className="h-6 w-[50px] rounded-md" />
+      </div>
+      <div className="flex gap-4">
+        <Skeleton className="h-4 w-10" />
+        <Skeleton className="h-4 w-20" />
+      </div>
     </CardContent>
-    <CardActions>
-      <Skeleton variant="rounded" width={90} height={30} />
-      <Skeleton variant="rounded" width={50} height={30} />
-    </CardActions>
+    <CardFooter className="gap-2">
+      <Skeleton className="h-[30px] w-[90px] rounded-md" />
+      <Skeleton className="h-[30px] w-[50px] rounded-md" />
+    </CardFooter>
   </Card>
 );
 
@@ -43,8 +34,8 @@ export const ProjectCardSkeleton: FC = () => (
 export const StatCardSkeleton: FC = () => (
   <Card>
     <CardContent>
-      <Skeleton variant="text" width="70%" height={20} sx={{ mb: 1 }} />
-      <Skeleton variant="text" width="40%" height={40} />
+      <Skeleton className="mb-2 h-5 w-[70%]" />
+      <Skeleton className="h-10 w-2/5" />
     </CardContent>
   </Card>
 );
@@ -53,25 +44,25 @@ export const StatCardSkeleton: FC = () => (
 export const MemberRowSkeleton: FC = () => (
   <TableRow>
     <TableCell>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Skeleton variant="circular" width={32} height={32} />
-        <Skeleton variant="text" width={100} />
-      </Box>
+      <div className="flex items-center gap-2">
+        <Skeleton className="size-8 rounded-full" />
+        <Skeleton className="h-4 w-[100px]" />
+      </div>
     </TableCell>
     <TableCell>
-      <Skeleton variant="text" width={150} />
+      <Skeleton className="h-4 w-[150px]" />
     </TableCell>
     <TableCell>
-      <Skeleton variant="text" width={80} />
+      <Skeleton className="h-4 w-20" />
     </TableCell>
     <TableCell>
-      <Skeleton variant="text" width={100} />
+      <Skeleton className="h-4 w-[100px]" />
     </TableCell>
     <TableCell>
-      <Skeleton variant="text" width={120} />
+      <Skeleton className="h-4 w-[120px]" />
     </TableCell>
-    <TableCell align="center">
-      <Skeleton variant="rounded" width={80} height={30} sx={{ mx: 'auto' }} />
+    <TableCell className="text-center">
+      <Skeleton className="mx-auto h-[30px] w-20 rounded-md" />
     </TableCell>
   </TableRow>
 );
@@ -82,42 +73,38 @@ interface ProjectListSkeletonProps {
 
 // Grid of project card skeletons
 export const ProjectListSkeleton: FC<ProjectListSkeletonProps> = ({ count = 6 }) => (
-  <Grid container spacing={3}>
+  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
     {Array.from({ length: count }).map((_, index) => (
-      <Grid item xs={12} sm={6} md={4} key={index}>
-        <ProjectCardSkeleton />
-      </Grid>
+      <ProjectCardSkeleton key={index} />
     ))}
-  </Grid>
+  </div>
 );
 
 // Dashboard skeleton
 export const DashboardSkeleton: FC = () => (
-  <Box>
+  <div>
     {/* Welcome section */}
-    <Box sx={{ mb: 4 }}>
-      <Skeleton variant="text" width={300} height={40} />
-      <Skeleton variant="text" width={400} height={24} />
-    </Box>
+    <div className="mb-8">
+      <Skeleton className="h-10 w-[300px]" />
+      <Skeleton className="mt-2 h-6 w-[400px]" />
+    </div>
 
     {/* Stats cards */}
-    <Grid container spacing={3} sx={{ mb: 4 }}>
+    <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
       {[1, 2, 3].map((i) => (
-        <Grid item xs={12} sm={4} key={i}>
-          <StatCardSkeleton />
-        </Grid>
+        <StatCardSkeleton key={i} />
       ))}
-    </Grid>
+    </div>
 
     {/* Projects header */}
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-      <Skeleton variant="text" width={150} height={32} />
-      <Skeleton variant="rounded" width={160} height={36} />
-    </Box>
+    <div className="mb-6 flex items-center justify-between">
+      <Skeleton className="h-8 w-[150px]" />
+      <Skeleton className="h-9 w-40 rounded-md" />
+    </div>
 
     {/* Project cards */}
     <ProjectListSkeleton count={3} />
-  </Box>
+  </div>
 );
 
 interface MembersTableSkeletonProps {

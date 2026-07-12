@@ -1,22 +1,12 @@
 import React, { useEffect } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Avatar,
-  Chip,
-  Button,
-  Divider,
-  IconButton,
-  Alert,
-} from '@mui/material';
-import {
-  ArrowBack as ArrowBackIcon,
-  Reply as ReplyIcon,
-  Delete as DeleteIcon,
-  MarkEmailRead as MarkEmailReadIcon,
-} from '@mui/icons-material';
+import { ArrowLeft, Reply, Trash2, MailOpen } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import Avatar from '../common/Avatar';
 import { useMessage, useMarkMessageAsRead } from '../../hooks/users/useMessaging';
 import type { UserSummary } from '../../types';
 
@@ -66,24 +56,24 @@ const MessageThread: React.FC<MessageThreadProps> = ({
 
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" p={3}>
-        <Typography>Loading message...</Typography>
-      </Box>
+      <div className="flex justify-center p-6">
+        <p className="text-muted-foreground">Loading message...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        Failed to load message: {(error as Error).message}
+      <Alert variant="destructive" className="m-2">
+        <AlertDescription>Failed to load message: {(error as Error).message}</AlertDescription>
       </Alert>
     );
   }
 
   if (!message) {
     return (
-      <Alert severity="warning" sx={{ m: 2 }}>
-        Message not found
+      <Alert className="m-2">
+        <AlertDescription>Message not found</AlertDescription>
       </Alert>
     );
   }
@@ -91,97 +81,94 @@ const MessageThread: React.FC<MessageThreadProps> = ({
   const sender = message.sender as UserSummary | undefined;
 
   return (
-    <Box>
+    <div>
       {/* Header */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Box display="flex" alignItems="center" gap={2}>
-            {onBack && (
-              <IconButton onClick={onBack} size="small">
-                <ArrowBackIcon />
-              </IconButton>
-            )}
-            <Typography variant="h6">Message Details</Typography>
-          </Box>
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {onBack && (
+                <Button variant="ghost" size="icon" className="size-8" onClick={onBack} aria-label="Back">
+                  <ArrowLeft className="size-4" />
+                </Button>
+              )}
+              <h2 className="text-lg font-semibold text-foreground">Message Details</h2>
+            </div>
 
-          <Box display="flex" alignItems="center" gap={1}>
-            {!message.isRead && (
-              <Chip label="Unread" size="small" color="primary" icon={<MarkEmailReadIcon />} />
-            )}
-            {onReply && (
-              <Button size="small" startIcon={<ReplyIcon />} onClick={() => onReply(message)}>
-                Reply
-              </Button>
-            )}
-            {onDelete && (
-              <IconButton
-                size="small"
-                onClick={() => onDelete(message._id)}
-                sx={{ color: 'error.main' }}
-              >
-                <DeleteIcon />
-              </IconButton>
-            )}
-          </Box>
-        </Box>
+            <div className="flex items-center gap-2">
+              {!message.isRead && (
+                <Badge className="gap-1 bg-brand-amber text-brand-amber-foreground hover:bg-brand-amber">
+                  <MailOpen className="size-3.5" />
+                  Unread
+                </Badge>
+              )}
+              {onReply && (
+                <Button variant="outline" size="sm" onClick={() => onReply(message)}>
+                  <Reply className="size-4" />
+                  Reply
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-destructive hover:text-destructive"
+                  onClick={() => onDelete(message._id)}
+                  aria-label="Delete"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
 
-        {/* Message metadata */}
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <Avatar sx={{ width: 40, height: 40 }}>
-            {(sender?.firstName?.[0] || sender?.username?.[0] || 'U').toUpperCase()}
-          </Avatar>
-          <Box flexGrow={1}>
-            <Typography variant="subtitle2">
-              From:{' '}
-              {sender?.firstName && sender?.lastName
-                ? `${sender.firstName} ${sender.lastName}`
-                : sender?.username || 'Unknown User'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {sender?.email}
-            </Typography>
-          </Box>
-          <Box textAlign="right">
-            <Typography variant="body2" color="text.secondary">
-              {format(new Date(message.createdAt), 'PPP')}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-            </Typography>
-          </Box>
-        </Box>
+          {/* Message metadata */}
+          <div className="mb-4 flex items-center gap-3">
+            <Avatar user={sender as unknown as UserSummary} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">
+                From:{' '}
+                {sender?.firstName && sender?.lastName
+                  ? `${sender.firstName} ${sender.lastName}`
+                  : sender?.username || 'Unknown User'}
+              </p>
+              <p className="text-sm text-muted-foreground">{sender?.email}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">
+                {format(new Date(message.createdAt), 'PPP')}
+              </p>
+              <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+              </p>
+            </div>
+          </div>
 
-        <Divider />
+          <Separator />
 
-        {/* Subject */}
-        <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-          {message.subject}
-        </Typography>
-      </Paper>
+          {/* Subject */}
+          <h2 className="mt-4 text-lg font-semibold text-foreground">{message.subject}</h2>
+        </CardContent>
+      </Card>
 
       {/* Message content */}
-      <Paper sx={{ p: 3 }}>
-        <Typography
-          variant="body1"
-          sx={{
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
-            minHeight: '200px',
-          }}
-        >
-          {message.content}
-        </Typography>
-      </Paper>
+      <Card>
+        <CardContent className="pt-6">
+          <p className="min-h-[200px] whitespace-pre-wrap leading-relaxed text-foreground">
+            {message.content}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Footer info */}
-      <Box sx={{ mt: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-        <Typography variant="caption" color="text.secondary">
+      <div className="mt-4 rounded-md bg-muted p-4">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
           {message.isRead
             ? `Read ${message.readAt ? format(new Date(message.readAt), 'PPp') : 'recently'}`
             : 'Unread'}
-        </Typography>
-      </Box>
-    </Box>
+        </p>
+      </div>
+    </div>
   );
 };
 

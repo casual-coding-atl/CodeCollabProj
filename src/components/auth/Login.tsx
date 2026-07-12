@@ -1,6 +1,5 @@
 import React, { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box } from '@mui/material';
 import { useAuth, useLogin } from '../../hooks/auth';
 import LoginForm from './LoginForm';
 import VerificationAlert from './VerificationAlert';
@@ -80,27 +79,23 @@ const Login: React.FC = () => {
 
   if (needsVerification) {
     return (
-      <Container maxWidth="sm">
-        <Box sx={{ mt: 8, mb: 4 }}>
-          <VerificationAlert email={formData.email} onBack={() => setNeedsVerification(false)} />
-        </Box>
-      </Container>
+      <div className="px-4 py-12">
+        <VerificationAlert email={formData.email} onBack={() => setNeedsVerification(false)} />
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4 }}>
-        <LoginForm
-          formData={formData}
-          formErrors={formErrors}
-          isLoading={loginMutation.isPending}
-          error={loginMutation.error}
-          onChange={setFormData}
-          onSubmit={handleSubmit}
-        />
-      </Box>
-    </Container>
+    <div className="px-4 py-12">
+      <LoginForm
+        formData={formData}
+        formErrors={formErrors}
+        isLoading={loginMutation.isPending}
+        error={loginMutation.error}
+        onChange={setFormData}
+        onSubmit={handleSubmit}
+      />
+    </div>
   );
 };
 

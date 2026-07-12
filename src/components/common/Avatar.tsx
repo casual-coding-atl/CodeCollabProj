@@ -1,5 +1,10 @@
-import React, { FC, MouseEvent } from 'react';
-import { Avatar as MuiAvatar, Box, SxProps, Theme } from '@mui/material';
+import { FC, MouseEvent, CSSProperties } from 'react';
+import {
+  Avatar as UiAvatar,
+  AvatarImage,
+  AvatarFallback,
+} from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 // Type for user object (partial, for avatar purposes)
 interface AvatarUser {
@@ -19,7 +24,9 @@ interface AvatarProps {
   size?: AvatarSize;
   showOnlineStatus?: boolean;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
-  sx?: SxProps<Theme>;
+  className?: string;
+  /** Inline style overrides (kept for backwards compatibility with callers). */
+  sx?: CSSProperties;
 }
 
 // Generate a consistent color from a string (username/email)
@@ -75,8 +82,8 @@ const Avatar: FC<AvatarProps> = ({
   size = 'md',
   showOnlineStatus = false,
   onClick,
-  sx = {},
-  ...props
+  className,
+  sx,
 }) => {
   const dimension = typeof size === 'number' ? size : sizeMap[size] || sizeMap.md;
   const fontSize = dimension * 0.4;
@@ -115,52 +122,32 @@ const Avatar: FC<AvatarProps> = ({
   const imageUrl = getImageUrl();
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        display: 'inline-flex',
-        ...sx,
-      }}
+    <div
+      className={cn('relative inline-flex', onClick && 'cursor-pointer', className)}
+      style={sx}
+      onClick={onClick}
     >
-      <MuiAvatar
+      <UiAvatar
         data-testid="avatar"
-        src={imageUrl || undefined}
-        alt={user?.username || 'User'}
-        onClick={onClick}
-        sx={{
-          width: dimension,
-          height: dimension,
-          fontSize: fontSize,
-          bgcolor: bgColor,
-          cursor: onClick ? 'pointer' : 'default',
-          transition: 'transform 0.2s, box-shadow 0.2s',
-          '&:hover': onClick
-            ? {
-                transform: 'scale(1.05)',
-                boxShadow: 2,
-              }
-            : {},
-        }}
-        {...props}
+        style={{ width: dimension, height: dimension }}
+        className={cn(onClick && 'transition-transform hover:scale-105 hover:shadow-md')}
       >
-        {initials}
-      </MuiAvatar>
+        {imageUrl && <AvatarImage src={imageUrl} alt={user?.username || 'User'} />}
+        <AvatarFallback
+          className="font-medium text-white"
+          style={{ backgroundColor: bgColor, fontSize }}
+        >
+          {initials}
+        </AvatarFallback>
+      </UiAvatar>
 
       {showOnlineStatus && (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: 0,
-            right: 0,
-            width: dimension * 0.25,
-            height: dimension * 0.25,
-            bgcolor: 'success.main',
-            borderRadius: '50%',
-            border: '2px solid white',
-          }}
+        <span
+          className="absolute bottom-0 right-0 rounded-full border-2 border-background bg-green-500"
+          style={{ width: dimension * 0.25, height: dimension * 0.25 }}
         />
       )}
-    </Box>
+    </div>
   );
 };
 
