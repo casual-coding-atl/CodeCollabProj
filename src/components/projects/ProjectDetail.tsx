@@ -795,9 +795,13 @@ const ProjectDetail: React.FC = () => {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Project</DialogTitle>
+            <DialogTitle>Delete project?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this project? This action cannot be undone.
+              This permanently deletes{' '}
+              <span className="font-medium text-foreground">
+                {currentProject?.title || 'this project'}
+              </span>{' '}
+              and its comments. This can’t be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

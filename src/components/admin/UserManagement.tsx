@@ -1,4 +1,5 @@
 import React, { useState, ChangeEvent } from 'react';
+import { toast } from 'sonner';
 import { Eye, Pencil, Ban, CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -443,18 +444,33 @@ const UserManagement: React.FC = () => {
   };
 
   const handleUpdateRole = async (userId: string, roleData: { role: UserRole }): Promise<void> => {
-    await updateUserRole.mutateAsync({ userId, roleData });
+    try {
+      await updateUserRole.mutateAsync({ userId, roleData });
+      toast.success(`Role updated to ${roleData.role}`);
+    } catch {
+      toast.error('Couldn’t update role');
+    }
   };
 
   const handleSuspend = async (
     userId: string,
     suspensionData: { reason: string; duration?: number }
   ): Promise<void> => {
-    await suspendUser.mutateAsync({ userId, suspensionData });
+    try {
+      await suspendUser.mutateAsync({ userId, suspensionData });
+      toast.success('User suspended');
+    } catch {
+      toast.error('Couldn’t suspend user');
+    }
   };
 
   const handleUnsuspend = async (userId: string): Promise<void> => {
-    await unsuspendUser.mutateAsync(userId);
+    try {
+      await unsuspendUser.mutateAsync(userId);
+      toast.success('User unsuspended');
+    } catch {
+      toast.error('Couldn’t unsuspend user');
+    }
   };
 
   const handleDelete = (user: AdminUser): void => {
@@ -462,7 +478,12 @@ const UserManagement: React.FC = () => {
   };
 
   const handleConfirmDelete = async (user: AdminUser): Promise<void> => {
-    await deleteUser.mutateAsync({ userId: user._id, permanent: false });
+    try {
+      await deleteUser.mutateAsync({ userId: user._id, permanent: false });
+      toast.success(`Removed ${user.username}`);
+    } catch {
+      toast.error('Couldn’t remove user');
+    }
   };
 
   if (error) {
@@ -551,7 +572,7 @@ const UserManagement: React.FC = () => {
                   key={user._id}
                   user={user}
                   onEdit={handleEditRole}
-                  onView={(user) => console.log('View user:', user)} // TODO: Implement user details view
+                  onView={() => {}} // TODO: user details view (PRD follow-up)
                   onSuspend={handleSuspendUser}
                   onUnsuspend={handleUnsuspend}
                   onDelete={handleDelete}

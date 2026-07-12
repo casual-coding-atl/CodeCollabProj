@@ -261,12 +261,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
             {/* Profile Picture */}
             <div className="flex flex-col items-center">
               <div className="relative mb-3">
-                <Avatar
-                  user={profile}
-                  size="xxl"
-                  onClick={handleAvatarClick}
-                  sx={{ cursor: 'pointer' }}
-                />
+                <Avatar user={profile} size="xxl" onClick={handleAvatarClick} />
                 <Button
                   type="button"
                   size="icon-sm"
