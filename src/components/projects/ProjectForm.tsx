@@ -359,7 +359,6 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
   };
 
   const onValid = (values: ProjectFormValues): void => {
-    console.log('✅ Form validation passed');
     const filteredResources = values.resources.filter(
       (resource) => resource.name && resource.url
     );
@@ -373,10 +372,8 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
       tags: Array.isArray(values.tags) ? values.tags : [],
     };
 
-    console.log('📤 Sending project data:', projectData);
 
     if (projectId) {
-      console.log('🔄 Updating project:', projectId, projectData);
       updateProjectMutation.mutate(
         { projectId, projectData },
         {
@@ -392,7 +389,6 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
         }
       );
     } else {
-      console.log('➕ Creating new project:', projectData);
       createProjectMutation.mutate(projectData, {
         onSuccess: () => {
           toast.success('Project created');

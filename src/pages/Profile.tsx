@@ -157,7 +157,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
 
       uploadAvatarMutation.mutate(avatarFormData, {
         onSuccess: (data) => {
-          console.log('✅ Avatar uploaded:', data);
           setValidationError('');
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
@@ -185,7 +184,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, profileError }) => {
   const onSubmit = (values: ProfileFormValues): void => {
     updateProfileMutation.mutate(values, {
       onSuccess: (data) => {
-        console.log('✅ Profile updated successfully:', data);
         setValidationError('');
       },
       onError: (

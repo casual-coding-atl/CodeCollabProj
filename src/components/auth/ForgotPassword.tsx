@@ -52,7 +52,6 @@ const ForgotPassword: React.FC = () => {
   const handleSubmit = (values: ForgotPasswordSchema): void => {
     requestPasswordResetMutation.mutate(values.email, {
       onSuccess: (data) => {
-        console.log('Password reset requested successfully:', data);
         setPasswordResetData(data as PasswordResetRequestResponseDev);
       },
       onError: (error) => {

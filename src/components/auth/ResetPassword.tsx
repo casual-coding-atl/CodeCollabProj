@@ -79,7 +79,6 @@ const ResetPassword: React.FC = () => {
       { token, password: values.password },
       {
         onSuccess: (data) => {
-          console.log('Password reset successful:', data);
           setPasswordResetSuccess(true);
         },
         onError: (error) => {
