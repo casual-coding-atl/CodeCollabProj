@@ -1,2 +1,0 @@
-# This file ensures the logs directory is tracked in git but log files are ignored
-# Log files will be generated here by the application

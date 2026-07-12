@@ -1,67 +1,62 @@
 {
   "name": "codecollabproj",
-  "version": "1.0.0",
-  "engines": {
-    "node": ">=22"
-  },
-  "description": "Computer Club Collaboration Platform",
+  "private": true,
+  "type": "module",
+  "description": "Casual Coding Meetup collaboration platform — TanStack Start (SSR + in-process API), MongoDB.",
   "scripts": {
-    "start": "cd server && npm start",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm run start:tsx",
-    "client": "cd client && npm start",
-    "build": "cd client && npm run build",
-    "install-all": "npm install && cd client && npm install && cd ../server && npm install",
-    "test": "concurrently \"cd server && npm test\" \"cd client && npm test\"",
-    "test:e2e": "npx playwright test",
-    "test:e2e:headed": "npx playwright test --headed",
-    "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:critical": "npx playwright test --config=playwright.critical.config.ts",
-    "test:e2e:security": "npx playwright test cookie-auth-security",
-    "typecheck": "concurrently \"cd server && npm run typecheck\" \"cd client && npm run typecheck\"",
-    "lint": "concurrently \"cd server && npm run lint\" \"cd client && npm run lint\"",
-    "lint:fix": "concurrently \"cd server && npm run lint:fix\" \"cd client && npm run lint:fix\"",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "prepare": "husky",
-    "railway:backend": "cd server && npm start",
-    "railway:frontend": "cd client && npm run build && npx serve -s build -l 3000"
-  },
-  "keywords": [
-    "collaboration",
-    "computer-club",
-    "projects"
-  ],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@playwright/test": "^1.57.0",
-    "@types/node": "^25.0.9",
-    "concurrently": "^8.2.2",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.2.0",
-    "prettier": "^3.2.0",
-    "typescript": "^5.9.3"
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "node server.mjs",
+    "typecheck": "tsc --noEmit",
+    "serve": "node server.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:seed": "node scripts/seed-e2e.mjs",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
-    "axios": "^1.13.4",
-    "nodemailer": "^8.0.1",
-    "nodemon": "^3.1.11"
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@hono/node-server": "^1.19.14",
+    "@hookform/resolvers": "^5.4.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-router": "^1.168.0",
+    "@tanstack/react-start": "^1.168.0",
+    "axios": "^1.18.1",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.6.1",
+    "hono": "^4.12.29",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^1.24.0",
+    "mongoose": "^8.9.0",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.6.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.81.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.4.3"
   },
-  "lint-staged": {
-    "client/src/**/*.{ts,tsx,js,jsx}": [
-      "prettier --write"
-    ],
-    "server/**/*.{ts,js}": [
-      "prettier --write"
-    ],
-    "tests/**/*.{ts,js}": [
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ]
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^2.1.9"
   },
-  "overrides": {
-    "lodash": "^4.17.23"
+  "engines": {
+    "node": ">=22"
   }
 }

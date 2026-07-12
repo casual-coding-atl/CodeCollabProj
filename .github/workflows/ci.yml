@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'feature/**']
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
@@ -10,9 +10,8 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  # Job 1: Lint and Type Check (fastest, runs first)
-  lint-and-typecheck:
-    name: Lint & Type Check
+  build:
+    name: Type Check & Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,144 +23,31 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install root dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Install client dependencies
-        run: cd client && npm ci
+      # Build first: the TanStack Router plugin generates src/routeTree.gen.ts
+      # (gitignored) during the build, and the type check depends on it.
+      - name: Build
+        run: npm run build
 
-      - name: Install server dependencies
-        run: cd server && npm ci
+      - name: Type check
+        run: npm run typecheck
 
-      - name: Lint client
-        run: cd client && npm run lint
+      - name: Unit tests
+        run: npm run test:unit
 
-      - name: Lint server
-        run: cd server && npm run lint
-
-      - name: Type check client
-        run: cd client && npm run typecheck
-
-      - name: Type check server
-        run: cd server && npm run typecheck
-
-  # Job 2: Server Unit Tests
-  test-server:
-    name: Server Tests
+  e2e:
+    name: Critical E2E
     runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install server dependencies
-        run: cd server && npm ci
-
-      - name: Run server tests
-        run: cd server && npm test -- --coverage
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test-secret-for-ci-at-least-32-chars
-          JWT_REFRESH_SECRET: test-refresh-secret-for-ci-32chars
-          MONGODB_URI: mongodb://localhost:27017/test
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v3
-        if: always()
-        with:
-          files: ./server/coverage/lcov.info
-          flags: server
-
-  # Job 3: Client Unit Tests
-  test-client:
-    name: Client Tests
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install client dependencies
-        run: cd client && npm ci
-
-      - name: Run client tests
-        run: cd client && npm run test:coverage
-        env:
-          CI: true
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v3
-        if: always()
-        with:
-          files: ./client/coverage/lcov.info
-          flags: client
-
-  # Job 4: Build Check (ensures production build works)
-  build:
-    name: Build Check
-    runs-on: ubuntu-latest
-    needs: lint-and-typecheck
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install all dependencies
-        run: npm run install-all
-
-      - name: Build server
-        run: cd server && npm run build
-
-      - name: Build client
-        run: cd client && npm run build
-        env:
-          CI: true
-          VITE_API_URL: http://localhost:5001/api
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: client-build
-          path: client/build/
-          retention-days: 7
-
-  # Job 5: E2E Tests (Local with MongoDB - Works Reliably)
-  test-e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: [test-server, test-client, build]
-
+    needs: build
     env:
-      CI: true
-      NODE_ENV: e2e
-      PORT: '5001'
-      MONGODB_URI: mongodb://localhost:27017/codecollab_test
-      JWT_SECRET: e2e-test-secret-at-least-32-characters-123
-      JWT_REFRESH_SECRET: e2e-test-refresh-secret-32-chars-123
-      FRONTEND_URL: http://localhost:3000
-      VITE_API_URL: http://localhost:5001/api
-      SKIP_EMAIL_VERIFICATION: 'true'
-
+      NODE_ENV: test
+      MONGODB_URI: mongodb://localhost:27017/codecollab_e2e
+      JWT_SECRET: e2e-test-secret-at-least-32-characters-1234
+      VITE_API_URL: /api
+      E2E_EMAIL: e2e@codecollab.test
+      E2E_PASSWORD: e2e-password-123
     services:
       mongodb:
         image: mongo:6
@@ -172,7 +58,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -183,20 +68,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install all dependencies
-        run: npm run install-all
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Seed test database
-        run: cd server && npx tsx seed.js
+      - name: Build
+        run: npm run build
 
-      - name: Run Critical E2E tests
-        run: npx playwright test --config=playwright.critical.config.ts
+      - name: Seed E2E database
+        run: node scripts/seed-e2e.mjs
 
-      - name: Run Full E2E tests (main branch only)
-        if: github.ref == 'refs/heads/main'
+      - name: Run critical E2E tests
         run: npm run test:e2e
 
       - name: Upload Playwright report
@@ -205,12 +89,4 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 7
-
-      - name: Upload Playwright screenshots
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-screenshots
-          path: test-results/
           retention-days: 7

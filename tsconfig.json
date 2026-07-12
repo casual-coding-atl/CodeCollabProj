@@ -1,23 +1,24 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "lib": ["ES2020", "DOM"],
-    "types": ["node"],
-    "strict": false,
-    "allowJs": true,
-    "esModuleInterop": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["vite/client"],
+    "strict": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node",
+    "isolatedModules": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
-      "@tests/*": ["./tests/*"]
-    },
-    "noImplicitAny": false,
-    "strictNullChecks": false
+      "@/*": ["./src/*"],
+      "react-router-dom": ["./src/compat/react-router-shim.tsx"]
+    }
   },
-  "include": ["tests/**/*.ts", "playwright.config.ts"],
-  "exclude": ["node_modules", "client", "server"]
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["node_modules", ".output", ".nitro"]
 }

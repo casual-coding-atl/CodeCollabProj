@@ -1,242 +1,72 @@
-# CodeCollabProj - Computer Club Collaboration Platform
+# CodeCollabProj
 
-A web application for computer club members to collaborate on projects, share skills, and work together effectively.
+Collaboration platform for the Casual Coding Meetup group — browse and join member projects, comment, message, and manage the community.
 
-## ✨ Features
+Built as a single **[TanStack Start](https://tanstack.com/start)** application: server-side rendering, file-based routing, and an in-process API — no separate backend. Data lives in **MongoDB (Atlas)**.
 
-### 👤 **User Management**
-- **User Registration & Login** - Basic authentication system
-- **Role-Based Access Control** - User, Moderator, and Admin roles
-- **User Profiles** - Basic profile information
+> **Migration note:** this repo was previously a two-part MERN app (a Create-React-App `client/` + an Express `server/`). It has been migrated to one TanStack Start app. The React UI (Material UI + TanStack Query) was carried over; every `/api/*` endpoint is now an in-process TanStack Start server route hitting the same MongoDB. See [`docs/adr/0001-migrate-to-tanstack-start.md`](docs/adr/0001-migrate-to-tanstack-start.md).
 
-### 📋 **Project Management**
-- **Project CRUD Operations** - Create, read, update, delete projects
-- **Project Collaboration** - Request and manage collaboration
-- **Project Comments** - Discussion and feedback system
+## Quick start
 
-### 💬 **Communication**
-- **Messaging System** - Direct communication between users
-- **Message Organization** - Inbox and sent message management
-
-### 🔐 **Admin Features**
-- **Admin Dashboard** - System overview and statistics
-- **User Management** - View, edit roles, and manage users
-- **Role Management** - Assign and modify user roles
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React.js 18** - Modern React with hooks and functional components
-- **Material-UI v5** - Component library with modern design
-- **TanStack Query v5** - Data fetching, caching, and synchronization
-- **React Router DOM v6** - Client-side routing and navigation
-- **Axios** - HTTP client for API communication
-
-### Backend
-- **Node.js** - JavaScript runtime environment
-- **Express.js** - Web framework
-- **MongoDB** - NoSQL database with Mongoose ODM
-- **JWT** - Token-based authentication system
-- **Custom Logger** - Basic logging utility
-
-## 📋 Prerequisites
-
-- **Node.js** (v16 or higher recommended)
-- **MongoDB** (local installation or MongoDB Atlas)
-- **npm** or **yarn** package manager
-
-## 🚀 Quick Start
-
-### Option 1: Automated Setup (Recommended)
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/biparker/codecollabproj.git
-   cd codecollabproj
-   ```
-
-2. **Run the automated setup:**
-   ```bash
-   chmod +x setup.sh start.sh
-   ./setup.sh
-   ```
-
-3. **Start the application:**
-   ```bash
-   ./start.sh
-   ```
-
-### Option 2: Manual Setup
-
-1. **Clone and install dependencies:**
-   ```bash
-   git clone https://github.com/biparker/codecollabproj.git
-   cd codecollabproj
-   npm run install-all
-   ```
-
-2. **Set up environment files:**
-   ```bash
-   cp server/example.env server/.env
-   cp client/example.env client/.env
-   ```
-
-3. **Configure environment variables in `server/.env`:**
-   ```env
-   NODE_ENV=development
-   PORT=5001
-   FRONTEND_URL=http://localhost:3000
-   MONGODB_URI=mongodb://localhost:27017/codecollabproj
-   JWT_SECRET=your_jwt_secret_here
-   JWT_REFRESH_SECRET=your_refresh_secret_here
-   ```
-
-4. **Start development servers:**
-   ```bash
-   npm start
-   ```
-
-## 🌐 Application URLs
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5001/api
-
-## 📁 Project Structure
-
-```
-codecollabproj/
-├── 📁 client/                    # React frontend application
-│   ├── 📁 src/
-│   │   ├── 📁 components/        # React components
-│   │   │   ├── 📁 admin/         # Admin components
-│   │   │   ├── 📁 auth/          # Authentication components
-│   │   │   ├── 📁 comments/      # Comment system components
-│   │   │   ├── 📁 dashboard/     # Dashboard components
-│   │   │   ├── 📁 layout/        # Layout components
-│   │   │   ├── 📁 messaging/     # Messaging components
-│   │   │   ├── 📁 projects/      # Project components
-│   │   │   └── 📁 routing/       # Route protection components
-│   │   ├── 📁 hooks/             # Custom React hooks
-│   │   ├── 📁 pages/             # Page components
-│   │   ├── 📁 services/          # API service layer
-│   │   └── 📁 utils/             # Utility functions
-│   └── package.json              # Client dependencies
-├── 📁 server/                     # Express.js backend
-│   ├── 📁 controllers/           # Route handlers
-│   ├── 📁 middleware/            # Custom middleware
-│   ├── 📁 models/                # MongoDB schemas
-│   ├── 📁 routes/                # API routes
-│   ├── 📁 utils/                 # Utilities (logger, etc.)
-│   ├── example.env               # Environment template
-│   └── package.json              # Server dependencies
-├── 📄 setup.sh                   # Automated setup script
-├── 📄 start.sh                   # Application startup script
-└── 📄 README.md                  # This file
-```
-
-## 🔧 Development Scripts
-
-### Root Directory
 ```bash
-npm start          # Start both client and server in development
-npm run client     # Start only the React development server
-npm run server     # Start only the Express server with nodemon
-npm run install-all # Install dependencies for all parts of the app
+npm install
+cp .env.example .env   # then fill in the values (see below)
+npm run dev            # http://localhost:3000
 ```
 
-### Client (React)
-```bash
-cd client
-npm start          # Start development server (http://localhost:3000)
-npm run build      # Create production build
-npm test           # Run Jest tests
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server (SSR) on :3000 |
+| `npm run build` | Production build (client + server) into `dist/` |
+| `npm start` | Run the built server (`server.mjs`) — used in production |
+| `npm run typecheck` | `tsc --noEmit` |
+
+## Environment
+
+Server-side env is read from `.env` (auto-loaded via `dotenv`) and by the hosting platform in production:
+
+| Var | Purpose |
+|---|---|
+| `MONGODB_URI` | MongoDB connection string (Atlas) |
+| `JWT_SECRET` | Signs the httpOnly session (access) token |
+| `NODE_ENV` | `development` locally; `production` on deploy (enables Secure cookies) |
+| `PORT` | Port for the production server (`npm start`); set by the host |
+| `VITE_API_URL` | Client API base — defaults to same-origin `/api` |
+
+## Architecture
+
+```
+src/
+  routes/
+    __root.tsx              document shell + providers (QueryClient, MUI theme)
+    _main.tsx               app layout (Header/Footer) — pathless
+    _main.*.tsx             pages (home, login, projects, profile, members, …)
+    admin.tsx, admin.*.tsx  admin layout + pages (role-gated)
+    api.<resource>.*.ts     in-process API server routes (auth, projects, users, comments, admin)
+  server/
+    http.ts                 API helpers: json/error, cookies, session issuing, requireUser/requireRole
+    models.ts               Mongoose models (users, sessions, projects, comments, messages)
+    db.ts                   cached Mongoose connection
+  components/ hooks/ services/ config/ types/ utils/   ported React app (MUI + TanStack Query)
+  compat/react-router-shim.tsx   react-router-dom → TanStack Router bridge (migration aid)
 ```
 
-### Server (Express)
-```bash
-cd server
-npm start          # Start production server
-npm run dev        # Start development server with nodemon
-npm run seed       # Seed database with sample data
-npm test           # Run server tests
-```
+**Auth:** login validates against `users` (bcrypt), issues a JWT stored in an **httpOnly `accessToken` cookie**, and records a session in `sessions`. The cookie is validated server-side on every request/SSR load — no token touches client JavaScript.
 
-## 📖 API Documentation
+**Data flow:** components → domain hooks (TanStack Query) → services (axios, same-origin `/api`) → in-process server routes → Mongoose → MongoDB.
 
-### Authentication Endpoints
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
-- `GET /api/auth/me` - Get current user
+## Deployment (Railway)
 
-### Project Endpoints
-- `GET /api/projects` - Get all projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects/:id` - Get project by ID
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
-- `POST /api/projects/:id/collaborate` - Request collaboration
+The app is one Node service. Railway config lives in [`railway.json`](railway.json):
 
-### Comment Endpoints
-- `GET /api/projects/:projectId/comments` - Get project comments
-- `POST /api/projects/:projectId/comments` - Create comment
-- `PUT /api/projects/:projectId/comments/:commentId` - Update comment
-- `DELETE /api/projects/:projectId/comments/:commentId` - Delete comment
+- **Build:** `npm run build`
+- **Start:** `npm start` (serves the built handler via `server.mjs` on `$PORT`)
+- **Env:** set `MONGODB_URI`, `JWT_SECRET`, `NODE_ENV=production` on the service.
 
-### User Endpoints
-- `GET /api/users` - Get all users
-- `GET /api/users/profile/me` - Get current user profile
-- `PUT /api/users/profile` - Update user profile
+## Known gaps (carried from the original app / not yet wired)
 
-### Messaging Endpoints
-- `GET /api/users/messages` - Get user messages
-- `POST /api/users/messages` - Send a message
-- `PUT /api/users/messages/:messageId/read` - Mark message as read
-- `DELETE /api/users/messages/:messageId` - Delete a message
-
-### Admin Endpoints
-- `GET /api/admin/dashboard` - Admin dashboard statistics
-- `GET /api/admin/users` - User management
-- `GET /api/admin/users/:id` - User details
-- `PUT /api/admin/users/:id/role` - Update user role
-- `PUT /api/admin/users/:id/suspension` - Suspend/unsuspend user
-- `DELETE /api/admin/users/:id` - Delete user
-
-## 🤝 Contributing
-
-1. **Fork the repository**
-2. **Create your feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make your changes** following the existing code style
-4. **Test your changes** thoroughly
-5. **Commit your changes**: `git commit -m 'Add some amazing feature'`
-6. **Push to the branch**: `git push origin feature/amazing-feature`
-7. **Open a Pull Request** with a clear description
-
-### Development Guidelines
-- Follow the existing code structure and naming conventions
-- Use TanStack Query for all data fetching and state management
-- Write reusable components and custom hooks
-- Add appropriate error handling and loading states
-- Test your changes across different screen sizes
-
-## 📚 Documentation
-
-- **README.md** - This file (overview and quick start)
-- **SETUP.md** - Detailed setup instructions
-- **ROLES_IMPLEMENTATION.md** - Role-based access control details
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **TanStack Query** for data synchronization
-- **Material-UI** for components
-- **MongoDB** for data storage
-- **Express.js** for backend framework 
-
-
-## Test Users
-
-- To facilitate further development of CodeCollabProj, builders have created 12 login accounts: user1@example.com - user10@example.com. All of these have the same login password: password123. Some of these have test projects and messages created to facilitate development and illustrate creating projects. There is also an admin and a moderator account created, check with the leaders of the project to get access to these.
+- **Email flows** (password-reset-by-link, email verification) return success shapes but send no email — email verification is currently disabled (new accounts are created verified).
+- **Avatar image upload** accepts the request but does not persist the binary (needs object storage).
+- A few `/users/:id/*` endpoints (projects, stats, followers, following, follow) are not implemented — they were never implemented in the original backend either.
