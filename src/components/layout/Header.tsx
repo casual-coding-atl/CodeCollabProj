@@ -1,11 +1,12 @@
-import { type FC } from 'react';
+import { type FC, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { MessageSquare, Shield } from 'lucide-react';
+import { MessageSquare, Shield, Menu, Search } from 'lucide-react';
 import { useAuth, useLogout } from '../../hooks/auth';
 import { useMessages } from '../../hooks/users/useMessaging';
 import { useMyProfile } from '../../hooks/users';
 import Avatar from '../common/Avatar';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { CommandMenu } from '@/components/command/CommandMenu';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +16,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
 const Header: FC = () => {
@@ -24,6 +32,7 @@ const Header: FC = () => {
   const { data: profile } = useMyProfile({ enabled: isAuthenticated });
   const { data: inboxMessages = [] } = useMessages('inbox', { enabled: isAuthenticated });
   const unreadCount = inboxMessages.filter((msg) => !msg.isRead).length;
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = (): void => {
     logoutMutation.mutate(undefined, { onSuccess: () => navigate('/login') });
@@ -31,9 +40,77 @@ const Header: FC = () => {
 
   const isStaff = user?.role === 'admin' || user?.role === 'moderator';
 
+  const mobileLinks: { to: string; label: string }[] = [
+    { to: '/projects', label: 'Projects' },
+    ...(isAuthenticated
+      ? [
+          { to: '/members', label: 'Members' },
+          { to: '/messages', label: 'Messages' },
+          { to: '/dashboard', label: 'Dashboard' },
+          { to: '/profile', label: 'Profile' },
+          ...(isStaff ? [{ to: '/admin', label: 'Admin' }] : []),
+        ]
+      : [
+          { to: '/login', label: 'Login' },
+          { to: '/register', label: 'Register' },
+        ]),
+  ];
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <CommandMenu />
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
+        {/* Mobile nav */}
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="sm:hidden"
+              aria-label="Open navigation menu"
+              data-testid="mobile-nav-trigger"
+            >
+              <Menu className="size-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72">
+            <SheetHeader>
+              <SheetTitle className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                Menu
+              </SheetTitle>
+            </SheetHeader>
+            <nav className="mt-2 grid gap-1 px-2">
+              {mobileLinks.map((l) => (
+                <Button
+                  key={l.to}
+                  asChild
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <RouterLink to={l.to}>{l.label}</RouterLink>
+                </Button>
+              ))}
+              {isAuthenticated && (
+                <Button
+                  variant="ghost"
+                  className="justify-start text-destructive"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  Log out
+                </Button>
+              )}
+              <div className="mt-2 flex items-center gap-2 px-1">
+                <ThemeToggle />
+                <span className="text-sm text-muted-foreground">Theme</span>
+              </div>
+            </nav>
+          </SheetContent>
+        </Sheet>
+
         {/* Brand */}
         <RouterLink to="/" className="mr-2 flex items-center gap-3">
           <img
@@ -52,6 +129,18 @@ const Header: FC = () => {
         </RouterLink>
 
         <nav className="ml-auto flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden gap-2 text-muted-foreground sm:inline-flex"
+            aria-label="Open command palette"
+            onClick={() =>
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))
+            }
+          >
+            <Search className="size-3.5" />
+            <kbd className="font-mono text-[10px]">⌘K</kbd>
+          </Button>
           <ThemeToggle />
           <NavLink to="/projects">Projects</NavLink>
 

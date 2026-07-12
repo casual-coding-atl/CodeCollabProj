@@ -1,27 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useUsers } from '../hooks/users';
 import { useProjects } from '../hooks/projects';
 import MessageForm from '../components/messaging/MessageForm';
 import Avatar from '../components/common/Avatar';
+import { sortByKey, paginate, pageCount, type SortDir } from '@/lib/table';
 import type { User } from '../types';
 
-// API response types - standalone interfaces to handle _id fields
 interface UserWithId {
   _id: string;
-  id?: string;
   username: string;
   email: string;
   firstName?: string;
@@ -30,139 +32,99 @@ interface UserWithId {
   skills?: string[];
   experience?: string;
   availability?: string;
-  location?: string;
+  role?: string;
   profileImage?: string;
 }
-
 interface ProjectWithId {
   _id: string;
-  id?: string;
   title: string;
-  description: string;
-  technologies?: string[];
-  createdAt: string;
-  owner?:
-    | {
-        _id: string;
-        username?: string;
-      }
-    | string;
-  collaborators?: Array<{
-    _id?: string;
-    userId?:
-      | {
-          _id: string;
-        }
-      | string;
-  }>;
+  owner?: { _id: string; username?: string } | string;
+  collaborators?: Array<{ userId?: { _id: string } | string }>;
 }
 
 const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
+const PER_PAGE = 10;
 
 const Members: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithId | null>(null);
+  const [sortKey, setSortKey] = useState<keyof UserWithId>('username');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [page, setPage] = useState(1);
 
-  // Fetch users and projects using TanStack Query
   const {
     data: users = [],
     isLoading: usersLoading,
     error: usersError,
     refetch: refetchUsers,
   } = useUsers();
-
-  const {
-    data: projects = [],
-    isLoading: projectsLoading,
-    error: projectsError,
-    refetch: refetchProjects,
-  } = useProjects();
+  const { data: projects = [], isLoading: projectsLoading, refetch: refetchProjects } = useProjects();
 
   const loading = usersLoading || projectsLoading;
-  const error = usersError || projectsError;
-
   const typedUsers = users as unknown as UserWithId[];
   const typedProjects = projects as unknown as ProjectWithId[];
 
-  // Memoized helper: get projects for a user
-  const getUserProjects = useMemo(() => {
-    return (userId: string): ProjectWithId[] => {
-      return typedProjects.filter((p) => {
-        // Handle both populated and unpopulated owner fields
-        const ownerId = typeof p.owner === 'object' && p.owner !== null ? p.owner._id : p.owner;
+  const getUserProjects = useMemo(
+    () => (userId: string) =>
+      typedProjects.filter((p) => {
+        const ownerId = typeof p.owner === 'object' && p.owner ? p.owner._id : p.owner;
         return (
-          (ownerId && ownerId.toString() === userId.toString()) ||
-          (p.collaborators &&
-            p.collaborators.some((c) => {
-              const collabUserId =
-                typeof c.userId === 'object' && c.userId !== null
-                  ? (c.userId as { _id: string })._id
-                  : c.userId;
-              return collabUserId?.toString() === userId.toString();
-            }))
+          ownerId?.toString() === userId ||
+          p.collaborators?.some((c) => {
+            const id = typeof c.userId === 'object' && c.userId ? c.userId._id : c.userId;
+            return id?.toString() === userId;
+          })
         );
-      });
-    };
-  }, [typedProjects]);
+      }),
+    [typedProjects]
+  );
 
-  const handleMessageUser = (user: UserWithId): void => {
-    setSelectedUser(user);
-    setShowMessageForm(true);
+  const sorted = useMemo(() => sortByKey(typedUsers, sortKey, sortDir), [typedUsers, sortKey, sortDir]);
+  const totalPages = pageCount(sorted.length, PER_PAGE);
+  const pageUsers = paginate(sorted, Math.min(page, totalPages), PER_PAGE);
+
+  const toggleSort = (key: keyof UserWithId): void => {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+    setPage(1);
   };
 
-  const handleCloseMessageForm = (): void => {
-    setShowMessageForm(false);
-    setSelectedUser(null);
-  };
-
-  const handleMessageSent = (): void => {
-    setShowMessageForm(false);
-    setSelectedUser(null);
-  };
+  const SortHeader = ({ label, k }: { label: string; k: keyof UserWithId }) => (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => toggleSort(k)}
+        className="inline-flex items-center gap-1 hover:text-foreground"
+      >
+        {label}
+        <ArrowUpDown className="size-3" />
+      </button>
+    </TableHead>
+  );
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-6xl">
         <p className={metaLabel}>the group</p>
-        <h1 className="mb-6 text-3xl font-bold tracking-tight text-foreground">Members</h1>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <h1 className="mb-6 text-3xl font-bold tracking-tight">Members</h1>
+        <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Skeleton className="size-10 rounded-full" />
-                  <Skeleton className="h-4 w-28" />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-3/4" />
-                <div className="flex gap-1.5 pt-1">
-                  <Skeleton className="h-5 w-14 rounded-full" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Skeleton className="h-8 w-24 rounded-md" />
-              </CardFooter>
-            </Card>
+            <Skeleton key={i} className="h-14 w-full rounded-md" />
           ))}
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (usersError) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-6xl">
         <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Error Loading Members</AlertTitle>
-          <AlertDescription>
-            {(error as Error & { response?: { data?: { message?: string } } })?.response?.data
-              ?.message ||
-              (error as Error)?.message ||
-              'Failed to load members data'}
-          </AlertDescription>
+          <AlertTitle>Error loading members</AlertTitle>
+          <AlertDescription>{(usersError as Error)?.message || 'Failed to load members'}</AlertDescription>
         </Alert>
         <Button
           onClick={() => {
@@ -170,109 +132,173 @@ const Members: React.FC = () => {
             refetchProjects();
           }}
         >
-          Try Again
+          Try again
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="mx-auto max-w-6xl">
       <p className={metaLabel}>the group</p>
-      <h1 className="mb-6 text-3xl font-bold tracking-tight text-foreground">Members</h1>
+      <div className="mb-6 flex items-baseline gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Members</h1>
+        <span className="font-mono text-xs text-muted-foreground">{sorted.length}</span>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {typedUsers.map((user) => {
-          const userProjects = getUserProjects(user._id);
-          return (
-            <Card key={user._id} className="flex flex-col transition-colors hover:border-primary/40">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Avatar user={user} size="md" />
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{user.username}</p>
-                    {user.experience && (
-                      <Badge variant="secondary" className="mt-1 font-mono text-[10px] uppercase tracking-wide">
+      <div className="rounded-lg border">
+        <Table data-testid="members-table">
+          <TableHeader>
+            <TableRow>
+              <SortHeader label="Member" k="username" />
+              <SortHeader label="Experience" k="experience" />
+              <TableHead>Skills</TableHead>
+              <TableHead>Projects</TableHead>
+              <TableHead className="text-right">Message</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageUsers.map((user) => {
+              const userProjects = getUserProjects(user._id);
+              return (
+                <TableRow key={user._id}>
+                  <TableCell>
+                    <HoverCard openDelay={150}>
+                      <HoverCardTrigger asChild>
+                        <button type="button" className="flex items-center gap-3 text-left">
+                          <Avatar user={user} size="sm" />
+                          <span className="font-medium">{user.username}</span>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-72">
+                        <div className="flex items-start gap-3">
+                          <Avatar user={user} size="md" />
+                          <div className="min-w-0">
+                            <p className="font-medium">{user.username}</p>
+                            {user.role && (
+                              <Badge variant="secondary" className="mt-1 font-mono text-[10px] uppercase">
+                                {user.role}
+                              </Badge>
+                            )}
+                            {user.bio && (
+                              <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{user.bio}</p>
+                            )}
+                            {user.skills && user.skills.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {user.skills.slice(0, 5).map((s) => (
+                                  <Badge key={s} variant="outline" className="text-[10px]">
+                                    {s}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </TableCell>
+                  <TableCell>
+                    {user.experience ? (
+                      <Badge variant="secondary" className="font-mono text-[10px] uppercase">
                         {user.experience}
                       </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="flex-1 space-y-4 text-sm">
-                <div>
-                  <p className={metaLabel}>Skills</p>
-                  {user.skills && user.skills.length > 0 ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {user.skills.map((skill) => (
-                        <Badge key={skill} variant="outline">
-                          {skill}
-                        </Badge>
-                      ))}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex max-w-xs flex-wrap gap-1">
+                      {user.skills && user.skills.length > 0 ? (
+                        user.skills.slice(0, 3).map((s) => (
+                          <Badge key={s} variant="outline">
+                            {s}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                      {user.skills && user.skills.length > 3 && (
+                        <span className="text-xs text-muted-foreground">+{user.skills.length - 3}</span>
+                      )}
                     </div>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground">—</p>
-                  )}
-                </div>
-
-                <div>
-                  <p className={metaLabel}>Availability</p>
-                  <p className="mt-1 text-foreground">{user.availability ? user.availability : '—'}</p>
-                </div>
-
-                <div>
-                  <p className={metaLabel}>Project Name(s)</p>
-                  <p className="mt-1">
-                    {userProjects.length > 0
-                      ? userProjects.map((p, idx) => (
+                  </TableCell>
+                  <TableCell className="max-w-xs">
+                    {userProjects.length > 0 ? (
+                      <span className="line-clamp-1 text-sm">
+                        {userProjects.map((p, i) => (
                           <span key={p._id}>
                             <RouterLink
                               to={`/projects#${p._id}`}
-                              className="font-medium text-primary underline-offset-4 hover:underline"
+                              className="text-primary underline-offset-4 hover:underline"
                             >
                               {p.title}
                             </RouterLink>
-                            {idx < userProjects.length - 1 && ', '}
+                            {i < userProjects.length - 1 && ', '}
                           </span>
-                        ))
-                      : <span className="text-muted-foreground">—</span>}
-                  </p>
-                </div>
-              </CardContent>
-
-              <CardFooter>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleMessageUser(user)}
-                >
-                  <MessageSquare className="size-4" />
-                  Message
-                </Button>
-              </CardFooter>
-            </Card>
-          );
-        })}
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Message ${user.username}`}
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setShowMessageForm(true);
+                      }}
+                    >
+                      <MessageSquare className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Message Form Dialog */}
-      <Dialog
-        open={showMessageForm}
-        onOpenChange={(open) => {
-          if (!open) handleCloseMessageForm();
-        }}
-      >
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <span className={metaLabel}>
+            Page {Math.min(page, totalPages)} of {totalPages}
+          </span>
+          <Button
+            size="icon"
+            variant="outline"
+            aria-label="Previous page"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            data-testid="members-next-page"
+            aria-label="Next page"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={showMessageForm} onOpenChange={(open) => !open && setShowMessageForm(false)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Send Message to {selectedUser?.username}</DialogTitle>
+            <DialogTitle>Send message to {selectedUser?.username}</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <MessageForm
               recipientId={selectedUser._id}
               recipientUser={selectedUser as unknown as User}
-              onSuccess={handleMessageSent}
-              onCancel={handleCloseMessageForm}
+              onSuccess={() => setShowMessageForm(false)}
+              onCancel={() => setShowMessageForm(false)}
             />
           )}
         </DialogContent>

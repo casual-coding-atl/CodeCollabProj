@@ -10,7 +10,9 @@ const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
 
 async function login(page: Page) {
   await page.goto('/login');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
+  await page.locator('input[name="email"]').waitFor({ timeout: 15000 });
+  await page.waitForTimeout(600); // allow hydration before interacting
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASSWORD);
   await Promise.all([
@@ -22,7 +24,7 @@ async function login(page: Page) {
 test.describe('dark mode', () => {
   test('toggles the app to dark and persists across reload', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     const html = page.locator('html');
     const toggle = page.getByTestId('theme-toggle');
@@ -38,7 +40,7 @@ test.describe('dark mode', () => {
 
     // persists across a full reload (no flash back)
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     await expect
       .poll(() => page.locator('html').evaluate((el) => el.classList.contains('dark')))
       .toBe(!startedDark);
@@ -49,14 +51,14 @@ test.describe('toasts', () => {
   test('posting a comment shows a success toast', async ({ page }) => {
     await login(page);
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.getByTestId('project-list').waitFor({ timeout: 20000 });
     const hrefs = await page
       .locator('a[href^="/projects/"]')
       .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
     const detail = hrefs.find((h) => h && /^\/projects\/[a-f0-9]{24}$/i.test(h));
     test.skip(!detail, 'no project available to comment on');
     await page.goto(detail!);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     const body = `e2e comment ${Date.now()}`;
     const textarea = page.getByPlaceholder(/write a comment/i);
@@ -74,7 +76,7 @@ test.describe('confirm dialog', () => {
   test('deleting a message asks for confirmation naming the action', async ({ page }) => {
     await login(page);
     await page.goto('/messages');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     const del = page.getByRole('button', { name: /delete message/i }).first();
     test.skip((await del.count()) === 0, 'no message to delete');
     await del.click();
@@ -91,7 +93,7 @@ test.describe('project filters', () => {
   test('reflect in the URL and clear resets them', async ({ page }) => {
     await login(page);
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await page.getByTestId('project-list').waitFor({ timeout: 20000 });
 
     // typing a search reflects into the URL (shareable/bookmarkable)
     await page.getByTestId('project-search').fill('project');
@@ -105,5 +107,47 @@ test.describe('project filters', () => {
     // clear resets the URL
     await page.getByTestId('clear-filters').click();
     await expect.poll(() => new URL(page.url()).searchParams.toString()).toBe('');
+  });
+});
+
+test.describe('command palette', () => {
+  test('opens with Cmd/Ctrl+K and navigates', async ({ page }) => {
+    await login(page);
+    await page.goto('/dashboard');
+    await page.getByRole('heading', { name: /welcome back/i }).waitFor({ timeout: 15_000 });
+    await page.keyboard.press('ControlOrMeta+k');
+    const input = page.getByTestId('command-menu-input');
+    await expect(input).toBeVisible({ timeout: 10_000 });
+    await input.fill('projects');
+    await page.getByRole('option', { name: /projects/i }).first().click();
+    await expect(page).toHaveURL(/\/projects/, { timeout: 10_000 });
+  });
+});
+
+test.describe('mobile navigation', () => {
+  test('hamburger opens a sheet with links', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await login(page);
+    await page.goto('/dashboard');
+    const trigger = page.getByTestId('mobile-nav-trigger');
+    await expect(trigger).toBeVisible({ timeout: 15_000 });
+    await trigger.click();
+    const projectsLink = page.getByRole('link', { name: /^projects$/i }).first();
+    await expect(projectsLink).toBeVisible();
+    await projectsLink.click();
+    await expect(page).toHaveURL(/\/projects/, { timeout: 10_000 });
+  });
+});
+
+test.describe('members table', () => {
+  test('renders a sortable, paginated table', async ({ page }) => {
+    await login(page);
+    await page.goto('/members');
+    await expect(page.getByTestId('members-table')).toBeVisible({ timeout: 20_000 });
+    const next = page.getByTestId('members-next-page');
+    if ((await next.count()) > 0 && (await next.isEnabled())) {
+      await next.click();
+      await expect(page.getByText(/page 2 of/i)).toBeVisible();
+    }
   });
 });

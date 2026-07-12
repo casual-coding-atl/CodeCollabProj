@@ -1,17 +1,21 @@
-import React, { useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, X, Loader2 } from 'lucide-react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Plus, Trash2, X, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
 import { useProject, useCreateProject, useUpdateProject } from '../../hooks/projects';
 import type {
   ProjectStatus,
-  IncentiveType,
   ProjectResource,
   Project,
   User,
   UserSummary,
 } from '../../types';
+import { cn } from '@/lib/utils';
+import { addTag, removeTag } from '@/lib/tags';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +31,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 
 // Extended Project type for API responses
 interface ProjectApiResponse extends Omit<Project, 'id' | 'owner' | 'resources'> {
@@ -42,44 +63,58 @@ interface UseProjectResult {
   error: Error | null;
 }
 
-// Local resource type with optional name/url for form handling
-interface ResourceFormItem {
-  name: string;
-  url: string;
-}
+// Mirrors the previous inline validation (title/description) and the per-resource
+// name/url pairing rule, while preserving the exact payload shape sent to the API.
+const projectSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, 'Title is required')
+      .min(3, 'Title must be at least 3 characters'),
+    description: z
+      .string()
+      .min(1, 'Description is required')
+      .min(10, 'Description must be at least 10 characters'),
+    technologies: z.array(z.string()),
+    requiredSkills: z.array(z.string()),
+    tags: z.array(z.string()),
+    githubUrl: z.string(),
+    liveUrl: z.string(),
+    resources: z.array(z.object({ name: z.string(), url: z.string() })),
+    status: z.enum(['ideation', 'in_progress', 'completed']),
+    incentives: z.object({
+      enabled: z.boolean(),
+      type: z.enum(['monetary', 'equity', 'recognition', 'learning', 'other']),
+      description: z.string(),
+      amount: z.number(),
+      currency: z.string(),
+      equityPercentage: z.number(),
+      customReward: z.string(),
+    }),
+  })
+  .superRefine((data, ctx) => {
+    data.resources.forEach((resource, index) => {
+      if (resource.name && !resource.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'URL is required if name is provided',
+          path: ['resources', index, 'url'],
+        });
+      }
+      if (!resource.name && resource.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Name is required if URL is provided',
+          path: ['resources', index, 'name'],
+        });
+      }
+    });
+  });
 
-// Form data interface
-interface FormData {
-  title: string;
-  description: string;
-  technologies: string[];
-  requiredSkills: string[];
-  tags: string[];
-  githubUrl: string;
-  liveUrl: string;
-  resources: ResourceFormItem[];
-  status: ProjectStatus;
-  incentives: {
-    enabled: boolean;
-    type: IncentiveType;
-    description: string;
-    amount: number;
-    currency: string;
-    equityPercentage: number;
-    customReward: string;
-  };
-}
-
-// Form errors interface
-interface FormErrors {
-  title?: string;
-  description?: string;
-  requiredSkills?: string;
-  [key: string]: string | undefined;
-}
+type ProjectFormValues = z.infer<typeof projectSchema>;
 
 // Maps a fetched project (or undefined, for create mode) into initial form state.
-const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): FormData => {
+const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): ProjectFormValues => {
   if (!initialProject) {
     return {
       title: '',
@@ -127,53 +162,42 @@ const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): F
   };
 };
 
-interface TagEditorProps {
+interface ComboboxTagEditorProps {
   id: string;
   label: string;
   value: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
   options?: string[];
-  error?: string;
 }
 
-// Free-form tag editor: type + Enter/comma to add, click a badge's X to remove.
-// Preserves the array-of-strings state shape the previous Autocomplete produced.
-const TagEditor: React.FC<TagEditorProps> = ({
+// Combobox tag editor: suggests from `options` and accepts free-text custom values.
+// Preserves the array-of-strings state shape the previous editor produced.
+const ComboboxTagEditor: React.FC<ComboboxTagEditorProps> = ({
   id,
   label,
   value,
   onChange,
-  placeholder,
+  placeholder = 'Select or type…',
   options = [],
-  error,
 }) => {
+  const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
-  const addTag = (raw: string): void => {
-    const tag = raw.trim();
-    if (!tag || value.includes(tag)) {
-      setInputValue('');
-      return;
+  const commit = (raw: string): void => {
+    const next = addTag(value, raw);
+    if (next !== value) {
+      onChange(next);
     }
-    onChange([...value, tag]);
     setInputValue('');
   };
 
-  const removeTag = (tag: string): void => {
-    onChange(value.filter((t) => t !== tag));
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTag(inputValue);
-    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      removeTag(value[value.length - 1]);
-    }
-  };
-
-  const suggestions = options.filter((opt) => !value.includes(opt));
+  const trimmed = inputValue.trim();
+  const available = options.filter((opt) => !value.includes(opt));
+  const showCreate =
+    trimmed.length > 0 &&
+    !value.includes(trimmed) &&
+    !options.some((opt) => opt.toLowerCase() === trimmed.toLowerCase());
 
   return (
     <div className="grid gap-2">
@@ -185,7 +209,7 @@ const TagEditor: React.FC<TagEditorProps> = ({
               {tag}
               <button
                 type="button"
-                onClick={() => removeTag(tag)}
+                onClick={() => onChange(removeTag(value, tag))}
                 aria-label={`Remove ${tag}`}
                 className="rounded-full outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -195,30 +219,56 @@ const TagEditor: React.FC<TagEditorProps> = ({
           ))}
         </div>
       )}
-      <Input
-        id={id}
-        value={inputValue}
-        placeholder={placeholder}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => addTag(inputValue)}
-        aria-invalid={!!error}
-      />
-      {suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {suggestions.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => addTag(opt)}
-              className="rounded-full border border-border px-2 py-0.5 font-mono text-[11px] uppercase tracking-widest text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal text-muted-foreground"
+          >
+            {placeholder}
+            <ChevronsUpDown className="size-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput
+              placeholder="Search or add…"
+              value={inputValue}
+              onValueChange={setInputValue}
+            />
+            <CommandList>
+              <CommandEmpty>No matches. Type to add a custom value.</CommandEmpty>
+              {available.length > 0 && (
+                <CommandGroup heading="Suggestions">
+                  {available.map((opt) => (
+                    <CommandItem key={opt} value={opt} onSelect={() => commit(opt)}>
+                      <Check
+                        className={cn(
+                          'size-4',
+                          value.includes(opt) ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      {opt}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {showCreate && (
+                <CommandGroup heading="Add custom">
+                  <CommandItem value={trimmed} onSelect={() => commit(trimmed)}>
+                    <Plus className="size-4" />
+                    Add &quot;{trimmed}&quot;
+                  </CommandItem>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };
@@ -228,9 +278,9 @@ interface ProjectFormFieldsProps {
   projectId: string | undefined;
 }
 
-// Owns the editable form state. Seeded once from initialProject via a useState
-// initializer; the parent remounts this via `key` when the project identity changes,
-// so a background refetch of the same project never clobbers in-progress edits.
+// Owns the editable form state. Seeded once from initialProject via RHF defaultValues;
+// the parent remounts this via `key` when the project identity changes, so a background
+// refetch of the same project never clobbers in-progress edits.
 const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, projectId }) => {
   const navigate = useNavigate();
 
@@ -238,9 +288,37 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
   const createProjectMutation = useCreateProject();
   const updateProjectMutation = useUpdateProject();
 
-  const [formData, setFormData] = useState<FormData>(() => mapProjectToFormData(initialProject));
+  const form = useForm<ProjectFormValues>({
+    resolver: zodResolver(projectSchema),
+    mode: 'onTouched',
+    defaultValues: mapProjectToFormData(initialProject),
+  });
 
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const {
+    fields: resourceFields,
+    append: appendResource,
+    remove: removeResourceField,
+  } = useFieldArray({ control: form.control, name: 'resources' });
+
+  const commonSkills: string[] = [
+    'JavaScript',
+    'Python',
+    'Java',
+    'React',
+    'Node.js',
+    'TypeScript',
+    'HTML',
+    'CSS',
+    'MongoDB',
+    'SQL',
+    'Git',
+    'Docker',
+  ];
+
+  const technologies = form.watch('technologies');
+  const requiredSkills = form.watch('requiredSkills');
+  const tags = form.watch('tags');
+  const incentivesEnabled = form.watch('incentives.enabled');
 
   // Helper function for handling submission errors
   const handleSubmissionError = (
@@ -280,152 +358,30 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
     toast.error(errorMessage);
   };
 
-  const commonSkills: string[] = [
-    'JavaScript',
-    'Python',
-    'Java',
-    'React',
-    'Node.js',
-    'TypeScript',
-    'HTML',
-    'CSS',
-    'MongoDB',
-    'SQL',
-    'Git',
-    'Docker',
-  ];
+  const onValid = (values: ProjectFormValues): void => {
+    console.log('✅ Form validation passed');
+    const filteredResources = values.resources.filter(
+      (resource) => resource.name && resource.url
+    );
 
-  const validateForm = (): boolean => {
-    const errors: FormErrors = {};
-    if (!formData.title) {
-      errors.title = 'Title is required';
-    } else if (formData.title.length < 3) {
-      errors.title = 'Title must be at least 3 characters';
-    }
-
-    if (!formData.description) {
-      errors.description = 'Description is required';
-    } else if (formData.description.length < 10) {
-      errors.description = 'Description must be at least 10 characters';
-    }
-
-    // Removed required skills validation since it's not mandatory
-
-    formData.resources.forEach((resource, index) => {
-      if (resource.name && !resource.url) {
-        errors[`resource${index}Url`] = 'URL is required if name is provided';
-      }
-      if (!resource.name && resource.url) {
-        errors[`resource${index}Name`] = 'Name is required if URL is provided';
-      }
-    });
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ): void => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name as string]: value,
-    });
-  };
-
-  const handleSkillsChange = (newValue: string[]): void => {
-    console.log('🔧 Skills changed:', newValue);
-    setFormData({
-      ...formData,
-      requiredSkills: newValue,
-    });
-  };
-
-  const handleTagsChange = (newValue: string[]): void => {
-    setFormData({
-      ...formData,
-      tags: newValue,
-    });
-  };
-
-  const handleResourceChange = (index: number, field: 'name' | 'url', value: string): void => {
-    const newResources = [...formData.resources];
-    newResources[index] = {
-      ...newResources[index],
-      [field]: value,
+    // Ensure arrays are properly formatted
+    const projectData = {
+      ...values,
+      resources: filteredResources,
+      requiredSkills: Array.isArray(values.requiredSkills) ? values.requiredSkills : [],
+      technologies: Array.isArray(values.technologies) ? values.technologies : [],
+      tags: Array.isArray(values.tags) ? values.tags : [],
     };
-    setFormData({
-      ...formData,
-      resources: newResources,
-    });
-  };
 
-  const addResource = (): void => {
-    setFormData({
-      ...formData,
-      resources: [...formData.resources, { name: '', url: '' }],
-    });
-  };
+    console.log('📤 Sending project data:', projectData);
 
-  const removeResource = (index: number): void => {
-    const newResources = formData.resources.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      resources: newResources.length ? newResources : [{ name: '', url: '' }],
-    });
-  };
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    console.log('📝 Form submission started');
-    console.log('📋 Form data:', formData);
-    console.log('🔍 Project ID:', projectId);
-
-    if (validateForm()) {
-      console.log('✅ Form validation passed');
-      const filteredResources = formData.resources.filter(
-        (resource) => resource.name && resource.url
-      );
-
-      // Ensure arrays are properly formatted
-      const projectData = {
-        ...formData,
-        resources: filteredResources,
-        requiredSkills: Array.isArray(formData.requiredSkills) ? formData.requiredSkills : [],
-        technologies: Array.isArray(formData.technologies) ? formData.technologies : [],
-        tags: Array.isArray(formData.tags) ? formData.tags : [],
-      };
-
-      console.log('📤 Sending project data:', projectData);
-      console.log('🔍 Data types:', {
-        requiredSkills: typeof projectData.requiredSkills,
-        technologies: typeof projectData.technologies,
-        tags: typeof projectData.tags,
-        resources: typeof projectData.resources,
-      });
-
-      if (projectId) {
-        console.log('🔄 Updating project:', projectId, projectData);
-        updateProjectMutation.mutate(
-          { projectId, projectData },
-          {
-            onSuccess: () => {
-              toast.success('Project updated');
-              navigate('/projects');
-            },
-            onError: (error) => {
-              handleSubmissionError(
-                error as Error & { response?: { data?: { message?: string }; status?: number } }
-              );
-            },
-          }
-        );
-      } else {
-        console.log('➕ Creating new project:', projectData);
-        createProjectMutation.mutate(projectData, {
+    if (projectId) {
+      console.log('🔄 Updating project:', projectId, projectData);
+      updateProjectMutation.mutate(
+        { projectId, projectData },
+        {
           onSuccess: () => {
-            toast.success('Project created');
+            toast.success('Project updated');
             navigate('/projects');
           },
           onError: (error) => {
@@ -433,11 +389,26 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
               error as Error & { response?: { data?: { message?: string }; status?: number } }
             );
           },
-        });
-      }
+        }
+      );
     } else {
-      toast.error('Please fix the form errors before submitting.');
+      console.log('➕ Creating new project:', projectData);
+      createProjectMutation.mutate(projectData, {
+        onSuccess: () => {
+          toast.success('Project created');
+          navigate('/projects');
+        },
+        onError: (error) => {
+          handleSubmissionError(
+            error as Error & { response?: { data?: { message?: string }; status?: number } }
+          );
+        },
+      });
     }
+  };
+
+  const onInvalid = (): void => {
+    toast.error('Please fix the form errors before submitting.');
   };
 
   const isSaving = createProjectMutation.isPending || updateProjectMutation.isPending;
@@ -474,221 +445,222 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="grid gap-6">
-            <div className="grid gap-2">
-              <Label htmlFor="title">
-                Project Title <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="title"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onValid, onInvalid)} className="grid gap-6">
+              <FormField
+                control={form.control}
                 name="title"
-                value={formData.title}
-                onChange={handleChange}
-                aria-invalid={!!formErrors.title}
-                required
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Project Title <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.title && <p className="text-sm text-destructive">{formErrors.title}</p>}
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="description">
-                Description <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="description"
+              <FormField
+                control={form.control}
                 name="description"
-                rows={4}
-                value={formData.description}
-                onChange={handleChange}
-                aria-invalid={!!formErrors.description}
-                required
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Description <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea rows={4} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.description && (
-                <p className="text-sm text-destructive">{formErrors.description}</p>
-              )}
-            </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="githubUrl">GitHub URL (optional)</Label>
-                <Input
-                  id="githubUrl"
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
                   name="githubUrl"
-                  value={formData.githubUrl}
-                  onChange={handleChange}
-                  placeholder="https://github.com/username/project"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GitHub URL (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="https://github.com/username/project" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="liveUrl">Live URL (optional)</Label>
-                <Input
-                  id="liveUrl"
+                <FormField
+                  control={form.control}
                   name="liveUrl"
-                  value={formData.liveUrl}
-                  onChange={handleChange}
-                  placeholder="https://your-project.com"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Live URL (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="https://your-project.com" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
 
-            <TagEditor
-              id="technologies"
-              label="Technologies Used"
-              value={formData.technologies}
-              onChange={(newValue) =>
-                setFormData({
-                  ...formData,
-                  technologies: newValue,
-                })
-              }
-              placeholder="Select or type technologies"
-              options={commonSkills}
-            />
+              <ComboboxTagEditor
+                id="technologies"
+                label="Technologies Used"
+                value={technologies}
+                onChange={(next) => form.setValue('technologies', next, { shouldDirty: true })}
+                placeholder="Select or type technologies"
+                options={commonSkills}
+              />
 
-            <TagEditor
-              id="requiredSkills"
-              label="Required Skills (optional)"
-              value={formData.requiredSkills}
-              onChange={handleSkillsChange}
-              options={commonSkills}
-              error={formErrors.requiredSkills}
-            />
+              <ComboboxTagEditor
+                id="requiredSkills"
+                label="Required Skills (optional)"
+                value={requiredSkills}
+                onChange={(next) => form.setValue('requiredSkills', next, { shouldDirty: true })}
+                placeholder="Select or type skills"
+                options={commonSkills}
+              />
 
-            <TagEditor
-              id="tags"
-              label="Tags (optional)"
-              value={formData.tags}
-              onChange={handleTagsChange}
-            />
+              <ComboboxTagEditor
+                id="tags"
+                label="Tags (optional)"
+                value={tags}
+                onChange={(next) => form.setValue('tags', next, { shouldDirty: true })}
+                placeholder="Select or type tags"
+              />
 
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    status: value as ProjectStatus,
-                  })
-                }
-              >
-                <SelectTrigger id="status" className="w-full">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ideation">Ideation</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger id="status" className="w-full">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="ideation">Ideation</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Separator />
+              <Separator />
 
-            <div className="grid gap-3">
-              <h3 className="text-base font-semibold">Resources (optional)</h3>
-              {formData.resources.map((resource, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <div className="grid flex-1 gap-1">
-                    <Input
-                      placeholder="Resource Name"
-                      value={resource.name}
-                      onChange={(e) => handleResourceChange(index, 'name', e.target.value)}
-                      aria-invalid={!!formErrors[`resource${index}Name`]}
+              <div className="grid gap-3">
+                <h3 className="text-base font-semibold">Resources (optional)</h3>
+                {resourceFields.map((resourceField, index) => (
+                  <div key={resourceField.id} className="flex items-start gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`resources.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input placeholder="Resource Name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    {formErrors[`resource${index}Name`] && (
-                      <p className="text-sm text-destructive">
-                        {formErrors[`resource${index}Name`]}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid flex-[2] gap-1">
-                    <Input
-                      placeholder="Resource URL"
-                      value={resource.url}
-                      onChange={(e) => handleResourceChange(index, 'url', e.target.value)}
-                      aria-invalid={!!formErrors[`resource${index}Url`]}
+                    <FormField
+                      control={form.control}
+                      name={`resources.${index}.url`}
+                      render={({ field }) => (
+                        <FormItem className="flex-[2]">
+                          <FormControl>
+                            <Input placeholder="Resource URL" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    {formErrors[`resource${index}Url`] && (
-                      <p className="text-sm text-destructive">
-                        {formErrors[`resource${index}Url`]}
-                      </p>
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeResourceField(index)}
+                      disabled={resourceFields.length === 1}
+                      aria-label="Remove resource"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
+                ))}
+                <div>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeResource(index)}
-                    disabled={formData.resources.length === 1}
-                    aria-label="Remove resource"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendResource({ name: '', url: '' })}
                   >
-                    <Trash2 className="size-4" />
+                    <Plus className="size-4" />
+                    Add Resource
                   </Button>
                 </div>
-              ))}
-              <div>
-                <Button type="button" variant="outline" size="sm" onClick={addResource}>
-                  <Plus className="size-4" />
-                  Add Resource
+              </div>
+
+              <Separator />
+
+              {/* Incentives Section - Simplified */}
+              <div className="grid gap-3">
+                <h3 className="text-base font-semibold">Project Incentives (Optional)</h3>
+                <p className="text-sm text-muted-foreground">
+                  Indicate if you will offer incentives to contributors. Specific details can be
+                  discussed privately.
+                </p>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="incentives-enabled">Offer Incentives to Contributors</Label>
+                  <Select
+                    value={incentivesEnabled ? 'yes' : 'no'}
+                    onValueChange={(value) =>
+                      form.setValue('incentives.enabled', value === 'yes', { shouldDirty: true })
+                    }
+                  >
+                    <SelectTrigger id="incentives-enabled" className="w-full sm:w-auto sm:min-w-72">
+                      <SelectValue placeholder="Offer Incentives to Contributors" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="yes">Yes - I will offer incentives</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {incentivesEnabled && (
+                  <div className="rounded-md bg-muted p-4 text-sm text-muted-foreground">
+                    💡 <strong className="text-foreground">Note:</strong> This will show potential
+                    contributors that incentives are available. Specific details about rewards will
+                    be discussed privately with accepted collaborators.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => navigate('/projects')}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving && <Loader2 className="size-4 animate-spin" />}
+                  {isSaving ? 'Saving...' : projectId ? 'Update Project' : 'Create Project'}
                 </Button>
               </div>
-            </div>
-
-            <Separator />
-
-            {/* Incentives Section - Simplified */}
-            <div className="grid gap-3">
-              <h3 className="text-base font-semibold">Project Incentives (Optional)</h3>
-              <p className="text-sm text-muted-foreground">
-                Indicate if you will offer incentives to contributors. Specific details can be
-                discussed privately.
-              </p>
-
-              <div className="grid gap-2">
-                <Label htmlFor="incentives-enabled">Offer Incentives to Contributors</Label>
-                <Select
-                  value={formData.incentives.enabled ? 'yes' : 'no'}
-                  onValueChange={(value) => {
-                    setFormData({
-                      ...formData,
-                      incentives: {
-                        ...formData.incentives,
-                        enabled: value === 'yes',
-                      },
-                    });
-                  }}
-                >
-                  <SelectTrigger id="incentives-enabled" className="w-full sm:w-auto sm:min-w-72">
-                    <SelectValue placeholder="Offer Incentives to Contributors" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="no">No</SelectItem>
-                    <SelectItem value="yes">Yes - I will offer incentives</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.incentives.enabled && (
-                <div className="rounded-md bg-muted p-4 text-sm text-muted-foreground">
-                  💡 <strong className="text-foreground">Note:</strong> This will show potential
-                  contributors that incentives are available. Specific details about rewards will be
-                  discussed privately with accepted collaborators.
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => navigate('/projects')}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving && <Loader2 className="size-4 animate-spin" />}
-                {isSaving ? 'Saving...' : projectId ? 'Update Project' : 'Create Project'}
-              </Button>
-            </div>
-          </form>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
