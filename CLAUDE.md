@@ -1,121 +1,52 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
-## Project Overview
+## What this is
 
-CodeCollabProj is a web application for computer club members to collaborate on projects. It's a full-stack JavaScript application with a React frontend and Express.js backend using MongoDB.
+A single **TanStack Start** app (SSR + file-based routing + in-process API) backed by **MongoDB/Mongoose**. It was migrated from a two-part MERN app (CRA `client/` + Express `server/`), both now removed. See `docs/adr/0001-migrate-to-tanstack-start.md`.
 
-## Development Commands
-
-### Running the Application
+## Commands
 
 ```bash
-npm run dev           # Start both client (port 3000) and server (port 5001) concurrently
-npm run client        # Start only React dev server
-npm run server        # Start only Express server with nodemon
-npm run install-all   # Install dependencies for root, client, and server
-```
-
-### Testing
-
-```bash
-# Server tests (Jest)
-cd server && npm test              # Run all server tests
-cd server && npm run test:watch    # Watch mode
-cd server && npm run test:coverage # With coverage
-
-# Client tests (Jest via react-scripts)
-cd client && npm test              # Run client tests in watch mode
-```
-
-### Database
-
-```bash
-cd server && npm run seed          # Seed database with sample data
-```
-
-### Building for Production
-
-```bash
-npm run build         # Build client for production
+npm run dev        # dev server (SSR) on :3000
+npm run build      # production build -> dist/
+npm start          # run built server (server.mjs) on $PORT
+npm run typecheck  # tsc --noEmit
 ```
 
 ## Architecture
 
-### Monorepo Structure
+- **Routes** (`src/routes/`): file-based.
+  - `__root.tsx` — HTML document + providers (TanStack Query, MUI theme, CssBaseline).
+  - `_main.tsx` — pathless layout wrapping pages in `<Layout>` (Header/Footer).
+  - `_main.*.tsx` — pages; guarded pages wrap the component in `<PrivateRoute>`.
+  - `admin.tsx` + `admin.*.tsx` — admin layout gated by `<AdminRoute requireRole={['admin']}>`.
+  - `api.<resource>.*.ts` — **in-process API**. Each file is `createFileRoute('/api/...')({ server: { handlers: { GET, POST, ... } } })`.
+- **Server layer** (`src/server/`):
+  - `http.ts` — API helpers. Use `handler()` to wrap every route handler; `json()`/`error()` for responses; `requireUser(request)` / `requireRole(request, roles)` for auth; `issueSession()` + `setAuthCookies()` for login; `query(request)` for search params.
+  - `models.ts` — Mongoose models (`User`, `Session`, `Project`, `Comment`, `Message`), `strict:false`, bound to the real collections.
+  - `db.ts` — `connectDB()` cached connection. Call it in handlers before querying.
+- **Ported React app**: `components/`, `hooks/` (TanStack Query, by domain), `services/` (axios → same-origin `/api`), `config/`, `types/`, `utils/`.
+- **`compat/react-router-shim.tsx`**: aliases `react-router-dom` → TanStack Router (via `vite.config.ts` + `tsconfig` paths) so ported components use react-router call shapes unchanged. Prefer importing `@tanstack/react-router` directly in new code.
 
-- `/client` - React 18 frontend (Create React App)
-- `/server` - Express.js backend
+## Auth model
 
-### Backend Architecture (server/)
+- Login/register issue a JWT in an **httpOnly `accessToken` cookie** and a `sessions` record. `getAuthUser(request)` verifies the JWT + active session and loads the user; `requireUser`/`requireRole` gate endpoints. No token is exposed to client JS. The legacy client token utilities (`tokenEncryption.ts`, deprecated `authService` methods) are SSR-safe no-ops.
 
-- **MVC Pattern**: Controllers handle business logic, Models define MongoDB schemas, Routes define API endpoints
-- **Authentication**: JWT dual-token system (access + refresh tokens) with session management via `services/sessionService.js`
-- **RBAC**: Role-based access control via `middleware/rbac.js` with three roles: `user`, `moderator`, `admin`
-- **File Storage**: Avatar images stored in MongoDB GridFS (`utils/gridfs.js`)
+## Adding an API endpoint
 
-Key middleware chain in `index.js`:
+1. Create `src/routes/api.<resource>.<segments>.ts` (dots = path segments, `$x` = params).
+2. `export const Route = createFileRoute('/api/...')({ server: { handlers: { GET: handler(async ({ request, params }) => { await connectDB(); ... return json(data) }) } } })`.
+3. Gate with `requireUser`/`requireRole` as needed. Return raw Mongoose docs when the client expects `_id`.
 
-1. Helmet (security headers with CSP nonces)
-2. CORS (restrictive, configured for dev/prod)
-3. MongoDB sanitization (injection prevention)
-4. Security monitoring
-5. Rate limiting (production only, with auth-specific limits)
+## Conventions / gotchas
 
-### Frontend Architecture (client/src/)
+- SSR runs on Nitro/unenv, which provides **throwing stubs** for browser globals. Guard browser-only code with `import.meta.env.SSR`, not `typeof window`.
+- Import `CssBaseline` (and similar) from the `@mui/material` barrel, not `@mui/material/CssBaseline` — the deep default import resolves to an object under SSR.
+- MUI/emotion are bundled into the SSR build (`ssr.noExternal` in `vite.config.ts`) to avoid `ERR_UNSUPPORTED_DIR_IMPORT` in production.
+- `src/routeTree.gen.ts` is generated by the TanStack Router vite plugin on dev/build — gitignored, don't edit.
 
-- **State Management**: TanStack Query (React Query v5) - no Redux
-- **Routing**: React Router v6 with PrivateRoute and AdminRoute guards
-- **UI**: Material-UI v5
+## Known gaps
 
-**Hooks Pattern** (`hooks/`): Custom hooks organized by domain (auth, projects, comments, users, admin). Each hook wraps TanStack Query:
-
-- `useAuth` - Authentication state and token management
-- `useProjects`, `useProject` - Project data fetching
-- `useComments`, `useCommentMutations` - Comment CRUD
-- `useMessaging` - Direct messaging
-
-**Services Pattern** (`services/`): API layer using Axios. Each service corresponds to a backend resource. Central export in `services/index.js`.
-
-### Data Flow
-
-1. Components use domain hooks (e.g., `useProjects`)
-2. Hooks call services via TanStack Query
-3. Services make HTTP calls with token auth
-4. Backend validates via auth middleware, then RBAC
-5. Controllers interact with Mongoose models
-
-## Environment Setup
-
-Copy environment templates:
-
-```bash
-cp server/example.env server/.env
-cp client/example.env client/.env
-```
-
-Required server environment variables:
-
-- `MONGODB_URI` - MongoDB connection string
-- `JWT_SECRET` - Access token secret (min 32 chars)
-- `JWT_REFRESH_SECRET` - Refresh token secret
-- `FRONTEND_URL` - Client URL for CORS
-
-## Key Patterns
-
-### Adding a New API Endpoint
-
-1. Create/update route in `server/routes/`
-2. Create/update controller in `server/controllers/`
-3. Apply middleware: `auth` for authentication, `requireRole`/`requirePermission` from `rbac.js` for authorization
-
-### Adding a New Frontend Feature
-
-1. Create service method in `client/src/services/`
-2. Create custom hook in `client/src/hooks/` using TanStack Query
-3. Build component using the hook
-
-### Test Users
-
-Development accounts: `user1@example.com` through `user10@example.com` with password `password123`
+Email sending (reset/verify) and avatar binary storage are stubbed; email verification is disabled (register creates verified accounts). Some `/users/:id/*` endpoints were never implemented in the original backend and remain absent.
