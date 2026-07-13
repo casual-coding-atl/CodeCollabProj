@@ -46,6 +46,14 @@ describe('sortProjects', () => {
   it('by collaborator count desc', () => {
     expect(sortProjects(list, 'collaborators').map((x) => x.id)).toEqual(['b', 'a', 'c']);
   });
+  it('by collaborators array length when count is absent', () => {
+    const arr = [
+      { id: 'a', createdAt: '2026-01-01', collaborators: [1, 2] },
+      { id: 'b', createdAt: '2026-01-01', collaborators: [] },
+      { id: 'c', createdAt: '2026-01-01', collaborators: [1, 2, 3] },
+    ];
+    expect(sortProjects(arr, 'collaborators').map((x) => x.id)).toEqual(['c', 'a', 'b']);
+  });
   it('does not mutate the input', () => {
     const copy = [...list];
     sortProjects(list, 'newest');

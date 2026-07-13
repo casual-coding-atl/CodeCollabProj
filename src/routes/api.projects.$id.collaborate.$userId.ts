@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project } from '../server/models';
+import { createNotification } from '../server/notifications';
 
 /**
  * PUT /api/projects/$id/collaborate/$userId  →  projectController.handleCollaborationRequest
@@ -41,6 +42,9 @@ export const Route = createFileRoute('/api/projects/$id/collaborate/$userId')({
           return error(404, 'Collaboration request not found');
         }
 
+        // Removing an already-accepted collaborator is a removal, not a rejected
+        // request — notify them as `collaborator_removed` instead of `join_rejected`.
+        const wasAccepted = project.collaborators[collaboratorIndex].status === 'accepted';
         if (status === 'rejected') {
           project.collaborators.splice(collaboratorIndex, 1);
         } else {
@@ -48,6 +52,20 @@ export const Route = createFileRoute('/api/projects/$id/collaborate/$userId')({
         }
 
         await project.save();
+
+        // Notify the affected member of the owner's decision.
+        const notifyType =
+          status === 'accepted'
+            ? 'join_accepted'
+            : wasAccepted
+              ? 'collaborator_removed'
+              : 'join_rejected';
+        await createNotification({
+          userId: params.userId,
+          type: notifyType,
+          actor: String(user._id),
+          projectId: String(project._id),
+        });
 
         return json({ message: `Collaboration request ${status} successfully` });
       }),

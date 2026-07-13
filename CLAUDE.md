@@ -28,7 +28,7 @@ npm run typecheck  # tsc --noEmit
   - `models.ts` — Mongoose models (`User`, `Session`, `Project`, `Comment`, `Message`), `strict:false`, bound to the real collections.
   - `db.ts` — `connectDB()` cached connection. Call it in handlers before querying.
 - **Ported React app**: `components/`, `hooks/` (TanStack Query, by domain), `services/` (axios → same-origin `/api`), `config/`, `types/`, `utils/`.
-- **`compat/react-router-shim.tsx`**: aliases `react-router-dom` → TanStack Router (via `vite.config.ts` + `tsconfig` paths) so ported components use react-router call shapes unchanged. Prefer importing `@tanstack/react-router` directly in new code.
+- **Routing is 100% `@tanstack/react-router`.** The old `react-router-dom` compat shim was removed — import `Link`, `useNavigate`, `useParams`, `useSearch`, `Navigate`, `Outlet` from `@tanstack/react-router` directly. Dynamic nav is typed: `navigate({ to: '/projects/$projectId', params: { projectId: id } })`, `<Link to="/members/$id" params={{ id }}>`, `hash={}` / `search={}` for fragments and query.
 
 ## Auth model
 
@@ -50,3 +50,17 @@ npm run typecheck  # tsc --noEmit
 ## Known gaps
 
 Email sending (reset/verify) and avatar binary storage are stubbed; email verification is disabled (register creates verified accounts). Some `/users/:id/*` endpoints were never implemented in the original backend and remain absent.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in `casual-coding-atl/CodeCollabProj` (via the `gh` CLI); external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical label names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) — all exist on the repo except `needs-info` (created on first use). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` (created lazily) + `docs/adr/`. See `docs/agents/domain.md`.

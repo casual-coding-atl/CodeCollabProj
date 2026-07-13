@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useSearch, Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -44,7 +44,7 @@ type ResetPasswordSchema = z.infer<typeof resetPasswordSchema>;
 
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const search = useSearch({ from: '/_main/reset-password' });
   const resetPasswordMutation = useResetPassword();
 
   const form = useForm<ResetPasswordSchema>({
@@ -57,7 +57,7 @@ const ResetPassword: React.FC = () => {
 
   // Token is available during render from the URL — derive it instead of
   // mirroring it into state via an effect.
-  const token = searchParams.get('token') ?? '';
+  const token = search.token ?? '';
 
   // Query to verify the password reset token
   const {
@@ -70,7 +70,7 @@ const ResetPassword: React.FC = () => {
   // gated on the derived value.
   useEffect(() => {
     if (!token) {
-      navigate('/forgot-password');
+      navigate({ to: '/forgot-password' });
     }
   }, [token, navigate]);
 

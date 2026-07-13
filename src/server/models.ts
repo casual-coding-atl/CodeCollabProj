@@ -106,3 +106,35 @@ export type MessageDoc = InferSchemaType<typeof messageSchema> & { _id: mongoose
 export const Message: Model<MessageDoc> =
   (mongoose.models.Message as Model<MessageDoc>) ??
   mongoose.model<MessageDoc>('Message', messageSchema);
+
+// ── Notification ─────────────────────────────────────────────────────────────
+// New collection owned by this app (unlike the legacy-shared ones above), so it
+// uses strict schema. All v1 types are Project-scoped, hence projectId is always
+// set; `actor` is who caused it, `userId` is the recipient.
+const NOTIFICATION_TYPES = [
+  'join_requested',
+  'join_accepted',
+  'join_rejected',
+  'collaborator_added',
+  'collaborator_removed',
+  'comment_posted',
+] as const;
+const notificationSchema = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    type: { type: String, enum: NOTIFICATION_TYPES, required: true },
+    actor: { type: Schema.Types.ObjectId, ref: 'User' },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
+    commentId: { type: Schema.Types.ObjectId, ref: 'Comment' },
+    readAt: { type: Date, default: null },
+  },
+  { collection: 'notifications', timestamps: true },
+);
+notificationSchema.index({ userId: 1, createdAt: -1 }); // feed
+notificationSchema.index({ userId: 1, readAt: 1 }); // unread count
+export type NotificationDoc = InferSchemaType<typeof notificationSchema> & {
+  _id: mongoose.Types.ObjectId;
+};
+export const Notification: Model<NotificationDoc> =
+  (mongoose.models.Notification as Model<NotificationDoc>) ??
+  mongoose.model<NotificationDoc>('Notification', notificationSchema);

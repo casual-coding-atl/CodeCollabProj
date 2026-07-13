@@ -1,6 +1,6 @@
 import React from 'react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,11 +42,11 @@ const Dashboard: React.FC = () => {
   const handleCollaborationMutation = useHandleCollaborationRequest();
 
   const handleCreateProject = (): void => {
-    navigate('/projects/create');
+    navigate({ to: '/projects/create' });
   };
 
   const handleViewProject = (projectId: string): void => {
-    navigate(`/projects/${projectId}`);
+    navigate({ to: '/projects/$projectId', params: { projectId } });
   };
 
   const handleCollaborationRequest = (
@@ -89,7 +89,7 @@ const Dashboard: React.FC = () => {
           <AlertTitle>Authentication Required</AlertTitle>
           <AlertDescription>You must be logged in to view your dashboard.</AlertDescription>
         </Alert>
-        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+        <Button onClick={() => navigate({ to: '/login' })}>Go to Login</Button>
       </div>
     );
   }

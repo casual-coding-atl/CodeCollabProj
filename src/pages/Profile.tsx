@@ -30,7 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { addTag, removeTag } from '@/lib/tags';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../hooks/auth';
 import { useMyProfile, useUpdateProfile, useUploadAvatar, useDeleteAvatar } from '../hooks/users';
@@ -675,7 +675,8 @@ const ProfileProjects: React.FC<{ userId?: string }> = ({ userId }) => {
             {mine.map((p) => (
               <li key={p._id}>
                 <RouterLink
-                  to={`/projects/${p._id}`}
+                  to="/projects/$projectId"
+                  params={{ projectId: p._id }}
                   className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                 >
                   {p.title}
@@ -740,7 +741,10 @@ const Profile: React.FC = () => {
           <TabsTrigger value="projects">Projects</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview">
+        {/* forceMount keeps the edit form mounted across tab switches — Radix hides
+            it with the `hidden` attribute when inactive, so in-progress edits survive
+            a trip to the Projects/Activity tabs instead of being reset on remount. */}
+        <TabsContent value="overview" forceMount className="data-[state=inactive]:hidden">
           <ProfileForm
             profile={typedProfile}
             profileError={profileError}

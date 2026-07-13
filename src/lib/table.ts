@@ -1,11 +1,19 @@
 export type SortDir = 'asc' | 'desc';
 
-/** Sort a list by a key (case-insensitive for strings). Returns a new array. Pure. */
+/**
+ * Sort a list by a key (case-insensitive for strings). Nullish values always
+ * sort last regardless of direction. Returns a new array. Pure.
+ */
 export function sortByKey<T>(list: T[], key: keyof T, dir: SortDir = 'asc'): T[] {
   const factor = dir === 'desc' ? -1 : 1;
   return [...list].sort((a, b) => {
     const av = a[key];
     const bv = b[key];
+    const aNull = av == null;
+    const bNull = bv == null;
+    if (aNull && bNull) return 0;
+    if (aNull) return 1; // nullish last
+    if (bNull) return -1;
     if (typeof av === 'string' && typeof bv === 'string') {
       return factor * av.localeCompare(bv, undefined, { sensitivity: 'base' });
     }

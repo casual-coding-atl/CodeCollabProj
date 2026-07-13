@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from '@tanstack/react-router';
 import { MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,29 @@ interface ProjectWithId {
 const metaLabel = 'font-mono text-[11px] uppercase tracking-widest text-muted-foreground';
 const PER_PAGE = 10;
 
+function SortHeader({
+  label,
+  k,
+  onSort,
+}: {
+  label: string;
+  k: keyof UserWithId;
+  onSort: (key: keyof UserWithId) => void;
+}) {
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        className="inline-flex items-center gap-1 hover:text-foreground"
+      >
+        {label}
+        <ArrowUpDown className="size-3" />
+      </button>
+    </TableHead>
+  );
+}
+
 const Members: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithId | null>(null);
@@ -59,9 +82,15 @@ const Members: React.FC = () => {
     error: usersError,
     refetch: refetchUsers,
   } = useUsers();
-  const { data: projects = [], isLoading: projectsLoading, refetch: refetchProjects } = useProjects();
+  const {
+    data: projects = [],
+    isLoading: projectsLoading,
+    error: projectsError,
+    refetch: refetchProjects,
+  } = useProjects();
 
   const loading = usersLoading || projectsLoading;
+  const loadError = usersError || projectsError;
   const typedUsers = users as unknown as UserWithId[];
   const typedProjects = projects as unknown as ProjectWithId[];
 
@@ -93,19 +122,6 @@ const Members: React.FC = () => {
     setPage(1);
   };
 
-  const SortHeader = ({ label, k }: { label: string; k: keyof UserWithId }) => (
-    <TableHead>
-      <button
-        type="button"
-        onClick={() => toggleSort(k)}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        {label}
-        <ArrowUpDown className="size-3" />
-      </button>
-    </TableHead>
-  );
-
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -120,12 +136,12 @@ const Members: React.FC = () => {
     );
   }
 
-  if (usersError) {
+  if (loadError) {
     return (
       <div className="mx-auto max-w-6xl">
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Error loading members</AlertTitle>
-          <AlertDescription>{(usersError as Error)?.message || 'Failed to load members'}</AlertDescription>
+          <AlertDescription>{(loadError as Error)?.message || 'Failed to load members'}</AlertDescription>
         </Alert>
         <Button
           onClick={() => {
@@ -151,8 +167,8 @@ const Members: React.FC = () => {
         <Table data-testid="members-table">
           <TableHeader>
             <TableRow>
-              <SortHeader label="Member" k="username" />
-              <SortHeader label="Experience" k="experience" />
+              <SortHeader label="Member" k="username" onSort={toggleSort} />
+              <SortHeader label="Experience" k="experience" onSort={toggleSort} />
               <TableHead>Skills</TableHead>
               <TableHead>Projects</TableHead>
               <TableHead className="text-right">Message</TableHead>
@@ -167,7 +183,8 @@ const Members: React.FC = () => {
                     <HoverCard openDelay={150}>
                       <HoverCardTrigger asChild>
                         <RouterLink
-                          to={`/members/${user._id}`}
+                          to="/members/$id"
+                          params={{ id: user._id }}
                           className="flex items-center gap-3 text-left hover:text-primary"
                         >
                           <Avatar user={user} size="sm" />
@@ -197,7 +214,8 @@ const Members: React.FC = () => {
                               </div>
                             )}
                             <RouterLink
-                              to={`/members/${user._id}`}
+                              to="/members/$id"
+                          params={{ id: user._id }}
                               className="mt-3 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
                             >
                               View full profile →
@@ -238,7 +256,8 @@ const Members: React.FC = () => {
                         {userProjects.map((p, i) => (
                           <span key={p._id}>
                             <RouterLink
-                              to={`/projects#${p._id}`}
+                              to="/projects"
+                              hash={p._id}
                               className="text-primary underline-offset-4 hover:underline"
                             >
                               {p.title}

@@ -22,6 +22,16 @@ describe('sortByKey', () => {
     sortByKey(rows, 'age', 'desc');
     expect(rows).toEqual(copy);
   });
+
+  it('sorts nullish values last in both directions', () => {
+    const withGaps = [
+      { name: 'b', level: 'advanced' as string | undefined },
+      { name: 'a', level: undefined },
+      { name: 'c', level: 'beginner' as string | undefined },
+    ];
+    expect(sortByKey(withGaps, 'level', 'asc').map((r) => r.name)).toEqual(['b', 'c', 'a']);
+    expect(sortByKey(withGaps, 'level', 'desc').map((r) => r.name)).toEqual(['c', 'b', 'a']);
+  });
 });
 
 describe('paginate', () => {

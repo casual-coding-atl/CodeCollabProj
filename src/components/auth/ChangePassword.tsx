@@ -1,6 +1,6 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useChangePassword } from '../../hooks/auth/useChangePassword';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useRouter } from '@tanstack/react-router';
 
 interface FormData {
   currentPassword: string;
@@ -36,6 +36,7 @@ interface AxiosError {
  */
 const ChangePassword: React.FC = () => {
   const navigate = useNavigate();
+  const router = useRouter();
   const changePasswordMutation = useChangePassword();
 
   const [formData, setFormData] = useState<FormData>({
@@ -108,12 +109,7 @@ const ChangePassword: React.FC = () => {
       });
 
       // Success - redirect to login since all sessions are revoked
-      navigate('/login', {
-        state: {
-          message: 'Password changed successfully. Please log in again.',
-          type: 'success',
-        },
-      });
+      navigate({ to: '/login' });
     } catch (error) {
       const axiosError = error as AxiosError;
       // Handle specific error messages
@@ -265,7 +261,7 @@ const ChangePassword: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={() => router.history.back()}
               className="bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               Cancel

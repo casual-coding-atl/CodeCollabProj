@@ -6,6 +6,7 @@ export { projectsService } from './projectsService';
 export { commentsService } from './commentsService';
 export { usersService } from './usersService';
 export { adminService } from './adminService';
+export { notificationsService } from './notificationsService';
 
 // Re-export default exports as well
 export { default as authServiceDefault } from './authService';
@@ -13,6 +14,7 @@ export { default as projectsServiceDefault } from './projectsService';
 export { default as commentsServiceDefault } from './commentsService';
 export { default as usersServiceDefault } from './usersService';
 export { default as adminServiceDefault } from './adminService';
+export { default as notificationsServiceDefault } from './notificationsService';
 
 // Re-export types from services
 export type { AuthServiceInterface } from './authService';
@@ -41,6 +43,7 @@ export type {
   DeleteCommentResponse,
   CommentsServiceInterface,
 } from './commentsService';
+export type { MarkReadPayload, MarkReadResponse } from './notificationsService';
 export type {
   DashboardStats,
   AdminUserQueryParams,

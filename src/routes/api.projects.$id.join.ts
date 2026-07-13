@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project } from '../server/models';
+import { createNotification } from '../server/notifications';
 
 /**
  * POST /api/projects/$id/join  →  projectsService.join
@@ -29,6 +30,14 @@ export const Route = createFileRoute('/api/projects/$id/join')({
 
         project.collaborators.push({ userId: user._id, status: 'accepted' });
         await project.save();
+
+        // Notify the owner that a member joined (owner === joiner is a no-op).
+        await createNotification({
+          userId: String(project.owner),
+          type: 'collaborator_added',
+          actor: String(user._id),
+          projectId: String(project._id),
+        });
 
         await project.populate('owner', '_id username');
         await project.populate('collaborators.userId', '_id username');

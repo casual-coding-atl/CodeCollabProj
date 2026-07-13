@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -88,7 +88,7 @@ const Register: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate({ to: '/dashboard' });
     }
   }, [isAuthenticated, navigate]);
 
@@ -100,7 +100,7 @@ const Register: React.FC = () => {
         setRegistrationSuccess(true);
         // If auto-login in development mode, navigate to dashboard
         if (data.token && data.user) {
-          navigate('/dashboard');
+          navigate({ to: '/dashboard' });
         }
       },
     });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -379,7 +379,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
         {
           onSuccess: () => {
             toast.success('Project updated');
-            navigate('/projects');
+            navigate({ to: '/projects' });
           },
           onError: (error) => {
             handleSubmissionError(
@@ -392,7 +392,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
       createProjectMutation.mutate(projectData, {
         onSuccess: () => {
           toast.success('Project created');
-          navigate('/projects');
+          navigate({ to: '/projects' });
         },
         onError: (error) => {
           handleSubmissionError(
@@ -647,7 +647,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => navigate('/projects')}>
+                <Button type="button" variant="outline" onClick={() => navigate({ to: '/projects' })}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isSaving}>
@@ -665,7 +665,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
 
 const ProjectForm: React.FC = () => {
   const navigate = useNavigate();
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId } = useParams({ strict: false });
 
   // Auth state
   const { isAuthenticated } = useAuth();
@@ -688,7 +688,7 @@ const ProjectForm: React.FC = () => {
             You must be logged in to create or edit projects.
           </AlertDescription>
         </Alert>
-        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+        <Button onClick={() => navigate({ to: '/login' })}>Go to Login</Button>
       </div>
     );
   }
@@ -718,7 +718,7 @@ const ProjectForm: React.FC = () => {
               'Failed to load project data'}
           </AlertDescription>
         </Alert>
-        <Button onClick={() => navigate('/projects')}>Back to Projects</Button>
+        <Button onClick={() => navigate({ to: '/projects' })}>Back to Projects</Button>
       </div>
     );
   }

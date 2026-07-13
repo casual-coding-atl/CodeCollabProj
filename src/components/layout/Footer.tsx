@@ -3,7 +3,9 @@ import { type FC } from 'react';
 const Footer: FC = () => {
   const year = new Date().getFullYear();
   return (
-    <footer className="mt-auto border-t border-border/60 bg-muted/30">
+    // Hidden on mobile: the fixed bottom tab bar owns that space, and the footer
+    // (logo/tagline/copyright) is decorative and redundant with the header brand.
+    <footer className="mt-auto hidden border-t border-border/60 bg-muted/30 sm:block">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 py-8 text-center sm:px-6">
         <div className="flex items-center gap-2.5">
           <img

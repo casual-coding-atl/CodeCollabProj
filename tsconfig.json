@@ -15,8 +15,7 @@
     "verbatimModuleSyntax": false,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "react-router-dom": ["./src/compat/react-router-shim.tsx"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "vite.config.ts"],

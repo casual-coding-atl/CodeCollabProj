@@ -2,6 +2,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project, Comment } from '../server/models';
+import { notifyMany } from '../server/notifications';
+import { commentRecipients } from '../lib/notifications';
 
 /**
  * /api/projects/$id/comments
@@ -66,6 +68,14 @@ export const Route = createFileRoute('/api/projects/$id/comments')({
         });
 
         await comment.populate('userId', 'username email');
+
+        // Notify the owner + accepted collaborators (minus the author).
+        await notifyMany(commentRecipients(project, String(user._id)), {
+          type: 'comment_posted',
+          actor: String(user._id),
+          projectId: String(params.id),
+          commentId: String(comment._id),
+        });
 
         return json(comment, 201);
       }),
