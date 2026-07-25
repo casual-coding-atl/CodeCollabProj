@@ -35,7 +35,14 @@ Adopt **Better Auth** with the MongoDB adapter as the auth layer:
 - `requireUser`/`requireRole` keep their signatures; internals swap to
   `auth.api.getSession`. Roles/suspension stay custom fields enforced there
   (Better Auth's admin plugin deliberately NOT adopted for now).
-- Plugins: passkey now; GitHub social provider in the next phase.
+- Plugins: passkey now; GitHub social provider in the next phase, configured
+  for account **linking only** — social sign-in and sign-up are both refused.
+- App-owned guardrails are bolted on where Better Auth's defaults are looser
+  than the legacy app's: a `session.create.before` hook refuses to mint a
+  session for a deactivated or suspended member (admin revocation would
+  otherwise be cosmetic), and usernames are validated + uniqueness-checked at
+  sign-up and rejected outright by Better Auth's always-on `POST /update-user`,
+  so `PUT /api/users/profile` stays the only way to change one.
 
 ## Consequences
 
@@ -44,6 +51,14 @@ Adopt **Better Auth** with the MongoDB adapter as the auth layer:
 - New collections (`account`, `session`, `verification`, `passkey`); a one-off
   migration script creates credential accounts from existing hashes; the
   legacy `sessions` collection is retired and **all users are logged out once**.
+- Cutover is two-phase, because the hash has to exist in both places at once.
+  The default migration run is additive and leaves the legacy `password` field
+  on the user doc, so it can run *before* the deploy while the old sign-in is
+  still serving traffic, and a rollback is just redeploying. A later
+  `--cleanup` run drops that field and closes the rollback door.
+- `BETTER_AUTH_URL` becomes a required production env var — the dev fallback to
+  `http://localhost:3000` would otherwise ship a wrong-origin, non-Secure
+  cookie, so `getAuth()` throws instead.
 - The client auth service/hooks must be rewritten over `better-auth/react`.
 - Users' GitHub OAuth tokens will be stored server-side in `account` rows —
   standard for OAuth-linking apps, but the DB now holds third-party tokens.
