@@ -171,6 +171,30 @@ await Project.updateOne(
   { upsert: true },
 );
 
+// A second project, linking a repository that is private by the time anybody
+// asks about it — the "linked, then made private" case. It lives on its own
+// project so the sample project keeps exactly three cards for the spec that
+// counts them.
+const PRIVATE_TITLE = 'E2E Private Repo Project';
+await Project.updateOne(
+  { title: PRIVATE_TITLE },
+  {
+    $set: {
+      title: PRIVATE_TITLE,
+      description: 'A project whose linked repository went private.',
+      status: 'planning',
+      owner: user._id,
+      technologies: ['TypeScript'],
+      tags: ['e2e'],
+      collaborators: [],
+      linkedRepos: [
+        { repoId: 9004, owner: 'e2e-org', name: 'private-repo', linkedAt: new Date() },
+      ],
+    },
+  },
+  { upsert: true },
+);
+
 // Anything the server cached from GitHub on a previous run, so a fixture that
 // has since changed cannot be served out of a day-old cache entry.
 await collection('github_cache').deleteMany({});

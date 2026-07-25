@@ -10,8 +10,11 @@ const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 // pointed at a local fixture server (e2e/fixtures/github-api.mjs) instead of
 // api.github.com, so no test depends on the network, a rate limit, or a real
 // repository's star count.
+// 127.0.0.1, not localhost: the fixture binds loopback, and `localhost` can
+// resolve to ::1 first on a machine with IPv6 — which would leave the app
+// unable to reach it, or worse, reaching something else that answered.
 const GITHUB_FIXTURE_PORT = Number(process.env.E2E_GITHUB_PORT) || 3199;
-const GITHUB_FIXTURE_URL = `http://localhost:${GITHUB_FIXTURE_PORT}`;
+export const GITHUB_FIXTURE_URL = `http://127.0.0.1:${GITHUB_FIXTURE_PORT}`;
 
 /**
  * Swap the database name in a Mongo connection string, preserving creds/host/query.
@@ -59,11 +62,17 @@ export default defineConfig({
   // Always the E2E server (never reuse the dev server): build+start locally, or
   // just start in CI (which builds in a prior step). Bound to the E2E DB + port.
   //
+  // Neither server is ever reused. A server already listening on one of these
+  // ports is not knowably *this* one: it may predate the code under test (the
+  // build is part of the command, and reuse skips it), or have been started
+  // with different env — pointed at the real api.github.com, or at another
+  // database. Both would be silent. Failing to start on a busy port is loud,
+  // and the fix is to kill whatever is holding it.
   webServer: [
     {
       command: process.env.CI ? 'npm start' : 'npm run build && npm start',
       url: BASE_URL,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 180_000,
       env: {
         NODE_ENV: 'test',
@@ -87,7 +96,7 @@ export default defineConfig({
     {
       command: 'node e2e/fixtures/github-api.mjs',
       url: `${GITHUB_FIXTURE_URL}/healthz`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 30_000,
       env: { GITHUB_FIXTURE_PORT: String(GITHUB_FIXTURE_PORT) },
     },
