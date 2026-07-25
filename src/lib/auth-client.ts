@@ -11,8 +11,8 @@ import type { Permission, UserRole } from '../types';
  * password change/reset, passkeys — is a method on this object; there are no
  * hand-written `/api/auth/*` calls left. `inferAdditionalFields<Auth>()` reads
  * the server config's `additionalFields` (username, role, permissions,
- * isActive, isSuspended) so the session user is typed with the app's own fields
- * rather than Better Auth's bare user.
+ * isActive, isSuspended, suspensionReason, suspendedUntil) so the session user
+ * is typed with the app's own fields rather than Better Auth's bare user.
  *
  * The `Auth` import is type-only: it disappears at build time, so importing the
  * server config here does not pull server code into the browser bundle.
@@ -155,6 +155,9 @@ export interface AuthenticatedMember {
   permissions: Permission[];
   isActive: boolean;
   isSuspended: boolean;
+  /** Why, and until when — set only while `isSuspended`; absent otherwise. */
+  suspensionReason?: string;
+  suspendedUntil?: string;
   isEmailVerified: boolean;
   createdAt: string;
   updatedAt: string;
@@ -173,6 +176,11 @@ export function toAppUser(user: SessionUser): AuthenticatedMember {
     permissions: (user.permissions as Permission[]) || [],
     isActive: user.isActive !== false,
     isSuspended: user.isSuspended === true,
+    suspensionReason:
+      typeof user.suspensionReason === 'string' && user.suspensionReason.trim() !== ''
+        ? user.suspensionReason
+        : undefined,
+    suspendedUntil: user.suspendedUntil ? new Date(user.suspendedUntil).toISOString() : undefined,
     isEmailVerified: user.emailVerified,
     createdAt: new Date(user.createdAt).toISOString(),
     updatedAt: new Date(user.updatedAt).toISOString(),

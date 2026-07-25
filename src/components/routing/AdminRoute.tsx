@@ -55,15 +55,21 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requireRole = 'admin'
 
   // A member suspended mid-session keeps their cookie until they act; the
   // server denies every API call, so say why rather than showing an admin
-  // console that answers 403 to everything. The reason itself isn't shown: the
-  // session carries `isSuspended` but not `suspensionReason` (see
-  // `additionalFields` in src/server/auth.ts), so rendering it printed nothing.
+  // console that answers 403 to everything. The session carries the reason and
+  // the end date (`additionalFields` in src/server/auth.ts), so both are shown
+  // when an admin set them — a suspension nobody can read the terms of is just
+  // a locked door.
   if (user?.isSuspended) {
+    const until = user.suspendedUntil ? new Date(user.suspendedUntil) : null;
     return (
       <div className="p-6">
         <Alert variant="destructive">
           <AlertDescription>
             Your account has been suspended. Please contact support for assistance.
+            {user.suspensionReason && <div>Reason: {user.suspensionReason}</div>}
+            {until && !Number.isNaN(until.getTime()) && (
+              <div>Until: {until.toLocaleString()}</div>
+            )}
           </AlertDescription>
         </Alert>
       </div>

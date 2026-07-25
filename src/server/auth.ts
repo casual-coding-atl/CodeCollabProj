@@ -14,7 +14,9 @@ import { accessDenialReason } from './access';
 /**
  * Better Auth — the app's authentication layer (ADR 0002).
  *
- * Notable choices, all validated by `scripts/proto-better-auth`:
+ * Notable choices, all validated before building — see "Validated before
+ * building" in docs/adr/0002-adopt-better-auth.md, which records what the
+ * (since deleted) throwaway prototype proved and the one surprise it found:
  * - The existing `users` collection *is* Better Auth's user model
  *   (`user.modelName`), so every `Project.owner` / `collaborators.userId`
  *   ObjectId reference survives untouched. App-domain fields are declared as
@@ -298,6 +300,12 @@ export function buildAuth(database: BetterAuthOptions['database']) {
         permissions: { type: 'string[]', required: false, input: false },
         isActive: { type: 'boolean', required: false, input: false },
         isSuspended: { type: 'boolean', required: false, input: false },
+        // Carried so a suspended member can be told *why*, and until when,
+        // instead of meeting a console that answers 403 to everything with no
+        // explanation. Server-owned like the rest: `input: false` means nobody
+        // can set or clear their own suspension through Better Auth.
+        suspensionReason: { type: 'string', required: false, input: false },
+        suspendedUntil: { type: 'date', required: false, input: false },
       },
     },
     hooks: {
