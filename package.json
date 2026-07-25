@@ -12,7 +12,6 @@
     "test:e2e": "playwright test",
     "test:e2e:seed": "node scripts/seed-e2e.mjs",
     "migrate:auth": "node --experimental-strip-types scripts/migrate-better-auth.mjs",
-    "proto:auth": "node scripts/proto-better-auth/index.mjs",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },

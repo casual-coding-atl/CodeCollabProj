@@ -64,3 +64,18 @@ Adopt **Better Auth** with the MongoDB adapter as the auth layer:
   standard for OAuth-linking apps, but the DB now holds third-party tokens.
 - We take a dependency on Better Auth's release cadence for security fixes;
   in exchange we delete our bespoke JWT/session code.
+
+## Validated before building
+
+A throwaway prototype (`scripts/proto-better-auth`, deleted once phase 1
+landed) ran the core bet end to end against a scratch database and confirmed
+it: sign-in with a legacy bcrypt hash works after migration, Better Auth reads
+and writes our existing `users` collection with ObjectId ids preserved, and the
+custom suspension guard denies over `getSession` exactly as `getAuthUser` does.
+
+Its one surprise is now a rule the migration enforces: legacy users lack
+`name`, `emailVerified` and `updatedAt`, which must be backfilled (`name` ←
+`username`, `emailVerified` ← `isVerified`) or sign-in succeeds while handing
+back a malformed user; and the credential `account` row needs
+`accountId` = the user id string with `providerId: 'credential'`. That logic,
+with the reasoning, lives in `src/server/auth-migration.ts`.
