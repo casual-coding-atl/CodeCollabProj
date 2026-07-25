@@ -1,4 +1,10 @@
-import { authClient, unwrap, unwrapVoid, AuthError } from '../lib/auth-client';
+import {
+  authClient,
+  unwrap,
+  unwrapVoid,
+  AuthError,
+  isGithubProviderMissing,
+} from '../lib/auth-client';
 
 /**
  * The member's Linked GitHub Account (CONTEXT.md), over Better Auth's account
@@ -33,16 +39,10 @@ export interface LinkedGitHubAccount {
  * A deployment without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` — every dev
  * machine and CI run, and any production box before the OAuth app is
  * registered — simply has no GitHub provider, and Better Auth answers 404
- * PROVIDER_NOT_FOUND. That is a configuration fact, not a member error, so both
- * the linking card and the sign-in buttons say so instead of showing "Not
- * found"; the predicate is shared, the sentence is not, because "nothing to
- * connect to" and "no way to sign in" are different news.
+ * PROVIDER_NOT_FOUND. `isGithubProviderMissing` (shared with the sign-in flow,
+ * in src/lib/auth-client) is the predicate; the sentence is not shared, because
+ * "nothing to connect to" and "no way to sign in" are different news.
  */
-export function isGithubProviderMissing(error: unknown): boolean {
-  if (!(error instanceof AuthError)) return false;
-  return error.code === 'PROVIDER_NOT_FOUND' || error.status === 404;
-}
-
 function explain(error: unknown): never {
   if (error instanceof AuthError) {
     if (isGithubProviderMissing(error)) {
@@ -110,14 +110,19 @@ export const githubAccountService: GithubAccountServiceInterface = {
    * Start the OAuth round trip. This navigates away from the app, so it never
    * resolves in the ordinary sense — the member comes back to /security, with
    * `?error=…` if GitHub or Better Auth refused.
+   *
+   * Relative callback URLs, for the same reason `signInWithGithub` uses them:
+   * Better Auth validates them against its own origin (`trustedOrigins`), and an
+   * absolute `window.location.origin` off by a `www.`/apex/preview host is
+   * rejected 403 INVALID_CALLBACK_URL. A relative path resolves against Better
+   * Auth's base URL and lands wherever the app is actually served.
    */
   connect: async (): Promise<void> => {
-    const origin = import.meta.env.SSR ? '' : window.location.origin;
     const data = (await unwrap(
       authClient.linkSocial({
         provider: PROVIDER_ID,
-        callbackURL: `${origin}${RETURN_PATH}`,
-        errorCallbackURL: `${origin}${RETURN_PATH}`,
+        callbackURL: RETURN_PATH,
+        errorCallbackURL: RETURN_PATH,
       })
     ).catch(explain)) as { url?: string; redirect?: boolean } | null;
 

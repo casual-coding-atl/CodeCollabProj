@@ -81,6 +81,18 @@ export function toAuthError(error: NonNullable<AuthFailure>): AuthError {
   );
 }
 
+/**
+ * Whether a failure means the server simply has no GitHub OAuth app configured
+ * — every dev machine and CI run, and any production box before the app is
+ * registered. Better Auth answers 404 `PROVIDER_NOT_FOUND`. Lives here, next to
+ * `AuthError`, so both the sign-in flow and the linking flow can share the
+ * predicate without either depending on the other's service module.
+ */
+export function isGithubProviderMissing(error: unknown): boolean {
+  if (!(error instanceof AuthError)) return false;
+  return error.code === 'PROVIDER_NOT_FOUND' || error.status === 404;
+}
+
 /** Resolve a Better Auth call to its data, or reject with an `AuthError`. */
 export async function unwrap<T>(call: Promise<AuthResult<T>>): Promise<T> {
   const res = await call;

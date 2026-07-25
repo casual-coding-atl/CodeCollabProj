@@ -1,5 +1,6 @@
 import {
   authClient,
+  isGithubProviderMissing,
   toAppUser,
   toAuthError,
   unwrap,
@@ -9,8 +10,12 @@ import {
   type Passkey,
   type SessionUser,
 } from '../lib/auth-client';
-import { isGithubProviderMissing } from './githubAccountService';
+import { githubSignInFailureMessage } from '../lib/githubSignIn';
 import type { LoginCredentials, RegisterData } from '../types';
+
+// Re-exported for the components/hooks that import it from the service layer;
+// the function itself is a pure helper in src/lib (with its own test).
+export { githubSignInFailureMessage };
 
 /**
  * The app's auth operations, expressed over Better Auth (ADR 0002).
@@ -72,46 +77,6 @@ function resetRedirectTo(): string {
 /** Where a member who signed in (or signed up) with GitHub lands. */
 const GITHUB_SUCCESS_PATH = '/dashboard';
 
-/**
- * What a GitHub round trip that came back unhappy means, in the member's words.
- *
- * Better Auth does not fail a social sign-in with a response — the browser is
- * away at github.com when it goes wrong — it redirects to
- * `${errorCallbackURL}?error=<code>`. These are the codes the sign-in flow can
- * produce; `linkFailureMessage` in ./githubAccountService is the same idea for
- * the linking flow, which can fail in different ways.
- */
-export function githubSignInFailureMessage(code: string | undefined): string | null {
-  if (!code) return null;
-  switch (code) {
-    case 'access_denied':
-      return 'GitHub sign-in was cancelled.';
-    case 'signup_disabled':
-      // Only reachable if the server is reconfigured to refuse GitHub sign-ups;
-      // saying "use your email" beats leaving them staring at a code.
-      return 'This server does not create accounts from GitHub. Sign in with your email and password instead.';
-    case 'account_not_linked':
-      // Better Auth's answer when the GitHub email matches a member but cannot
-      // be trusted onto it — an unverified GitHub email address.
-      return (
-        'An account already uses that email address. Verify your email address on GitHub, or ' +
-        'sign in with your password and connect GitHub from your security settings.'
-      );
-    case 'unable_to_create_user':
-      return 'Your account could not be created from GitHub. Please try again, or sign up with an email address.';
-    case 'ACCOUNT_SUSPENDED':
-    case 'ACCOUNT_DEACTIVATED':
-      // Our own session guard (src/server/auth.ts) refusing to mint a session,
-      // surfaced through the same redirect.
-      return 'This account cannot sign in. Please contact an administrator.';
-    case 'state_not_found':
-    case 'invalid_state':
-      return 'The GitHub sign-in took too long or was started in another tab. Please try again.';
-    default:
-      return 'GitHub could not sign you in. Please try again.';
-  }
-}
-
 export const authService: AuthServiceInterface = {
   /**
    * Sign up. Better Auth requires a display `name`; members only ever pick a
@@ -152,14 +117,21 @@ export const authService: AuthServiceInterface = {
    * `errorPath` with `?error=<code>` for `githubSignInFailureMessage` to read.
    * The one thing it *can* reject with is a server that has no GitHub OAuth app
    * configured at all, which is worth a sentence rather than a bare "Not found".
+   *
+   * The callback URLs are RELATIVE on purpose. Better Auth validates them
+   * against its `trustedOrigins` (just the BETTER_AUTH_URL origin), and an
+   * absolute `window.location.origin` that differs by so much as a `www.`,
+   * apex/subdomain, or a preview/proxy host is rejected 403 INVALID_CALLBACK_URL
+   * — shown as raw Better Auth text. A relative path is origin-agnostic:
+   * `matchesOriginPattern` accepts it and Better Auth resolves it against its
+   * own base URL, so the round trip lands wherever the app is actually served.
    */
   signInWithGithub: async (errorPath = '/login'): Promise<void> => {
-    const origin = import.meta.env.SSR ? '' : window.location.origin;
     const data = (await unwrap(
       authClient.signIn.social({
         provider: 'github',
-        callbackURL: `${origin}${GITHUB_SUCCESS_PATH}`,
-        errorCallbackURL: `${origin}${errorPath}`,
+        callbackURL: GITHUB_SUCCESS_PATH,
+        errorCallbackURL: errorPath,
       })
     ).catch((error: unknown) => {
       if (isGithubProviderMissing(error)) {
