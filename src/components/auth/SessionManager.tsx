@@ -1,181 +1,152 @@
 import React from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { Laptop, Loader2, LogOut, Smartphone } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSessions } from '../../hooks/auth/useSessions';
-import type { Session } from '../../types';
+import { describeUserAgent } from '@/lib/userAgent';
+import type { AuthSession } from '@/lib/auth-client';
 
 /**
- * Session management component
- * Shows active sessions and allows logout from all devices
+ * Active sessions, from Better Auth's `list-sessions`.
+ *
+ * A member can end any one of them, or every one but this browser. The session
+ * they're currently using is labelled and has no revoke button — signing
+ * yourself out from a list of devices is the "Log out" menu item, not this.
  */
+
+function DeviceIcon({ platform }: { platform: string }): React.ReactElement {
+  const handheld = platform === 'iPhone' || platform === 'iPad' || platform === 'Android';
+  const Icon = handheld ? Smartphone : Laptop;
+  return <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />;
+}
+
+function when(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  return `${formatDistanceToNow(date)} ago`;
+}
+
 const SessionManager: React.FC = () => {
   const {
-    sessions: _,
+    sessions,
     sessionCount,
     isLoading,
     error,
     refetch,
-    getCurrentSession,
-    getOtherSessions,
-    logoutAll,
-    isLoggingOutAll,
+    revokeSession,
+    revokeOtherSessions,
+    isCurrentSession,
   } = useSessions();
 
-  const formatLastActivity = (date: string): string => {
-    return new Date(date).toLocaleString();
-  };
-
-  const getDeviceIcon = (platform?: string): string => {
-    switch (platform?.toLowerCase()) {
-      case 'ios':
-        return 'Mobile';
-      case 'android':
-        return 'Mobile';
-      case 'windows':
-        return 'PC';
-      case 'macos':
-        return 'Mac';
-      case 'linux':
-        return 'Linux';
-      default:
-        return 'Web';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="p-4">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-300 rounded w-1/4 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-16 bg-gray-300 rounded"></div>
-            <div className="h-16 bg-gray-300 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex">
-            <div className="text-red-400">Warning</div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Failed to load sessions</h3>
-              <div className="mt-2">
-                <button
-                  onClick={() => refetch()}
-                  className="text-sm bg-red-100 text-red-800 px-3 py-1 rounded hover:bg-red-200"
-                >
-                  Try again
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const currentSession = getCurrentSession();
-  const otherSessions = getOtherSessions();
+  const otherCount = sessions.filter((s) => !isCurrentSession(s)).length;
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Active Sessions ({sessionCount})</h2>
-        {sessionCount > 1 && (
-          <button
-            onClick={() => logoutAll()}
-            disabled={isLoggingOutAll}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
-          >
-            {isLoggingOutAll ? 'Logging out...' : 'Logout All Devices'}
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        {/* Current Session */}
-        {currentSession && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3">
-                <div className="text-2xl">{getDeviceIcon(currentSession.deviceInfo?.platform)}</div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-medium text-gray-900">
-                      {currentSession.deviceInfo?.browser || 'Unknown Browser'}
-                    </h3>
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                      Current
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {currentSession.deviceInfo?.platform || 'Unknown Platform'}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Last active: {formatLastActivity(currentSession.lastActivity)}
-                  </p>
-                  {currentSession.deviceInfo?.ip && (
-                    <p className="text-xs text-gray-500">IP: {currentSession.deviceInfo.ip}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Other Sessions */}
-        {otherSessions.map((session: Session) => (
-          <div key={session.id} className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3">
-                <div className="text-2xl">{getDeviceIcon(session.deviceInfo?.platform)}</div>
-                <div>
-                  <h3 className="font-medium text-gray-900">
-                    {session.deviceInfo?.browser || 'Unknown Browser'}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {session.deviceInfo?.platform || 'Unknown Platform'}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Last active: {formatLastActivity(session.lastActivity)}
-                  </p>
-                  {session.deviceInfo?.ip && (
-                    <p className="text-xs text-gray-500">IP: {session.deviceInfo.ip}</p>
-                  )}
-                  {session.location && (
-                    <p className="text-xs text-gray-500">
-                      {[session.location.city, session.location.country].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {sessionCount === 0 && (
-          <div className="text-center py-8">
-            <div className="text-4xl mb-4">Lock</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No active sessions</h3>
-            <p className="text-gray-600">You are not logged in on any devices.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Session Security Info */}
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="font-medium text-blue-900 mb-2">Session Security</h4>
-        <div className="text-sm text-blue-800 space-y-1">
-          <p>Sessions automatically expire after 7 days of inactivity</p>
-          <p>Access tokens refresh every 15 minutes for security</p>
-          <p>Changing your password logs out all devices</p>
-          <p>Maximum 3 concurrent sessions allowed</p>
+    <Card data-testid="session-manager">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <div>
+          <CardTitle>Active sessions</CardTitle>
+          <CardDescription>
+            Every browser and device currently signed in to your account.
+          </CardDescription>
         </div>
-      </div>
-    </div>
+        {otherCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="revoke-other-sessions"
+            disabled={revokeOtherSessions.isPending}
+            onClick={() => revokeOtherSessions.mutate()}
+          >
+            {revokeOtherSessions.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <LogOut className="size-4" />
+            )}
+            Sign out other devices
+          </Button>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {isLoading && (
+          <>
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </>
+        )}
+
+        {!isLoading && error && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            <span>Could not load your sessions.</span>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {!isLoading && !error && sessionCount === 0 && (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No active sessions to show.
+          </p>
+        )}
+
+        {!isLoading &&
+          !error &&
+          sessions.map((session: AuthSession) => {
+            const device = describeUserAgent(session.userAgent);
+            const current = isCurrentSession(session);
+            return (
+              <div
+                key={session.id}
+                data-testid="session-row"
+                className="flex items-start justify-between gap-4 rounded-lg border border-border/60 px-4 py-3"
+              >
+                <div className="flex items-start gap-3">
+                  <DeviceIcon platform={device.platform} />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{device.label}</p>
+                      {current && (
+                        <Badge variant="secondary" data-testid="current-session">
+                          This device
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Signed in {when(session.createdAt)} · expires {when(session.expiresAt)}
+                    </p>
+                    {session.ipAddress && (
+                      <p className="font-mono text-xs text-muted-foreground">{session.ipAddress}</p>
+                    )}
+                  </div>
+                </div>
+
+                {!current && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid="revoke-session"
+                    className="text-destructive hover:text-destructive"
+                    disabled={revokeSession.isPending}
+                    onClick={() => revokeSession.mutate(session.token)}
+                  >
+                    {revokeSession.isPending && revokeSession.variables === session.token ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : null}
+                    Revoke
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+      </CardContent>
+    </Card>
   );
 };
 

@@ -69,13 +69,9 @@ export const queryKeys = {
   auth: {
     all: ['auth'] as const,
     currentUser: (): readonly string[] => [...queryKeys.auth.all, 'currentUser'],
-    passwordResetToken: (token: string): readonly string[] => [
-      ...queryKeys.auth.all,
-      'passwordResetToken',
-      token,
-    ],
+    currentSession: (): readonly string[] => [...queryKeys.auth.all, 'currentSession'],
     sessions: (): readonly string[] => [...queryKeys.auth.all, 'sessions'],
-    tokenRefresh: (): readonly string[] => [...queryKeys.auth.all, 'tokenRefresh'],
+    passkeys: (): readonly string[] => [...queryKeys.auth.all, 'passkeys'],
   },
   // Projects keys
   projects: {

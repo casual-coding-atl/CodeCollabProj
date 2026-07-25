@@ -9,14 +9,13 @@ interface PrivateRouteProps {
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading, user, token } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   // Only log in development
   if (process.env.NODE_ENV === 'development') {
     logger.debug('PrivateRoute Debug (TanStack Query):');
     logger.debug('- isAuthenticated:', isAuthenticated);
     logger.debug('- isLoading:', isLoading);
-    logger.debug('- token exists:', !!token);
     logger.debug('- user:', user);
   }
 

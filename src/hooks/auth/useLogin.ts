@@ -1,55 +1,51 @@
 import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
-import { authService } from '../../services/authService';
+import { authService, type AppUser } from '../../services/authService';
 import { queryKeys } from '../../config/queryClient';
-import type { LoginCredentials, LoginResponse } from '../../types';
+import { AuthError } from '../../lib/auth-client';
+import logger from '../../utils/logger';
+import type { LoginCredentials } from '../../types';
 
 /**
- * Axios error type for error handling
+ * Sign in with email and password (`POST /api/auth/sign-in/email`).
+ *
+ * On success Better Auth has already set the session cookie, so the only local
+ * work is seeding the current-user cache with the member the server returned —
+ * the guarded routes then render without a round-trip.
  */
-interface AxiosError {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-      needsVerification?: boolean;
-    };
-  };
-  message?: string;
-}
-
-/**
- * Enhanced login mutation hook with dual-token support
- * Handles user login and updates auth state
- */
-export const useLogin = (): UseMutationResult<LoginResponse, AxiosError, LoginCredentials> => {
+export const useLogin = (): UseMutationResult<AppUser, AuthError, LoginCredentials> => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: authService.login,
-    onSuccess: (data) => {
-      // Update the current user cache with the returned user data
-      queryClient.setQueryData(queryKeys.auth.currentUser(), data.user);
-
-      // Invalidate and refetch any auth-related queries
+    onSuccess: (user) => {
+      queryClient.setQueryData(queryKeys.auth.currentUser(), user);
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-
-      console.log('✅ Login successful:', {
-        user: data.user?.username,
-        hasAccessToken: !!data.accessToken,
-        hasRefreshToken: !!data.refreshToken,
-        expiresIn: data.expiresIn,
-      });
     },
     onError: (error) => {
-      console.error('❌ Login failed:', {
-        status: error?.response?.status,
-        message: error?.response?.data?.message || error.message,
-        needsVerification: error?.response?.data?.needsVerification,
-      });
-
-      // Clear any existing auth data on login failure
-      authService.clearTokens();
+      logger.warn('Login failed:', error.message);
       queryClient.removeQueries({ queryKey: queryKeys.auth.all });
+    },
+  });
+};
+
+/**
+ * Sign in with a registered passkey (`POST /api/auth/passkey/authenticate`).
+ * The WebAuthn prompt is raised by the browser inside the mutation.
+ */
+export const useLoginWithPasskey = (): UseMutationResult<AppUser, AuthError, void> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => authService.loginWithPasskey(),
+    // Never retry: a retry would raise a second WebAuthn prompt at the member,
+    // including after they deliberately cancelled the first one.
+    retry: 0,
+    onSuccess: (user) => {
+      queryClient.setQueryData(queryKeys.auth.currentUser(), user);
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
+    },
+    onError: (error) => {
+      logger.warn('Passkey sign-in failed:', error.message);
     },
   });
 };

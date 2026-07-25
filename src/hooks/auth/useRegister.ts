@@ -1,50 +1,27 @@
 import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
-import { authService } from '../../services/authService';
+import { authService, type AppUser } from '../../services/authService';
 import { queryKeys } from '../../config/queryClient';
-import type { RegisterData, RegisterResponse } from '../../types';
+import { AuthError } from '../../lib/auth-client';
+import logger from '../../utils/logger';
+import type { RegisterData } from '../../types';
 
 /**
- * Extended register response that might include token (dev mode)
+ * Register a new member (`POST /api/auth/sign-up/email`).
+ *
+ * Better Auth signs the new member in as part of sign-up (`autoSignIn`), so the
+ * returned user is seeded into the current-user cache exactly as after a login.
  */
-interface RegisterResponseWithToken extends RegisterResponse {
-  token?: string;
-}
-
-/**
- * Axios error type for error handling
- */
-interface AxiosError {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-      errors?: Array<{ field?: string; message: string }>;
-    };
-  };
-  message?: string;
-}
-
-/**
- * Register mutation hook
- * Handles user registration
- */
-export const useRegister = (): UseMutationResult<RegisterResponse, AxiosError, RegisterData> => {
+export const useRegister = (): UseMutationResult<AppUser, AuthError, RegisterData> => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: authService.register,
-    onSuccess: (data) => {
-      console.log('✅ Registration successful:', data);
-
-      // If registration auto-logs in (development mode), update auth state
-      const dataWithToken = data as RegisterResponseWithToken;
-      if (dataWithToken.token && data.user) {
-        queryClient.setQueryData(queryKeys.auth.currentUser(), data.user);
-        queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-      }
+    onSuccess: (user) => {
+      queryClient.setQueryData(queryKeys.auth.currentUser(), user);
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
     },
     onError: (error) => {
-      console.error('❌ Registration failed:', error);
+      logger.warn('Registration failed:', error.message);
     },
   });
 };

@@ -1,582 +1,194 @@
-import api from '../utils/api';
-import tokenEncryption from '../utils/tokenEncryption';
-import { TOKEN_EXPIRATION } from '../config/constants';
-import logger from '../utils/logger';
+import {
+  authClient,
+  toAppUser,
+  unwrap,
+  unwrapVoid,
+  type AuthSession,
+  type Passkey,
+  type SessionUser,
+} from '../lib/auth-client';
+import type { LoginCredentials, RegisterData, User } from '../types';
 
 /**
- * SSR-safe storage. The deprecated localStorage token layer must not touch
- * browser globals during server render (auth is via httpOnly cookies there).
- * On the server this is an inert no-op so the shell can SSR.
+ * The app's auth operations, expressed over Better Auth (ADR 0002).
+ *
+ * Every method here is a thin, typed adapter over `authClient` that returns a
+ * plain promise (rejecting with an `AuthError`) so the TanStack Query hooks
+ * above it stay unchanged in shape. There is no token storage: the session
+ * lives in Better Auth's httpOnly `better-auth.session_token` cookie, which the
+ * browser sends automatically — nothing about it is readable from JavaScript,
+ * which is the point.
  */
-const safeStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> =
-  !import.meta.env.SSR && typeof localStorage !== 'undefined'
-    ? localStorage
-    : { getItem: () => null, setItem: () => {}, removeItem: () => {} };
-import type {
-  User,
-  LoginCredentials,
-  RegisterData,
-  LoginResponse,
-  RegisterResponse,
-  RefreshTokenResponse,
-  CookieAuthCheckResult,
-  PasswordResetRequestResponse,
-  VerifyPasswordResetTokenResponse,
-  EmailVerificationResponse,
-  Session,
-} from '../types';
 
-/**
- * Password change data for the API (different from form data)
- */
-interface PasswordChangeData {
+/** The user as the rest of the app consumes it (`_id` alongside `id`). */
+export type AppUser = User & { _id: string };
+
+export interface PasswordChangeData {
   currentPassword: string;
   newPassword: string;
 }
 
-/**
- * Password reset confirmation data
- */
-interface PasswordResetData {
+export interface PasswordResetData {
   token: string;
   password: string;
 }
 
-/**
- * Auth service interface for external use
- */
 export interface AuthServiceInterface {
-  // Async methods
-  register: (userData: RegisterData) => Promise<RegisterResponse>;
-  login: (userData: LoginCredentials) => Promise<LoginResponse>;
-  refreshToken: () => Promise<string>;
-  getCurrentUser: () => Promise<User>;
-  isAuthenticatedViaCookie: () => Promise<CookieAuthCheckResult>;
+  register: (data: RegisterData) => Promise<AppUser>;
+  login: (credentials: LoginCredentials) => Promise<AppUser>;
+  loginWithPasskey: () => Promise<AppUser>;
+  getCurrentUser: () => Promise<AppUser | null>;
+  getCurrentSession: () => Promise<AuthSession | null>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
-  changePassword: (passwordData: PasswordChangeData) => Promise<{ message: string }>;
-  getActiveSessions: () => Promise<Session[]>;
-  resendVerificationEmail: (email: string) => Promise<EmailVerificationResponse>;
-  requestPasswordReset: (email: string) => Promise<PasswordResetRequestResponse>;
-  verifyPasswordResetToken: (token: string) => Promise<VerifyPasswordResetTokenResponse>;
+  changePassword: (data: PasswordChangeData) => Promise<void>;
+  getActiveSessions: () => Promise<AuthSession[]>;
+  revokeSession: (token: string) => Promise<void>;
+  revokeOtherSessions: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ message: string }>;
   resetPassword: (data: PasswordResetData) => Promise<{ message: string }>;
-  verifyEmail: (token: string) => Promise<EmailVerificationResponse>;
-  // Sync methods (deprecated localStorage methods)
-  setTokens: (accessToken: string, refreshToken: string) => void;
-  clearTokens: () => void;
-  getAccessToken: () => string | null;
-  getRefreshToken: () => string | null;
-  isTokenExpired: () => boolean;
-  isAuthenticated: () => boolean;
-  getValidToken: () => Promise<string | null>;
-  getTokenNoRefresh: () => string | null;
-  getToken: () => string | null;
+  resendVerificationEmail: (email: string) => Promise<{ message: string }>;
+  verifyEmail: (token: string) => Promise<{ message: string }>;
+  listPasskeys: () => Promise<Passkey[]>;
+  addPasskey: (name?: string) => Promise<void>;
+  deletePasskey: (id: string) => Promise<void>;
 }
 
-/**
- * Enhanced authentication service with dual-token system
- * Handles access tokens, refresh tokens, and session management
- * Uses token encryption for additional security layer
- *
- * ============================================================================
- * SECURITY NOTICE: localStorage Token Storage & XSS Vulnerability Risk
- * ============================================================================
- *
- * CURRENT IMPLEMENTATION:
- * This service stores JWT tokens (access and refresh) in localStorage with
- * client-side XOR encryption (see tokenEncryption.js). While this adds a layer
- * of obfuscation, it does NOT provide true security against XSS attacks.
- *
- * XSS VULNERABILITY EXPLANATION:
- * 1. localStorage is accessible to ANY JavaScript running on the page
- * 2. If an attacker successfully injects malicious JavaScript (XSS attack),
- *    they can:
- *    - Read all localStorage data directly: safeStorage.getItem('accessToken')
- *    - Bypass the XOR encryption since the key is also in sessionStorage
- *    - Steal tokens and impersonate the user from any location
- *    - The encryption key in sessionStorage is also accessible to XSS
- *
- * 3. Common XSS attack vectors that could expose tokens:
- *    - Stored XSS in user-generated content (comments, project descriptions)
- *    - Reflected XSS through URL parameters
- *    - DOM-based XSS through client-side JavaScript
- *    - Third-party library vulnerabilities
- *
- * WHY httpOnly COOKIES ARE MORE SECURE:
- * 1. httpOnly cookies CANNOT be accessed by JavaScript (document.cookie)
- * 2. They are automatically sent with every request to the same origin
- * 3. Combined with 'Secure' flag, they're only sent over HTTPS
- * 4. Combined with 'SameSite=Strict', they prevent CSRF attacks
- * 5. Even if XSS occurs, attacker cannot exfiltrate the tokens
- *
- * CURRENT MITIGATIONS IN PLACE:
- * - Content Security Policy (CSP) headers via Helmet (server/index.js)
- * - Input sanitization with mongo-sanitize
- * - React's built-in XSS protection for JSX
- * - Token encryption adds obfuscation (not true security)
- * - Short access token expiration (requires refresh)
- *
- * ============================================================================
- * MIGRATION PATH TO httpOnly COOKIES (Future Improvement)
- * ============================================================================
- *
- * Phase 1: Backend Changes (server/)
- * ----------------------------------
- * 1. Modify auth controller (controllers/authController.js):
- *    - On login/register, set tokens as httpOnly cookies instead of response body
- *    - Cookie configuration:
- *      res.cookie('accessToken', token, {
- *        httpOnly: true,
- *        secure: process.env.NODE_ENV === 'production',
- *        sameSite: 'strict',
- *        maxAge: 15 * 60 * 1000, // 15 minutes for access token
- *        path: '/'
- *      });
- *      res.cookie('refreshToken', refreshToken, {
- *        httpOnly: true,
- *        secure: process.env.NODE_ENV === 'production',
- *        sameSite: 'strict',
- *        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for refresh token
- *        path: '/api/auth/refresh-token' // Restrict refresh token path
- *      });
- *
- * 2. Update auth middleware (middleware/auth.js):
- *    - Read token from req.cookies.accessToken instead of Authorization header
- *    - Support both methods during transition period
- *
- * 3. Add cookie-parser middleware to Express (npm install cookie-parser)
- *
- * 4. Update logout endpoint to clear cookies:
- *    res.clearCookie('accessToken');
- *    res.clearCookie('refreshToken');
- *
- * Phase 2: Frontend Changes (client/)
- * ------------------------------------
- * 1. Update api.js to include credentials:
- *    axios.defaults.withCredentials = true;
- *
- * 2. Simplify this authService.js:
- *    - Remove localStorage token storage (setTokens, getAccessToken, etc.)
- *    - Remove tokenEncryption dependency
- *    - Authentication state based on successful /auth/me calls
- *    - Tokens handled automatically by browser cookies
- *
- * 3. Update CORS configuration (server/index.js):
- *    - Ensure credentials: true is set
- *    - Origin must be explicit (not '*') when using credentials
- *
- * Phase 3: Testing & Rollout
- * --------------------------
- * 1. Implement feature flag for gradual rollout
- * 2. Support both localStorage and cookies during transition
- * 3. Test with different browsers and cookie settings
- * 4. Monitor for authentication issues
- * 5. Remove localStorage fallback after successful migration
- *
- * ADDITIONAL SECURITY CONSIDERATIONS FOR COOKIES:
- * - CSRF Protection: SameSite=Strict prevents most CSRF, but consider
- *   adding CSRF tokens for sensitive operations
- * - Cookie size limits: JWTs can be large; consider splitting or using
- *   reference tokens
- * - Cross-domain: If API is on different domain, need SameSite=None with
- *   Secure flag (less secure, consider same-domain architecture)
- *
- * ============================================================================
- *
- * MIGRATION NOTE (httpOnly Cookie Auth):
- * This service is transitioning from localStorage-based token storage to
- * httpOnly cookie-based authentication. During this transition:
- *
- * - Cookie-based auth: The backend now sets tokens in httpOnly cookies automatically
- *   on login/register. Use isAuthenticatedViaCookie() for server-validated auth state.
- *
- * - localStorage methods: Kept for backward compatibility during transition.
- *   These are marked as @deprecated and will be removed in a future release.
- *
- * - Dual-mode support: Both methods work simultaneously. The backend accepts
- *   tokens from either cookies or Authorization header.
- */
+/** Where Better Auth sends the member after they click a reset link. */
+const RESET_PASSWORD_PATH = '/reset-password';
+
+function resetRedirectTo(): string {
+  return import.meta.env.SSR
+    ? RESET_PASSWORD_PATH
+    : `${window.location.origin}${RESET_PASSWORD_PATH}`;
+}
 
 export const authService: AuthServiceInterface = {
   /**
-   * User registration
-   * Note: Backend now sets httpOnly cookies automatically on successful registration.
-   * localStorage storage is deprecated but kept for backward compatibility.
+   * Sign up. Better Auth requires a display `name`; members only ever pick a
+   * username, so the username is the name (exactly what the migration
+   * backfilled for existing members). `autoSignIn` is on server-side, so a
+   * successful registration also starts a session.
    */
-  register: async (userData: RegisterData): Promise<RegisterResponse> => {
-    const response = await api.post<RegisterResponse>('/auth/register', userData);
-    // Tokens are now set via httpOnly cookies by the backend
-    return response.data;
+  register: async ({ username, email, password }: RegisterData): Promise<AppUser> => {
+    const data = await unwrap(
+      authClient.signUp.email({ email, password, name: username, username })
+    );
+    return toAppUser(data.user as SessionUser);
+  },
+
+  login: async ({ email, password }: LoginCredentials): Promise<AppUser> => {
+    const data = await unwrap(authClient.signIn.email({ email, password }));
+    return toAppUser(data.user as SessionUser);
   },
 
   /**
-   * User login with dual-token system
-   * Note: Backend now sets httpOnly cookies automatically on successful login.
-   * localStorage storage is deprecated but kept for backward compatibility.
+   * Sign in with a registered passkey. The browser's WebAuthn prompt happens
+   * inside this call; a cancelled prompt rejects like any other failure.
    */
-  login: async (userData: LoginCredentials): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/login', userData);
-    // Tokens are now set via httpOnly cookies by the backend
-    return response.data;
-  },
-
-  // Refresh access token using the refresh token.
-  // Auth is cookie-based: the httpOnly refreshToken cookie is sent automatically
-  // (api has withCredentials). A localStorage refresh token is only present for
-  // legacy sessions, so we must NOT require one here — doing so would abort every
-  // cookie-based refresh and force-log-out users when the access cookie expires.
-  refreshToken: async (): Promise<string> => {
-    const storedRefreshToken = authService.getRefreshToken();
-
-    try {
-      const response = await api.post<RefreshTokenResponse>(
-        '/auth/refresh-token',
-        // Send the legacy token in the body when we have one; the server also
-        // accepts the refresh token from the httpOnly cookie.
-        storedRefreshToken ? { refreshToken: storedRefreshToken } : {}
-      );
-
-      if (response.data.accessToken) {
-        // The backend sets the new access token as an httpOnly cookie. For legacy
-        // localStorage sessions, keep the encrypted copy in sync as well.
-        if (storedRefreshToken) {
-          authService.setTokens(response.data.accessToken, storedRefreshToken);
-        }
-        return response.data.accessToken;
-      }
-
-      throw new Error('Invalid refresh response');
-    } catch (error) {
-      // If refresh fails, clear all tokens and redirect to login
-      authService.clearTokens();
-      throw error;
+  loginWithPasskey: async (): Promise<AppUser> => {
+    const data = await unwrap(authClient.signIn.passkey());
+    if (!data?.user) {
+      throw new Error('Passkey sign-in did not return a session');
     }
+    return toAppUser(data.user as SessionUser);
+  },
+
+  /** The signed-in member, or null when there is no session (not an error). */
+  getCurrentUser: async (): Promise<AppUser | null> => {
+    const { data, error } = await authClient.getSession();
+    if (error || !data?.user) return null;
+    return toAppUser(data.user as SessionUser);
   },
 
   /**
-   * Get current user from server
-   * This endpoint validates the auth state via httpOnly cookies.
+   * This browser's session row, so the sessions list can mark which one the
+   * member is looking at (`list-sessions` doesn't say).
    */
-  getCurrentUser: async (): Promise<User> => {
-    const response = await api.get<User>('/auth/me');
-    return response.data;
+  getCurrentSession: async (): Promise<AuthSession | null> => {
+    const { data, error } = await authClient.getSession();
+    if (error || !data?.session) return null;
+    return data.session as AuthSession;
   },
 
-  /**
-   * Check if user is authenticated via httpOnly cookie
-   * This is the preferred method for checking auth state during the migration.
-   * It validates authentication server-side rather than relying on safeStorage.
-   */
-  isAuthenticatedViaCookie: async (): Promise<CookieAuthCheckResult> => {
-    try {
-      const response = await api.get<User>('/auth/me');
-      return {
-        authenticated: true,
-        user: response.data,
-      };
-    } catch (error: unknown) {
-      // 401 means not authenticated, which is expected for unauthenticated users
-      const axiosError = error as { response?: { status?: number }; message?: string };
-      if (axiosError?.response?.status === 401) {
-        return {
-          authenticated: false,
-          user: null,
-        };
-      }
-      // For other errors (network, server issues), log and return not authenticated
-      logger.warn('Auth check failed:', axiosError.message || 'Unknown error');
-      return {
-        authenticated: false,
-        user: null,
-      };
-    }
-  },
-
-  /**
-   * Enhanced logout with server-side session cleanup
-   * The server clears httpOnly cookies. localStorage is cleared as fallback
-   * for backward compatibility during the migration period.
-   */
   logout: async (): Promise<void> => {
-    try {
-      // Call server logout endpoint to invalidate session and clear httpOnly cookies
-      await api.post('/auth/logout');
-    } catch (error: unknown) {
-      const axiosError = error as { message?: string };
-      logger.warn('Server logout failed:', axiosError.message || 'Unknown error');
-    } finally {
-      // DEPRECATED: Clear localStorage tokens as fallback
-      // This is kept for backward compatibility during the migration period
-      authService.clearTokens();
-    }
+    await unwrapVoid(authClient.signOut());
   },
 
   /**
-   * Logout from all devices
-   * The server clears httpOnly cookies and invalidates all sessions.
-   * localStorage is cleared as fallback for backward compatibility.
+   * Sign out everywhere. Other devices are revoked first — signing out first
+   * would destroy the very session that authorizes the revocation.
    */
   logoutAll: async (): Promise<void> => {
-    try {
-      await api.post('/auth/logout-all');
-    } catch (error: unknown) {
-      const axiosError = error as { message?: string };
-      logger.warn('Server logout-all failed:', axiosError.message || 'Unknown error');
-    } finally {
-      // DEPRECATED: Clear localStorage tokens as fallback
-      authService.clearTokens();
-    }
+    await unwrapVoid(authClient.revokeOtherSessions());
+    await unwrapVoid(authClient.signOut());
   },
 
-  // Change password (revokes all sessions)
-  changePassword: async (passwordData: PasswordChangeData): Promise<{ message: string }> => {
-    const response = await api.put<{ message: string }>('/auth/change-password', passwordData);
-    // Password change revokes all sessions, so clear tokens
-    authService.clearTokens();
-    return response.data;
-  },
-
-  // Get active sessions
-  getActiveSessions: async (): Promise<Session[]> => {
-    const response = await api.get<Session[]>('/auth/sessions');
-    return response.data;
-  },
-
-  // Resend verification email
-  resendVerificationEmail: async (email: string): Promise<EmailVerificationResponse> => {
-    const response = await api.post<EmailVerificationResponse>('/auth/resend-verification', {
-      email,
-    });
-    return response.data;
-  },
-
-  // Request password reset
-  requestPasswordReset: async (email: string): Promise<PasswordResetRequestResponse> => {
-    const response = await api.post<PasswordResetRequestResponse>('/auth/request-password-reset', {
-      email,
-    });
-    return response.data;
-  },
-
-  // Verify password reset token
-  verifyPasswordResetToken: async (token: string): Promise<VerifyPasswordResetTokenResponse> => {
-    const response = await api.get<VerifyPasswordResetTokenResponse>(
-      `/auth/verify-password-reset/${token}`
+  /** Changing the password signs the member out of every *other* device. */
+  changePassword: async ({ currentPassword, newPassword }): Promise<void> => {
+    await unwrapVoid(
+      authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true })
     );
-    return response.data;
   },
 
-  // Reset password
+  getActiveSessions: async (): Promise<AuthSession[]> => {
+    return unwrap(authClient.listSessions()) as Promise<AuthSession[]>;
+  },
+
+  /** Sessions are addressed by their token, not their id. */
+  revokeSession: async (token: string): Promise<void> => {
+    await unwrapVoid(authClient.revokeSession({ token }));
+  },
+
+  revokeOtherSessions: async (): Promise<void> => {
+    await unwrapVoid(authClient.revokeOtherSessions());
+  },
+
+  requestPasswordReset: async (email: string): Promise<{ message: string }> => {
+    // `POST /api/auth/request-password-reset` (Better Auth ≥1.6 — the older
+    // `forget-password` spelling is gone). `redirectTo` is where the emailed
+    // link lands after Better Auth validates the token and appends it.
+    await unwrapVoid(authClient.requestPasswordReset({ email, redirectTo: resetRedirectTo() }));
+    return { message: 'If an account with that email exists, a reset link has been sent.' };
+  },
+
   resetPassword: async ({ token, password }: PasswordResetData): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>('/auth/reset-password', {
-      token,
-      password,
-    });
-    return response.data;
+    await unwrapVoid(authClient.resetPassword({ token, newPassword: password }));
+    return { message: 'Your password has been reset.' };
   },
 
-  // Verify email
-  verifyEmail: async (token: string): Promise<EmailVerificationResponse> => {
-    const response = await api.get<EmailVerificationResponse>(`/auth/verify-email/${token}`);
-    return response.data;
+  resendVerificationEmail: async (email: string): Promise<{ message: string }> => {
+    await unwrapVoid(authClient.sendVerificationEmail({ email }));
+    return { message: 'Verification email sent.' };
   },
 
-  /**
-   * Store tokens in localStorage with encryption
-   *
-   * SECURITY WARNING: localStorage is vulnerable to XSS attacks.
-   * Any JavaScript running on this page can access these tokens.
-   * The XOR encryption is obfuscation only - the key is in sessionStorage
-   * which is equally accessible to malicious scripts.
-   *
-   * See file header for full security analysis and httpOnly cookie migration path.
-   *
-   * @param {string} accessToken - JWT access token (short-lived)
-   * @param {string} refreshToken - JWT refresh token (long-lived, higher risk)
-   *
-   * @deprecated Use httpOnly cookies instead. The backend now sets tokens
-   * automatically via Set-Cookie headers. This method is kept for backward
-   * compatibility during the migration period.
-   */
-  setTokens: (accessToken: string, refreshToken: string): void => {
-    try {
-      // Encrypt tokens before storing
-      // NOTE: This encryption provides obfuscation, not security against XSS
-      // An attacker with XSS can also access the encryption key in sessionStorage
-      const encryptedAccessToken = tokenEncryption.encrypt(accessToken);
-      const encryptedRefreshToken = tokenEncryption.encrypt(refreshToken);
+  verifyEmail: async (token: string): Promise<{ message: string }> => {
+    await unwrapVoid(authClient.verifyEmail({ query: { token } }));
+    return { message: 'Your email address has been verified.' };
+  },
 
-      // Only store if encryption succeeded
-      if (encryptedAccessToken && encryptedRefreshToken) {
-        safeStorage.setItem('accessToken', encryptedAccessToken);
-        safeStorage.setItem('refreshToken', encryptedRefreshToken);
-      }
+  listPasskeys: async (): Promise<Passkey[]> => {
+    return unwrap(authClient.passkey.listUserPasskeys()) as Promise<Passkey[]>;
+  },
 
-      // Set expiration tracking for access token
-      const expirationTime = Date.now() + TOKEN_EXPIRATION.ACCESS_TOKEN;
-      safeStorage.setItem('tokenExpiration', expirationTime.toString());
-    } catch (error) {
-      logger.error('Failed to encrypt tokens:', error);
-      // Fallback to unencrypted storage if encryption fails
-      // SECURITY: Unencrypted fallback increases XSS risk further
-      safeStorage.setItem('accessToken', accessToken);
-      safeStorage.setItem('refreshToken', refreshToken);
-      const expirationTime = Date.now() + TOKEN_EXPIRATION.ACCESS_TOKEN;
-      safeStorage.setItem('tokenExpiration', expirationTime.toString());
+  /** Prompts the authenticator; a cancelled prompt rejects. */
+  addPasskey: async (name?: string): Promise<void> => {
+    const res = await authClient.passkey.addPasskey(name ? { name } : undefined);
+    if (res?.error) {
+      const { message, statusText, status, code } = res.error as {
+        message?: string;
+        statusText?: string;
+        status?: number;
+        code?: string;
+      };
+      const err = new Error(message || statusText || 'Could not register a passkey');
+      Object.assign(err, { status, code });
+      throw err;
     }
   },
 
-  /**
-   * @deprecated This clears localStorage tokens. The backend now clears
-   * httpOnly cookies on logout. This method is kept for backward compatibility
-   * during the migration period.
-   */
-  clearTokens: (): void => {
-    safeStorage.removeItem('accessToken');
-    safeStorage.removeItem('refreshToken');
-    safeStorage.removeItem('tokenExpiration');
-    // Remove legacy token if it exists
-    safeStorage.removeItem('token');
-    // Clear encryption key
-    tokenEncryption.clearKey();
-  },
-
-  /**
-   * Retrieve access token from localStorage
-   *
-   * SECURITY NOTE: This token can be stolen via XSS attack.
-   * With httpOnly cookies, this function would be unnecessary as the browser
-   * automatically includes the cookie with requests.
-   *
-   * @returns {string|null} Decrypted access token or null
-   * @deprecated Tokens are now stored in httpOnly cookies and not accessible
-   * via JavaScript. This method is kept for backward compatibility during
-   * the migration period.
-   */
-  getAccessToken: (): string | null => {
-    try {
-      // SECURITY: Any malicious script can call this same code to steal tokens
-      const encryptedToken = safeStorage.getItem('accessToken') || safeStorage.getItem('token');
-      if (!encryptedToken) return null;
-
-      // Try to decrypt, fallback to plain if decryption fails (backward compatibility)
-      const decrypted = tokenEncryption.decrypt(encryptedToken);
-      return decrypted || encryptedToken; // Fallback if decryption fails
-    } catch (error) {
-      logger.error('Failed to decrypt access token:', error);
-      // Fallback to plain token
-      return safeStorage.getItem('accessToken') || safeStorage.getItem('token');
-    }
-  },
-
-  /**
-   * Retrieve refresh token from localStorage
-   *
-   * SECURITY WARNING: The refresh token is particularly sensitive as it has
-   * a longer lifespan and can be used to generate new access tokens.
-   * If stolen via XSS, an attacker can maintain persistent access.
-   *
-   * With httpOnly cookies, the refresh token would:
-   * 1. Never be accessible to JavaScript
-   * 2. Only be sent to the /api/auth/refresh-token endpoint (path-restricted)
-   * 3. Be automatically managed by the browser
-   *
-   * @returns {string|null} Decrypted refresh token or null
-   * @deprecated Tokens are now stored in httpOnly cookies and not accessible
-   * via JavaScript. This method is kept for backward compatibility during
-   * the migration period.
-   */
-  getRefreshToken: (): string | null => {
-    try {
-      // SECURITY: Refresh token theft is more severe than access token theft
-      // An attacker can generate unlimited new access tokens
-      const encryptedToken = safeStorage.getItem('refreshToken');
-      if (!encryptedToken) return null;
-
-      // Try to decrypt, fallback to plain if decryption fails
-      const decrypted = tokenEncryption.decrypt(encryptedToken);
-      return decrypted || encryptedToken; // Fallback if decryption fails
-    } catch (error) {
-      logger.error('Failed to decrypt refresh token:', error);
-      // Fallback to plain token
-      return safeStorage.getItem('refreshToken');
-    }
-  },
-
-  /**
-   * @deprecated Token expiration is now handled server-side via httpOnly cookies.
-   * This method is kept for backward compatibility during the migration period.
-   */
-  isTokenExpired: (): boolean => {
-    const expiration = safeStorage.getItem('tokenExpiration');
-    if (!expiration) return true;
-
-    // Consider expired if less than threshold remaining
-    return Date.now() > parseInt(expiration) - TOKEN_EXPIRATION.TOKEN_REFRESH_THRESHOLD;
-  },
-
-  /**
-   * @deprecated Use isAuthenticatedViaCookie() for server-validated auth state.
-   * This method checks localStorage tokens which is less secure than server validation.
-   * Kept for backward compatibility during the migration period.
-   */
-  isAuthenticated: (): boolean => {
-    const accessToken = authService.getAccessToken();
-    const refreshToken = authService.getRefreshToken();
-    return !!(accessToken && refreshToken);
-  },
-
-  /**
-   * @deprecated Token refresh is now handled via httpOnly cookies.
-   * This method is kept for backward compatibility during the migration period.
-   * The api.js interceptor still uses this for Authorization header fallback.
-   */
-  getValidToken: async (): Promise<string | null> => {
-    const accessToken = authService.getAccessToken();
-
-    if (!accessToken) {
-      return null;
-    }
-
-    // Only refresh if token is expired AND we have a refresh token
-    if (authService.isTokenExpired()) {
-      const refreshToken = authService.getRefreshToken();
-      if (!refreshToken) {
-        // No refresh token available, clear invalid tokens
-        authService.clearTokens();
-        return null;
-      }
-
-      try {
-        return await authService.refreshToken();
-      } catch (error) {
-        logger.error('Token refresh failed:', error);
-        authService.clearTokens(); // Clear invalid tokens
-        return null;
-      }
-    }
-
-    return accessToken;
-  },
-
-  /**
-   * @deprecated Tokens are now stored in httpOnly cookies.
-   * This method is kept for backward compatibility during the migration period.
-   */
-  getTokenNoRefresh: (): string | null => {
-    const accessToken = authService.getAccessToken();
-
-    // Return token even if expired - let the server handle expiration
-    // This reduces unnecessary API calls for non-critical requests
-    return accessToken;
-  },
-
-  /**
-   * @deprecated Use isAuthenticatedViaCookie() for auth state checks.
-   * This is a legacy alias for getAccessToken().
-   */
-  getToken: (): string | null => {
-    return authService.getAccessToken();
+  deletePasskey: async (id: string): Promise<void> => {
+    await unwrapVoid(authClient.passkey.deletePasskey({ id }));
   },
 };
 

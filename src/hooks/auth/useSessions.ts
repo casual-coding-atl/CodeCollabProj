@@ -1,129 +1,113 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { authService } from '../../services/authService';
 import { queryKeys } from '../../config/queryClient';
-import type { Session } from '../../types';
-
-/**
- * Axios error type for error handling
- */
-interface AxiosError {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-}
+import { AuthError, type AuthSession } from '../../lib/auth-client';
+import logger from '../../utils/logger';
 
 /**
  * Return type for the useSessions hook
  */
 export interface UseSessionsReturn {
   // Session data
-  sessions: Session[];
+  sessions: AuthSession[];
   sessionCount: number;
 
   // Loading states
   isLoading: boolean;
 
   // Error states
-  error: AxiosError | null;
+  error: AuthError | null;
   isError: boolean;
 
   // Functions
   refetch: () => void;
+  revokeSession: UseMutationResult<void, AuthError, string>;
+  revokeOtherSessions: UseMutationResult<void, AuthError, void>;
   logoutAll: () => void;
   isLoggingOutAll: boolean;
 
   // Helper functions
-  getCurrentSession: () => Session | undefined;
-  getOtherSessions: () => Session[];
+  getCurrentSession: () => AuthSession | undefined;
+  getOtherSessions: () => AuthSession[];
+  isCurrentSession: (session: AuthSession) => boolean;
 }
 
 /**
- * Hook for managing user sessions
+ * The member's active sessions, from Better Auth's `list-sessions`, plus the
+ * two things they can do about them: revoke one, or revoke all the others.
+ *
+ * `list-sessions` doesn't flag which row is this browser, so the current
+ * session is fetched alongside and matched by id — that's what keeps the UI
+ * from offering to revoke the session you're using.
  */
 export const useSessions = (): UseSessionsReturn => {
   const queryClient = useQueryClient();
 
-  // Fetch active sessions
   const {
     data: sessions,
     isLoading,
     error,
     isError,
     refetch,
-  } = useQuery<Session[], AxiosError>({
+  } = useQuery<AuthSession[], AuthError>({
     queryKey: queryKeys.auth.sessions(),
     queryFn: authService.getActiveSessions,
-    staleTime: 30 * 1000, // Consider stale after 30 seconds
-    refetchInterval: 60 * 1000, // Refetch every minute
-    retry: (failureCount, err) => {
-      if (err?.response?.status === 401) return false;
-      return failureCount < 2;
-    },
+    staleTime: 30 * 1000,
+    retry: (failureCount, err) => (err?.status === 401 ? false : failureCount < 2),
   });
 
-  // Logout from all devices mutation
-  const logoutAllMutation = useMutation<void, AxiosError, void>({
+  const { data: currentSession } = useQuery<AuthSession | null, AuthError>({
+    queryKey: queryKeys.auth.currentSession(),
+    queryFn: authService.getCurrentSession,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const invalidate = (): void => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
+  };
+
+  const revokeSession = useMutation<void, AuthError, string>({
+    mutationFn: (token: string) => authService.revokeSession(token),
+    onSuccess: invalidate,
+    onError: (err) => logger.warn('Revoking a session failed:', err.message),
+  });
+
+  const revokeOtherSessions = useMutation<void, AuthError, void>({
+    mutationFn: () => authService.revokeOtherSessions(),
+    onSuccess: invalidate,
+    onError: (err) => logger.warn('Revoking other sessions failed:', err.message),
+  });
+
+  const logoutAllMutation = useMutation<void, AuthError, void>({
     mutationFn: authService.logoutAll,
-    onSuccess: () => {
-      // Clear all cache and force user to login again
-      queryClient.clear();
-      console.log('✅ Logged out from all devices');
-    },
+    onSuccess: () => queryClient.clear(),
     onError: (err) => {
-      console.error('❌ Logout all failed:', err.message);
-      // Even if server logout fails, clear local tokens
-      authService.clearTokens();
+      logger.warn('Logout from all devices failed:', err.message);
       queryClient.clear();
     },
   });
 
-  /**
-   * Get the current session based on user agent
-   */
-  const getCurrentSession = (): Session | undefined => {
-    // Find current session (this is a best guess based on browser info)
-    return sessions?.find((session) =>
-      session.deviceInfo?.userAgent?.includes(navigator.userAgent.split(' ')[0])
-    );
-  };
-
-  /**
-   * Get all sessions except the current one
-   */
-  const getOtherSessions = (): Session[] => {
-    const currentSession = getCurrentSession();
-    // The API serializes sessions with `_id` (no virtual `id`), so compare on
-    // whichever identifier is present — otherwise every id is undefined and this
-    // filters out every session, always returning [].
-    const sid = (s?: Session | null): string | undefined =>
-      s ? (s.id ?? (s as Session & { _id?: string })._id) : undefined;
-    return sessions?.filter((session) => sid(session) !== sid(currentSession)) || [];
-  };
+  const isCurrentSession = (session: AuthSession): boolean =>
+    !!currentSession && session.id === currentSession.id;
 
   return {
-    // Session data
     sessions: sessions || [],
     sessionCount: sessions?.length || 0,
 
-    // Loading states
     isLoading,
 
-    // Error states
-    error,
+    error: (error as AuthError | null) ?? null,
     isError,
 
-    // Functions
     refetch,
+    revokeSession,
+    revokeOtherSessions,
     logoutAll: logoutAllMutation.mutate,
     isLoggingOutAll: logoutAllMutation.isPending,
 
-    // Helper functions
-    getCurrentSession,
-    getOtherSessions,
+    getCurrentSession: () => sessions?.find(isCurrentSession),
+    getOtherSessions: () => (sessions || []).filter((s) => !isCurrentSession(s)),
+    isCurrentSession,
   };
 };
 

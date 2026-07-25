@@ -3,6 +3,7 @@ import { Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { KeyRound, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,15 +17,13 @@ import {
 } from '@/components/ui/form';
 import type { LoginFormData } from '../../types/forms';
 
-interface AxiosError {
-  response?: { data?: { message?: string } };
-  message?: string;
-}
-
 interface LoginFormProps {
   isLoading: boolean;
-  error: AxiosError | Error | null;
+  error: Error | null;
   onSubmit: (data: LoginFormData) => void;
+  /** Start the WebAuthn prompt. Omitted, the passkey affordance is hidden. */
+  onPasskeySignIn?: () => void;
+  isPasskeyPending?: boolean;
 }
 
 // Mirrors the previous inline validation: email required + valid, password required.
@@ -38,16 +37,20 @@ const loginSchema = z.object({
 
 type LoginSchema = z.infer<typeof loginSchema>;
 
-const LoginForm: FC<LoginFormProps> = ({ isLoading, error, onSubmit }) => {
+const LoginForm: FC<LoginFormProps> = ({
+  isLoading,
+  error,
+  onSubmit,
+  onPasskeySignIn,
+  isPasskeyPending = false,
+}) => {
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     mode: 'onTouched',
     defaultValues: { email: '', password: '' },
   });
 
-  const errorMessage = error
-    ? (error as AxiosError)?.response?.data?.message || error.message || 'Login failed'
-    : '';
+  const errorMessage = error ? error.message || 'Login failed' : '';
 
   return (
     <Card className="mx-auto w-full max-w-md">
@@ -128,6 +131,35 @@ const LoginForm: FC<LoginFormProps> = ({ isLoading, error, onSubmit }) => {
             </Button>
           </form>
         </Form>
+
+        {onPasskeySignIn && (
+          <>
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                or
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              data-testid="passkey-signin"
+              disabled={isPasskeyPending}
+              onClick={onPasskeySignIn}
+            >
+              {isPasskeyPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <KeyRound className="size-4" />
+              )}
+              Sign in with a passkey
+            </Button>
+          </>
+        )}
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}

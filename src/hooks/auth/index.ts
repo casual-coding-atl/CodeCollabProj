@@ -2,7 +2,7 @@
 export { useAuth } from './useAuth';
 export type { UseAuthReturn } from './useAuth';
 
-export { useLogin } from './useLogin';
+export { useLogin, useLoginWithPasskey } from './useLogin';
 
 export { useLogout, useLogoutAll } from './useLogout';
 
@@ -13,10 +13,10 @@ export type { UseSessionsReturn } from './useSessions';
 
 export { useRegister } from './useRegister';
 
+export { usePasskeys, useAddPasskey, useDeletePasskey } from './usePasskeys';
+
 export {
   useRequestPasswordReset,
-  useVerifyPasswordResetToken,
-  usePasswordResetTokenQuery,
   useResetPassword,
   useResendVerificationEmail,
   useVerifyEmail,

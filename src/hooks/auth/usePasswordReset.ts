@@ -1,159 +1,53 @@
-import { useMutation, useQuery, UseMutationResult, UseQueryResult } from '@tanstack/react-query';
-import { authService } from '../../services/authService';
-import { queryKeys } from '../../config/queryClient';
-import type {
-  PasswordResetRequestResponse,
-  VerifyPasswordResetTokenResponse,
-  EmailVerificationResponse,
-} from '../../types';
+import { useMutation, UseMutationResult } from '@tanstack/react-query';
+import { authService, type PasswordResetData } from '../../services/authService';
+import { AuthError } from '../../lib/auth-client';
+import logger from '../../utils/logger';
 
 /**
- * Password reset data for the API
+ * Password reset and email verification, over Better Auth.
+ *
+ * There is deliberately no "is this reset token valid?" hook any more: Better
+ * Auth has no such endpoint and validates the token when the new password is
+ * submitted, so the reset page no longer pre-flights it.
  */
-interface PasswordResetData {
-  token: string;
-  password: string;
-}
 
-/**
- * Response from password reset endpoint
- */
-interface PasswordResetResponse {
+interface MessageResponse {
   message: string;
 }
 
-/**
- * Axios error type for error handling
- */
-interface AxiosError {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-}
-
-/**
- * Options for usePasswordResetTokenQuery
- */
-interface PasswordResetTokenQueryOptions {
-  enabled?: boolean;
-  retry?: boolean | number;
-  staleTime?: number;
-  gcTime?: number;
-}
-
-/**
- * Request password reset hook
- */
-export const useRequestPasswordReset = (): UseMutationResult<
-  PasswordResetRequestResponse,
-  AxiosError,
-  string
-> => {
-  return useMutation({
+/** `POST /api/auth/forget-password` — emails a reset link. */
+export const useRequestPasswordReset = (): UseMutationResult<MessageResponse, AuthError, string> =>
+  useMutation({
     mutationFn: authService.requestPasswordReset,
-    onSuccess: (data) => {
-      console.log('✅ Password reset request successful:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Password reset request failed:', error);
-    },
+    onError: (error) => logger.warn('Password reset request failed:', error.message),
   });
-};
 
-/**
- * Verify password reset token hook (mutation for manual verification)
- */
-export const useVerifyPasswordResetToken = (): UseMutationResult<
-  VerifyPasswordResetTokenResponse,
-  AxiosError,
-  string
-> => {
-  return useMutation({
-    mutationFn: authService.verifyPasswordResetToken,
-    onSuccess: (data) => {
-      console.log('✅ Password reset token verified:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Password reset token verification failed:', error);
-    },
-  });
-};
-
-/**
- * Query hook for automatic token verification on component mount
- */
-export const usePasswordResetTokenQuery = (
-  token: string | undefined | null,
-  options: PasswordResetTokenQueryOptions = {}
-): UseQueryResult<VerifyPasswordResetTokenResponse, AxiosError> => {
-  return useQuery({
-    queryKey: queryKeys.auth.passwordResetToken(token || ''),
-    queryFn: () => authService.verifyPasswordResetToken(token as string),
-    enabled: !!token, // Only run if token exists
-    retry: false, // Don't retry on failure
-    staleTime: 0, // Always fresh
-    gcTime: 0, // Don't cache
-    ...options,
-  });
-};
-
-/**
- * Reset password hook
- */
+/** `POST /api/auth/reset-password` — consumes the token from the emailed link. */
 export const useResetPassword = (): UseMutationResult<
-  PasswordResetResponse,
-  AxiosError,
+  MessageResponse,
+  AuthError,
   PasswordResetData
-> => {
-  return useMutation({
+> =>
+  useMutation({
     mutationFn: authService.resetPassword,
-    onSuccess: (data) => {
-      console.log('✅ Password reset successful:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Password reset failed:', error);
-    },
+    onError: (error) => logger.warn('Password reset failed:', error.message),
   });
-};
 
-/**
- * Resend verification email hook
- */
+/** `POST /api/auth/send-verification-email`. */
 export const useResendVerificationEmail = (): UseMutationResult<
-  EmailVerificationResponse,
-  AxiosError,
+  MessageResponse,
+  AuthError,
   string
-> => {
-  return useMutation({
+> =>
+  useMutation({
     mutationFn: authService.resendVerificationEmail,
-    onSuccess: (data) => {
-      console.log('✅ Verification email sent:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Failed to send verification email:', error);
-    },
+    onError: (error) => logger.warn('Failed to send verification email:', error.message),
   });
-};
 
-/**
- * Verify email hook
- */
-export const useVerifyEmail = (): UseMutationResult<
-  EmailVerificationResponse,
-  AxiosError,
-  string
-> => {
-  return useMutation({
+/** `GET /api/auth/verify-email?token=…`. */
+export const useVerifyEmail = (): UseMutationResult<MessageResponse, AuthError, string> =>
+  useMutation({
     mutationFn: authService.verifyEmail,
-    onSuccess: (data) => {
-      console.log('✅ Email verified successfully:', data);
-    },
-    onError: (error) => {
-      console.error('❌ Email verification failed:', error);
-    },
+    retry: 0, // the token is single-use — a retry would fail on a fresh account
+    onError: (error) => logger.warn('Email verification failed:', error.message),
   });
-};

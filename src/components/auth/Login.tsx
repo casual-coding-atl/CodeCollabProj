@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth, useLogin } from '../../hooks/auth';
+import { useAuth, useLogin, useLoginWithPasskey } from '../../hooks/auth';
 import LoginForm from './LoginForm';
 import VerificationAlert from './VerificationAlert';
 import type { LoginFormData } from '../../types/forms';
-
-interface AxiosError {
-  response?: {
-    data?: {
-      needsVerification?: boolean;
-      message?: string;
-    };
-  };
-  message?: string;
-}
 
 /**
  * Login Component
@@ -25,6 +15,7 @@ const Login: React.FC = () => {
 
   // TanStack Query mutations
   const loginMutation = useLogin();
+  const passkeyMutation = useLoginWithPasskey();
 
   const [submittedEmail, setSubmittedEmail] = useState<string>('');
   const [needsVerification, setNeedsVerification] = useState<boolean>(false);
@@ -42,12 +33,17 @@ const Login: React.FC = () => {
         navigate({ to: '/dashboard' });
       },
       onError: (error) => {
-        // Check if the error is due to unverified email
-        const axiosError = error as AxiosError;
-        if (axiosError?.response?.data?.needsVerification) {
+        // Better Auth names this failure rather than describing it.
+        if (error.code === 'EMAIL_NOT_VERIFIED') {
           setNeedsVerification(true);
         }
       },
+    });
+  };
+
+  const handlePasskey = (): void => {
+    passkeyMutation.mutate(undefined, {
+      onSuccess: () => navigate({ to: '/dashboard' }),
     });
   };
 
@@ -63,8 +59,10 @@ const Login: React.FC = () => {
     <div className="px-4 py-12">
       <LoginForm
         isLoading={loginMutation.isPending}
-        error={loginMutation.error}
+        error={loginMutation.error ?? passkeyMutation.error}
         onSubmit={handleSubmit}
+        onPasskeySignIn={handlePasskey}
+        isPasskeyPending={passkeyMutation.isPending}
       />
     </div>
   );
