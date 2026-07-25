@@ -32,7 +32,11 @@ npm run typecheck  # tsc --noEmit
 
 ## Auth model
 
-- Login/register issue a JWT in an **httpOnly `accessToken` cookie** and a `sessions` record. `getAuthUser(request)` verifies the JWT + active session and loads the user; `requireUser`/`requireRole` gate endpoints. No token is exposed to client JS. The legacy client token utilities (`tokenEncryption.ts`, deprecated `authService` methods) are SSR-safe no-ops.
+- **Better Auth** (`src/server/auth.ts`, ADR 0002) owns sessions and cookies. Every `/api/auth/*` endpoint is served by the single splat route `src/routes/api.auth.$.ts` delegating to `auth.handler(request)` — sign-in/up/out, session listing + revocation, password change/reset, passkeys, OAuth callbacks. Get the instance with `await getAuth()` (lazy: it needs the Mongo `Db` from the shared Mongoose connection).
+- The existing `users` collection **is** Better Auth's user model (`user.modelName: 'users'`), so every ObjectId reference from projects/comments/messages survives. Passwords stay bcryptjs cost 12 via a `password.{hash,verify}` override. New collections: `account`, `session`, `verification`, `passkey`; the legacy `sessions` collection is retired.
+- **Authorization stays ours.** `getAuthUser(request)` asks Better Auth whose session it is, then loads the Mongoose user doc and enforces `isActive`/`isSuspended`/`suspendedUntil`; `requireUser`/`requireRole` gate endpoints and return hydrated user docs. Better Auth's admin plugin is deliberately not adopted.
+- Env: `BETTER_AUTH_SECRET` (falls back to `JWT_SECRET`), `BETTER_AUTH_URL` (default `http://localhost:3000`), optional `PASSKEY_RP_ID`, optional `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (the GitHub provider registers only when both are present).
+- One-off migration: `npm run migrate:auth` (needs `MONGODB_URI`; `--dry-run` supported). Its per-user transform is `src/server/auth-migration.ts`.
 
 ## Adding an API endpoint
 
