@@ -50,16 +50,25 @@ const PasskeyManager: React.FC = () => {
   useEffect(() => setCanAddPasskeys(supportsPasskeys()), []);
 
   const handleAdd = (): void => {
+    const startedAt = Date.now();
     addPasskey.mutate(name.trim() || undefined, {
       onSuccess: () => {
         setName('');
         toast.success('Passkey added');
       },
       onError: (error) => {
-        // Dismissing the system prompt is a decision, not a failure. Shouting
-        // "Could not add a passkey" at someone who pressed Escape is noise.
-        if (isPasskeyCancellation(error)) return;
-        toast.error(error.message || 'Could not add a passkey');
+        // Browsers fold most real WebAuthn failures (no screen lock, keychain
+        // disabled, policy) into the same NotAllowedError a user's Escape
+        // produces. A human dismissal can't happen instantly — the sheet has
+        // to render first — so only a rejection that took a while is treated
+        // as a decision and stays quiet.
+        const dismissed = isPasskeyCancellation(error) && Date.now() - startedAt >= 1500;
+        if (dismissed) return;
+        toast.error(
+          isPasskeyCancellation(error)
+            ? 'Your browser couldn’t create a passkey. Check that a screen lock, Touch ID or iCloud Keychain is set up, then try again.'
+            : error.message || 'Could not add a passkey'
+        );
       },
     });
   };
