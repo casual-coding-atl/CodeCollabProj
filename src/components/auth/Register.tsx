@@ -14,7 +14,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useAuth, useRegister } from '../../hooks/auth';
+import { Loader2 } from 'lucide-react';
+import {
+  useAuth,
+  useGithubSignInNotice,
+  useRegister,
+  useSignInWithGithub,
+} from '../../hooks/auth';
+import GithubMark from '@/components/icons/GithubMark';
 import { passwordSchema } from '@/lib/passwordPolicy';
 
 const registerSchema = z
@@ -44,6 +51,13 @@ const Register: React.FC = () => {
   // TanStack Query mutation
   const registerMutation = useRegister();
 
+  // Joining with GitHub is the same endpoint as signing in with it: an identity
+  // GitHub vouches for and this app has never seen becomes a member (the
+  // username is derived from their GitHub login — see src/server/auth.ts). A
+  // failed round trip comes back here, which is why the error path is this page.
+  const githubMutation = useSignInWithGithub('/register');
+  const github = useGithubSignInNotice('/register');
+
   const form = useForm<RegisterSchema>({
     resolver: zodResolver(registerSchema),
     mode: 'onTouched',
@@ -70,8 +84,16 @@ const Register: React.FC = () => {
     });
   };
 
-  const getErrorMessage = (): string =>
-    registerMutation.error?.message || 'Registration failed';
+  const handleGithub = (): void => {
+    github.clear();
+    githubMutation.mutate();
+  };
+
+  // One error area for both ways of joining. The form's failure wins when both
+  // are somehow set, because it is the one the member just caused.
+  const errorMessage = registerMutation.error
+    ? registerMutation.error.message || 'Registration failed'
+    : (githubMutation.error?.message ?? github.notice);
 
   return (
     <div className="px-4 py-12">
@@ -83,14 +105,42 @@ const Register: React.FC = () => {
           <CardTitle className="text-2xl">Register</CardTitle>
         </CardHeader>
         <CardContent>
-          {registerMutation.error && (
+          {errorMessage && (
             <div
               role="alert"
               className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              {getErrorMessage()}
+              {errorMessage}
             </div>
           )}
+
+          {/* Above the form, like the login page's — nothing the form does
+              underneath can move it out from under a pointer. */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            size="lg"
+            data-testid="github-signin"
+            aria-label="Join with GitHub"
+            disabled={githubMutation.isPending}
+            onClick={handleGithub}
+          >
+            {githubMutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GithubMark className="size-4" />
+            )}
+            Join with GitHub
+          </Button>
+
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              or sign up with email
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">

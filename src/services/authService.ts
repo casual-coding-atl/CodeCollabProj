@@ -9,6 +9,7 @@ import {
   type Passkey,
   type SessionUser,
 } from '../lib/auth-client';
+import { isGithubProviderMissing } from './githubAccountService';
 import type { LoginCredentials, RegisterData } from '../types';
 
 /**
@@ -39,6 +40,7 @@ export interface AuthServiceInterface {
   register: (data: RegisterData) => Promise<AppUser>;
   login: (credentials: LoginCredentials) => Promise<AppUser>;
   loginWithPasskey: () => Promise<AppUser>;
+  signInWithGithub: (errorPath?: string) => Promise<void>;
   getCurrentUser: () => Promise<AppUser | null>;
   getCurrentSession: () => Promise<AuthSession | null>;
   logout: () => Promise<void>;
@@ -63,6 +65,51 @@ function resetRedirectTo(): string {
   return import.meta.env.SSR
     ? RESET_PASSWORD_PATH
     : `${window.location.origin}${RESET_PASSWORD_PATH}`;
+}
+
+// ── sign in with GitHub ──────────────────────────────────────────────────────
+
+/** Where a member who signed in (or signed up) with GitHub lands. */
+const GITHUB_SUCCESS_PATH = '/dashboard';
+
+/**
+ * What a GitHub round trip that came back unhappy means, in the member's words.
+ *
+ * Better Auth does not fail a social sign-in with a response — the browser is
+ * away at github.com when it goes wrong — it redirects to
+ * `${errorCallbackURL}?error=<code>`. These are the codes the sign-in flow can
+ * produce; `linkFailureMessage` in ./githubAccountService is the same idea for
+ * the linking flow, which can fail in different ways.
+ */
+export function githubSignInFailureMessage(code: string | undefined): string | null {
+  if (!code) return null;
+  switch (code) {
+    case 'access_denied':
+      return 'GitHub sign-in was cancelled.';
+    case 'signup_disabled':
+      // Only reachable if the server is reconfigured to refuse GitHub sign-ups;
+      // saying "use your email" beats leaving them staring at a code.
+      return 'This server does not create accounts from GitHub. Sign in with your email and password instead.';
+    case 'account_not_linked':
+      // Better Auth's answer when the GitHub email matches a member but cannot
+      // be trusted onto it — an unverified GitHub email address.
+      return (
+        'An account already uses that email address. Verify your email address on GitHub, or ' +
+        'sign in with your password and connect GitHub from your security settings.'
+      );
+    case 'unable_to_create_user':
+      return 'Your account could not be created from GitHub. Please try again, or sign up with an email address.';
+    case 'ACCOUNT_SUSPENDED':
+    case 'ACCOUNT_DEACTIVATED':
+      // Our own session guard (src/server/auth.ts) refusing to mint a session,
+      // surfaced through the same redirect.
+      return 'This account cannot sign in. Please contact an administrator.';
+    case 'state_not_found':
+    case 'invalid_state':
+      return 'The GitHub sign-in took too long or was started in another tab. Please try again.';
+    default:
+      return 'GitHub could not sign you in. Please try again.';
+  }
 }
 
 export const authService: AuthServiceInterface = {
@@ -94,6 +141,42 @@ export const authService: AuthServiceInterface = {
       throw toAuthError({ message: 'Passkey sign-in did not return a session', status: 500 });
     }
     return toAppUser(data.user as SessionUser);
+  },
+
+  /**
+   * Sign in with GitHub — which, for somebody GitHub knows and this app does
+   * not, also signs them up (src/server/auth.ts).
+   *
+   * Like every OAuth start this navigates away, so it never resolves in the
+   * ordinary sense: the member comes back to /dashboard signed in, or to
+   * `errorPath` with `?error=<code>` for `githubSignInFailureMessage` to read.
+   * The one thing it *can* reject with is a server that has no GitHub OAuth app
+   * configured at all, which is worth a sentence rather than a bare "Not found".
+   */
+  signInWithGithub: async (errorPath = '/login'): Promise<void> => {
+    const origin = import.meta.env.SSR ? '' : window.location.origin;
+    const data = (await unwrap(
+      authClient.signIn.social({
+        provider: 'github',
+        callbackURL: `${origin}${GITHUB_SUCCESS_PATH}`,
+        errorCallbackURL: `${origin}${errorPath}`,
+      })
+    ).catch((error: unknown) => {
+      if (isGithubProviderMissing(error)) {
+        throw toAuthError({
+          message:
+            'GitHub is not configured on this server yet, so there is no way to sign in with it. ' +
+            'An administrator needs to set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.',
+          status: (error as { status?: number }).status ?? 404,
+          code: (error as { code?: string }).code,
+        });
+      }
+      throw error;
+    })) as { url?: string; redirect?: boolean } | null;
+
+    // Follow the authorization URL ourselves rather than depending on the
+    // client's own redirect handling, exactly as the linking flow does.
+    if (!import.meta.env.SSR && data?.url) window.location.href = data.url;
   },
 
   /**

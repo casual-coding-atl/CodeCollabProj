@@ -4,10 +4,11 @@ import { authClient, unwrap, unwrapVoid, AuthError } from '../lib/auth-client';
  * The member's Linked GitHub Account (CONTEXT.md), over Better Auth's account
  * endpoints — `/list-accounts`, `/link-social`, `/unlink-account`.
  *
- * Linking is deliberately *only* linking: GitHub can never sign anybody in
- * (src/server/auth.ts disables `/sign-in/social`). What it buys is a token the
- * server can spend on GitHub reads on the member's behalf — and that token
- * lands on the member's `account` row, server-side, never in the browser.
+ * This is the *already signed in* half of GitHub: attaching an identity to the
+ * account you are sitting in. Signing in (and signing up) with GitHub is
+ * `authService.signInWithGithub`. What linking buys on top of identity is a
+ * token the server can spend on GitHub reads on the member's behalf — and that
+ * token lands on the member's `account` row, server-side, never in the browser.
  *
  * Everything here goes through `authClient`, never axios: `/api/auth/*` is
  * Better Auth's, and its `{ data, error }` results are reshaped into rejections
@@ -32,12 +33,19 @@ export interface LinkedGitHubAccount {
  * A deployment without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` — every dev
  * machine and CI run, and any production box before the OAuth app is
  * registered — simply has no GitHub provider, and Better Auth answers 404
- * PROVIDER_NOT_FOUND. That is a configuration fact, not a member error, so say
- * so instead of showing "Not found".
+ * PROVIDER_NOT_FOUND. That is a configuration fact, not a member error, so both
+ * the linking card and the sign-in buttons say so instead of showing "Not
+ * found"; the predicate is shared, the sentence is not, because "nothing to
+ * connect to" and "no way to sign in" are different news.
  */
+export function isGithubProviderMissing(error: unknown): boolean {
+  if (!(error instanceof AuthError)) return false;
+  return error.code === 'PROVIDER_NOT_FOUND' || error.status === 404;
+}
+
 function explain(error: unknown): never {
   if (error instanceof AuthError) {
-    if (error.code === 'PROVIDER_NOT_FOUND' || error.status === 404) {
+    if (isGithubProviderMissing(error)) {
       throw new AuthError(
         'GitHub is not configured on this server yet, so there is nothing to connect to. ' +
           'An administrator needs to set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.',

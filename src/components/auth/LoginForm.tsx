@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Info, KeyRound, Loader2, X } from 'lucide-react';
 import { AUTH_MIGRATION_NOTICE, migrationNoticeEnabled } from '@/lib/authNotice';
+import GithubMark from '@/components/icons/GithubMark';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,9 @@ interface LoginFormProps {
   /** Start the WebAuthn prompt. Omitted, the passkey affordance is hidden. */
   onPasskeySignIn?: () => void;
   isPasskeyPending?: boolean;
+  /** Start the GitHub round trip. Always offered — every browser can do it. */
+  onGithubSignIn: () => void;
+  isGithubPending?: boolean;
 }
 
 // Mirrors the previous inline validation: email required + valid, password required.
@@ -55,6 +59,8 @@ const LoginForm: FC<LoginFormProps> = ({
   onSubmit,
   onPasskeySignIn,
   isPasskeyPending = false,
+  onGithubSignIn,
+  isGithubPending = false,
 }) => {
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
@@ -110,20 +116,28 @@ const LoginForm: FC<LoginFormProps> = ({
           </div>
         )}
 
-        {/* Passkeys sit above the email form, and not only because they're the
-            faster way in. Below it, this button moves: the email field is
-            autofocused, so the first click anywhere else blurs it, react-hook-form
-            renders "Email is required", and everything underneath jumps down —
-            far enough that the click that caused the jump lands above the button
-            and does nothing. Nothing above the form can shift under the pointer. */}
-        {onPasskeySignIn && (
-          <>
+        {/* The two ways in that aren't a password sit above the email form, and
+            not only because they're faster. Below it, these buttons move: the
+            email field is autofocused, so the first click anywhere else blurs
+            it, react-hook-form renders "Email is required", and everything
+            underneath jumps down — far enough that the click that caused the
+            jump lands above the button and does nothing. Nothing above the form
+            can shift under the pointer.
+
+            The row is two fixed columns for the same reason. Whether this
+            browser can do WebAuthn is only known after mount (see Login.tsx), so
+            the passkey button arrives late; giving it a column of its own from
+            the first render means it appears in an empty slot instead of
+            halving the width of the GitHub button somebody is already reaching
+            for. On a browser without WebAuthn that slot simply stays empty. */}
+        <div className="grid grid-cols-2 gap-3">
+          {onPasskeySignIn ? (
             <Button
               type="button"
               variant="outline"
-              className="w-full"
               size="lg"
               data-testid="passkey-signin"
+              aria-label="Sign in with a passkey"
               disabled={isPasskeyPending}
               onClick={onPasskeySignIn}
             >
@@ -132,18 +146,37 @@ const LoginForm: FC<LoginFormProps> = ({
               ) : (
                 <KeyRound className="size-4" />
               )}
-              Sign in with a passkey
+              Passkey
             </Button>
+          ) : (
+            <span aria-hidden />
+          )}
 
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-                or continue with email
-              </span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-          </>
-        )}
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            data-testid="github-signin"
+            aria-label="Sign in with GitHub"
+            disabled={isGithubPending}
+            onClick={onGithubSignIn}
+          >
+            {isGithubPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GithubMark className="size-4" />
+            )}
+            GitHub
+          </Button>
+        </div>
+
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1 bg-border" />
+          <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            or continue with email
+          </span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

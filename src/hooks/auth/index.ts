@@ -4,6 +4,8 @@ export type { UseAuthReturn } from './useAuth';
 
 export { useLogin, useLoginWithPasskey } from './useLogin';
 
+export { useSignInWithGithub, useGithubSignInNotice } from './useGithubSignIn';
+
 export { useLogout, useLogoutAll } from './useLogout';
 
 export { useChangePassword } from './useChangePassword';
