@@ -22,6 +22,12 @@ const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
 const EMAIL2 = process.env.E2E_EMAIL2 || 'e2e2@codecollab.test';
 const USERNAME2 = process.env.E2E_USERNAME2 || 'e2e_user_two';
 const PASSWORD2 = process.env.E2E_PASSWORD2 || 'e2e-password-123';
+// A third user, suspended, so the suite can prove moderation still keeps
+// somebody out after the migration — the story the whole cutover risks.
+const EMAIL_SUSPENDED = process.env.E2E_EMAIL_SUSPENDED || 'e2e-suspended@codecollab.test';
+const USERNAME_SUSPENDED = process.env.E2E_USERNAME_SUSPENDED || 'e2e_user_suspended';
+const PASSWORD_SUSPENDED = process.env.E2E_PASSWORD_SUSPENDED || 'e2e-password-123';
+const SUSPENSION_REASON = 'Suspended for end-to-end tests';
 
 /** Accounts the registration spec creates; cleared so they can't pile up. */
 const THROWAWAY_EMAIL = /^e2e-register-/;
@@ -66,7 +72,7 @@ if (!/e2e/i.test(dbName || '') && process.env.E2E_ALLOW_DB !== '1') {
   process.exit(1);
 }
 
-async function upsertLegacyUser(email, username, password) {
+async function upsertLegacyUser(email, username, password, extra = {}) {
   const h = await bcrypt.hash(password, 10);
   await User.updateOne(
     { email },
@@ -81,6 +87,7 @@ async function upsertLegacyUser(email, username, password) {
         isSuspended: false,
         isEmailVerified: true,
         isProfilePublic: true,
+        ...extra,
       },
       // Undo a previous run's migration so this run starts pre-migration again.
       $unset: { name: '', emailVerified: '' },
@@ -92,11 +99,20 @@ async function upsertLegacyUser(email, username, password) {
 
 const user = await upsertLegacyUser(EMAIL, USERNAME, PASSWORD);
 const user2 = await upsertLegacyUser(EMAIL2, USERNAME2, PASSWORD2);
+// Suspended indefinitely (no `suspendedUntil`), in the same pre-migration shape
+// as the others — so the suite proves a suspended member is refused a session
+// through the migrated credential, not through some legacy leftover.
+const suspendedUser = await upsertLegacyUser(
+  EMAIL_SUSPENDED,
+  USERNAME_SUSPENDED,
+  PASSWORD_SUSPENDED,
+  { isSuspended: true, suspensionReason: SUSPENSION_REASON },
+);
 
 // Drop every Better Auth artefact belonging to the seeded members: their
 // credential rows (so the migration re-creates them from the legacy hash),
 // their sessions (so each run starts signed out) and their passkeys.
-const ids = [user._id, user2._id];
+const ids = [user._id, user2._id, suspendedUser._id];
 const idStrings = ids.map(String);
 await Account.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
 await AuthSession.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
@@ -107,7 +123,7 @@ await Passkey.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
 // the seeded members' rows go — this used to be an unscoped deleteMany({}), which
 // on any shared database would have invalidated other people's live reset links.
 const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const seededIdentifiers = [EMAIL, EMAIL2, ...idStrings];
+const seededIdentifiers = [EMAIL, EMAIL2, EMAIL_SUSPENDED, ...idStrings];
 await Verification.deleteMany({
   identifier: { $regex: seededIdentifiers.map(escape).join('|') },
 });
@@ -200,6 +216,7 @@ await Project.updateOne(
 await collection('github_cache').deleteMany({});
 
 console.log(
-  `seeded pre-migration E2E users ${EMAIL} + ${EMAIL2} (${throwaway.length} throwaway account(s) removed) and project "${TITLE}"`,
+  `seeded pre-migration E2E users ${EMAIL} + ${EMAIL2} + ${EMAIL_SUSPENDED} (suspended) ` +
+    `(${throwaway.length} throwaway account(s) removed) and project "${TITLE}"`,
 );
 await mongoose.disconnect();

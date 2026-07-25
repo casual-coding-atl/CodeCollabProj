@@ -28,6 +28,26 @@
 // The legacy `sessions` collection is left alone (retired, drop it after
 // verifying) — every member signs in once after deploy.
 //
+// ── Cutover announcement ─────────────────────────────────────────────────────
+//
+// That one-time sign-out is the only thing members will notice, so tell them
+// before they discover it. Two places, same words:
+//
+//   1. Wherever you announce things (the group chat / a mailout), before the
+//      deploy:
+//
+//        "We're upgrading how sign-in works. When it lands you'll be signed out
+//         once and asked to sign in again — your existing password still works,
+//         and there's nothing you need to do beforehand."
+//
+//   2. On the login screen itself, for the members who missed (1) and just want
+//      to know why they're looking at it. Build the cutover release with
+//      VITE_AUTH_MIGRATION_NOTICE=1 and the sign-in page carries a dismissible
+//      note saying the same thing (src/lib/authNotice.ts). Turn it OFF again in
+//      the next release — it is a notice about an event, not a permanent
+//      fixture, and it is off by default so forgetting to set it is harmless
+//      while forgetting to unset it is not.
+//
 // The per-user transform lives in src/server/auth-migration.ts (unit-tested);
 // this file is only the Mongo plumbing. Node strips the TypeScript on import
 // (Node >= 22.6 with --experimental-strip-types, default from 22.18).

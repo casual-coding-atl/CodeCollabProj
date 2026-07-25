@@ -14,6 +14,8 @@ const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
 const EMAIL2 = process.env.E2E_EMAIL2 || 'e2e2@codecollab.test';
 const PASSWORD2 = process.env.E2E_PASSWORD2 || 'e2e-password-123';
 const USERNAME2 = process.env.E2E_USERNAME2 || 'e2e_user_two';
+const EMAIL_SUSPENDED = process.env.E2E_EMAIL_SUSPENDED || 'e2e-suspended@codecollab.test';
+const PASSWORD_SUSPENDED = process.env.E2E_PASSWORD_SUSPENDED || 'e2e-password-123';
 
 /** Better Auth's session cookie — the only auth credential in the browser. */
 const SESSION_COOKIE = 'better-auth.session_token';
@@ -115,6 +117,43 @@ test.describe('sign in', () => {
     });
     await expect(page).toHaveURL(/\/login/);
     expect(await sessionCookie(context)).toBeFalsy();
+  });
+
+  test('a suspended member is refused, with the right password', async ({ page, context }) => {
+    // The seeded suspended member is migrated like everyone else, so their
+    // password is genuinely correct — the only thing standing between them and
+    // a session is the app's own suspension rule, enforced when Better Auth
+    // tries to mint one. Moderation surviving the migration is a user story in
+    // its own right (PRD #88, story 13).
+    await gotoHydrated(page, '/login', 'input[name="email"]');
+    await page.fill('input[name="email"]', EMAIL_SUSPENDED);
+    await page.fill('input[name="password"]', PASSWORD_SUSPENDED);
+    await page.click('button[type="submit"]');
+
+    await expect(page.getByRole('alert')).toHaveText(/suspended/i, { timeout: 10_000 });
+    await expect(page).toHaveURL(/\/login/);
+    expect(await sessionCookie(context)).toBeFalsy();
+
+    // And no back door: a guarded page still turns them away.
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+  });
+
+  test('explains the one-time sign-out during the cutover, and lets it be dismissed', async ({
+    page,
+  }) => {
+    // Built with VITE_AUTH_MIGRATION_NOTICE=1 (see playwright.config), which is
+    // what an operator sets for the cutover release and unsets afterwards. A
+    // build without it has no notice in it at all.
+    await gotoHydrated(page, '/login', 'input[name="email"]');
+
+    const notice = page.getByTestId('auth-migration-notice');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(/signed out/i);
+    await expect(notice).toContainText(/password still works/i);
+
+    await page.getByTestId('dismiss-auth-migration-notice').click();
+    await expect(notice).toHaveCount(0);
   });
 
   test('the login page offers passkey sign-in', async ({ page }) => {

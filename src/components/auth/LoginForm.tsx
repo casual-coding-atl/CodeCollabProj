@@ -1,9 +1,10 @@
-import { type FC } from 'react';
+import { type FC, useState } from 'react';
 import { Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { KeyRound, Loader2 } from 'lucide-react';
+import { Info, KeyRound, Loader2, X } from 'lucide-react';
+import { AUTH_MIGRATION_NOTICE, migrationNoticeEnabled } from '@/lib/authNotice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,17 @@ const loginSchema = z.object({
 
 type LoginSchema = z.infer<typeof loginSchema>;
 
+/**
+ * Read once, at module scope: `import.meta.env` is substituted at build time, so
+ * this is a constant the server and the browser agree on. That matters — a
+ * notice that appeared or vanished at hydration would push the passkey button
+ * out from under a pointer mid-click, which is a bug this form has had once
+ * already.
+ */
+const SHOW_MIGRATION_NOTICE = migrationNoticeEnabled(
+  import.meta.env.VITE_AUTH_MIGRATION_NOTICE
+);
+
 const LoginForm: FC<LoginFormProps> = ({
   isLoading,
   error,
@@ -52,6 +64,12 @@ const LoginForm: FC<LoginFormProps> = ({
 
   const errorMessage = error ? error.message || 'Login failed' : '';
 
+  // Dismissal lasts for this page view and isn't persisted. Reading a stored
+  // "already dismissed" flag would mean the notice rendered and then vanished
+  // after mount, moving everything below it — and during a cutover window that
+  // lasts days, seeing it again on a fresh visit is the lesser annoyance.
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader className="text-center">
@@ -61,6 +79,28 @@ const LoginForm: FC<LoginFormProps> = ({
         <CardTitle className="text-2xl">Sign in</CardTitle>
       </CardHeader>
       <CardContent>
+        {SHOW_MIGRATION_NOTICE && !noticeDismissed && (
+          <div
+            // `status`, not `alert`: this is news, not a problem, and an `alert`
+            // here would also collide with the sign-in failure below it.
+            role="status"
+            data-testid="auth-migration-notice"
+            className="mb-4 flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary"
+          >
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <span className="flex-1">{AUTH_MIGRATION_NOTICE}</span>
+            <button
+              type="button"
+              aria-label="Dismiss notice"
+              data-testid="dismiss-auth-migration-notice"
+              className="-mr-1 rounded p-0.5 opacity-70 transition-opacity hover:opacity-100"
+              onClick={() => setNoticeDismissed(true)}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
         {error && (
           <div
             role="alert"

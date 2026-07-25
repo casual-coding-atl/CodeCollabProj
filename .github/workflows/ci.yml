@@ -46,6 +46,9 @@ jobs:
       MONGODB_URI: mongodb://localhost:27017/codecollab_e2e
       JWT_SECRET: e2e-test-secret-at-least-32-characters-1234
       VITE_API_URL: /api
+      # CI builds in its own step, so the flag has to be here too — the
+      # webServer env in playwright.config only reaches the local build.
+      VITE_AUTH_MIGRATION_NOTICE: '1'
       E2E_EMAIL: e2e@codecollab.test
       E2E_PASSWORD: e2e-password-123
     services:
