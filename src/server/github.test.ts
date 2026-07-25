@@ -372,6 +372,71 @@ describe('fetchPublicRepo', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it('falls through to the next token when the member’s has been revoked', async () => {
+    // The failure that used to lose the read entirely: a member revokes this
+    // app on GitHub, and their card 502s even though the server token — or
+    // nobody's token at all — describes the repository perfectly well.
+    const spy = stubFetch((_url, init) => {
+      const auth = new Headers(init?.headers).get('authorization');
+      if (auth === 'Bearer revoked') return githubResponse(401, { message: 'Bad credentials' });
+      return githubResponse(200, publicRepoBody);
+    });
+
+    const result = await fetchPublicRepo(
+      { owner: 'facebook', name: 'react' },
+      { tokens: ['revoked', 'server-token', undefined] },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(new Headers(spy.mock.calls[1][1]?.headers).get('authorization')).toBe(
+      'Bearer server-token',
+    );
+  });
+
+  it('falls through when a token’s rate limit is spent, ending anonymous', async () => {
+    const spy = stubFetch((_url, init) => {
+      const auth = new Headers(init?.headers).get('authorization');
+      if (auth) return githubResponse(403, { message: 'rate limit' }, { 'x-ratelimit-remaining': '0' });
+      return githubResponse(200, publicRepoBody);
+    });
+
+    const result = await fetchPublicRepo(
+      { owner: 'facebook', name: 'react' },
+      { tokens: ['spent', undefined] },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(new Headers(spy.mock.calls[1][1]?.headers).get('authorization')).toBeNull();
+  });
+
+  it('does not spend another tier on an answer that would not change', async () => {
+    // A 404 is about the repository, not the credentials. Retrying it down the
+    // chain would triple the cost of every mistyped URL.
+    const spy = stubFetch(() => githubResponse(404, { message: 'Not Found' }));
+
+    const result = await fetchPublicRepo(
+      { owner: 'nobody', name: 'nothing' },
+      { tokens: ['member', 'server', undefined] },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports the last tier’s failure when every tier fails', async () => {
+    const spy = stubFetch(() => githubResponse(401, { message: 'Bad credentials' }));
+
+    const result = await fetchPublicRepo(
+      { owner: 'facebook', name: 'react' },
+      { tokens: ['member', 'server', undefined] },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('unauthorized');
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
   it('escapes the path segments it was given', async () => {
     const spy = stubFetch(() => githubResponse(404, { message: 'Not Found' }));
 
