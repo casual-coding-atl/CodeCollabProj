@@ -78,11 +78,32 @@ function buildAuth() {
     user: {
       modelName: 'users',
       additionalFields: {
-        username: { type: 'string', required: false, input: false },
+        // Members pick their own username at sign-up; the rest are server-owned
+        // (input: false) so nobody can grant themselves a role or un-suspend.
+        username: { type: 'string', required: false },
         role: { type: 'string', required: false, input: false },
         permissions: { type: 'string[]', required: false, input: false },
         isActive: { type: 'boolean', required: false, input: false },
         isSuspended: { type: 'boolean', required: false, input: false },
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          // Better Auth writes through the Mongo driver, so the Mongoose schema
+          // defaults never fire. Stamp the app-domain defaults the legacy
+          // register endpoint wrote, or a new member lands without a role or
+          // the permission to create a project.
+          before: async (user) => ({
+            data: {
+              role: 'user',
+              permissions: ['project:create'],
+              isActive: true,
+              isSuspended: false,
+              ...user,
+            },
+          }),
+        },
       },
     },
     plugins: [passkey({ rpID: relyingPartyId(), rpName: 'CodeCollabProj' })],
