@@ -65,7 +65,15 @@ export function linkFailureMessage(code: string | undefined): string | null {
   if (!code) return null;
   switch (code) {
     case 'unable_to_link_account':
-      return 'GitHub could not be connected. Check that your GitHub email address is verified.';
+      // Also what a member sees when the unique index on `account` refuses the
+      // write (see scripts/migrate-better-auth.mjs) — the account row already
+      // exists, here or on somebody else's member. Both are worth naming,
+      // because "verify your email" alone would send them hunting for the
+      // wrong thing.
+      return (
+        'GitHub could not be connected. Check that your GitHub email address is verified, ' +
+        'and that this GitHub account is not already connected to another member.'
+      );
     case 'account_already_linked_to_different_user':
       return 'That GitHub account is already connected to another member.';
     case "email_doesn't_match":

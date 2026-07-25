@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { useSearch } from '@tanstack/react-router';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { formatDistanceToNow } from 'date-fns';
-import { Loader2, Unlink } from 'lucide-react';
+import { Loader2, Unlink, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,31 +47,46 @@ const GithubAccountCard: React.FC = () => {
   const { data: account, isLoading, isError, refetch } = useLinkedGithubAccount();
   const connect = useConnectGithub();
   const disconnect = useDisconnectGithub();
+  const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { error?: string };
-  const [message, setMessage] = useState<string | null>(null);
 
-  // Set once from the round trip, then owned by whatever happens on this page.
-  const returnedError = linkFailureMessage(search?.error);
-  const notice = message ?? returnedError;
+  /**
+   * One notice, owned by this component from the first render. It is *seeded*
+   * from the round trip's `?error=` rather than derived from it, so a later
+   * success can clear it for good — a derived value would reappear the moment
+   * local state went back to null, and the member would be told the connection
+   * failed while looking at a connected account.
+   */
+  const [notice, setNotice] = useState<string | null>(() => linkFailureMessage(search?.error));
+
+  // The message has been read into state, so drop the parameter: a reload (or a
+  // shared link) should not resurrect a failure from ten minutes ago.
+  useEffect(() => {
+    if (!search?.error) return;
+    void navigate({ to: '/security', search: {}, replace: true });
+  }, [search?.error, navigate]);
 
   const handleConnect = (): void => {
-    setMessage(null);
+    setNotice(null);
     connect.mutate(undefined, {
       onError: (error) => {
         const text = error.message || 'Could not start the GitHub connection';
-        setMessage(text);
+        setNotice(text);
         toast.error(text);
       },
     });
   };
 
   const handleDisconnect = (): void => {
-    setMessage(null);
+    setNotice(null);
     disconnect.mutate(account?.accountId, {
-      onSuccess: () => toast.success('GitHub disconnected'),
+      onSuccess: () => {
+        setNotice(null);
+        toast.success('GitHub disconnected');
+      },
       onError: (error) => {
         const text = error.message || 'Could not disconnect GitHub';
-        setMessage(text);
+        setNotice(text);
         toast.error(text);
       },
     });
@@ -90,7 +105,18 @@ const GithubAccountCard: React.FC = () => {
       <CardContent className="space-y-4">
         {notice && (
           <Alert variant="destructive" data-testid="github-account-error">
-            <AlertDescription>{notice}</AlertDescription>
+            <AlertDescription className="flex items-start justify-between gap-3">
+              <span>{notice}</span>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                data-testid="dismiss-github-error"
+                onClick={() => setNotice(null)}
+                className="shrink-0 rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-4" />
+              </button>
+            </AlertDescription>
           </Alert>
         )}
 

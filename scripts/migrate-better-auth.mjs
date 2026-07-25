@@ -97,9 +97,16 @@ if (report.clean) {
 // the credential upsert below safe to run twice at once (a losing racer gets a
 // duplicate-key error instead of writing a second row).
 //
-// The uniqueness is scoped to `providerId: 'credential'` on purpose. One
-// password credential per member is the invariant we actually want; constraining
-// OAuth rows the same way would be a guess about how Better Auth links accounts.
+// The uniqueness is scoped per provider on purpose — each of these states one
+// invariant, and nothing constrains providers this app does not use.
+//
+// The two GitHub ones close a gap Better Auth leaves open: its link callback
+// looks for an existing account row and then inserts one, with nothing in
+// between. Two requests interleaving there can attach the same GitHub identity
+// to two members, and a member can end up with a second GitHub row that a
+// disconnect (which deletes one) would leave behind, still holding a live
+// token. A Linked GitHub Account is one-per-member and one-member-per-identity
+// (CONTEXT.md); only an index can actually say so.
 const indexes = [
   [
     accounts,
@@ -108,6 +115,24 @@ const indexes = [
       name: 'credential_per_user_unique',
       unique: true,
       partialFilterExpression: { providerId: 'credential' },
+    },
+  ],
+  [
+    accounts,
+    { userId: 1, providerId: 1 },
+    {
+      name: 'github_per_user_unique',
+      unique: true,
+      partialFilterExpression: { providerId: 'github' },
+    },
+  ],
+  [
+    accounts,
+    { providerId: 1, accountId: 1 },
+    {
+      name: 'github_identity_unique',
+      unique: true,
+      partialFilterExpression: { providerId: 'github' },
     },
   ],
   [sessions, { token: 1 }, { name: 'session_token_unique', unique: true }],
