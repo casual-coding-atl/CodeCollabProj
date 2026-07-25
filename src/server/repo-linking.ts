@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { connectDB } from './db';
 import { Project } from './models';
 import {
   MAX_LINKED_REPOS,
@@ -35,6 +36,68 @@ import { LINK_VALIDATION_FRESHNESS_MS, fetchRepoCard } from './github-cache';
  *  6. the write itself re-states 3 and 4 as query conditions, so two links
  *     racing cannot leave a project over the cap or holding a duplicate.
  */
+
+// ── which repositories this app will describe at all ─────────────────────────
+
+/**
+ * The Linked Repository matching a ref, or null. Owner and repository names are
+ * case-insensitive on GitHub, and what a project stored is whatever case GitHub
+ * last reported, so the comparison has to be too.
+ */
+export function matchLinkedRepo(
+  repos: ReadonlyArray<LinkedRepo>,
+  ref: RepoRef,
+): LinkedRepo | null {
+  const same = (a: unknown, b: string) => String(a).toLowerCase() === b.toLowerCase();
+  return (
+    repos.find((repo) => same(repo.owner, ref.owner) && same(repo.name, ref.name)) ?? null
+  );
+}
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The Linked Repository behind a ref, looked up across every project — or null
+ * when no project links it.
+ *
+ * This is the gate on the public card proxy, and the reason it exists: without
+ * it, `/api/github/repos/$owner/$name` describes *any* repository on GitHub to
+ * *anyone*, spending the server's shared token budget on strangers' reads and
+ * minting a day-long cache document per owner/name pair they care to try. The
+ * app has exactly one legitimate use for that endpoint — the cards on a project
+ * page — so that is all it serves.
+ *
+ * The exact-match query rides the `{ 'linkedRepos.owner', 'linkedRepos.name' }`
+ * index and answers the normal path (the cards ask for what the project stored).
+ * The case-insensitive query is the fallback for a hand-written URL.
+ */
+export async function findLinkedRepo(ref: RepoRef): Promise<LinkedRepo | null> {
+  await connectDB();
+
+  const projection = { linkedRepos: 1 };
+  const exact = await Project.findOne(
+    { linkedRepos: { $elemMatch: { owner: ref.owner, name: ref.name } } },
+    projection,
+  )
+    .lean()
+    .exec();
+  if (exact) return matchLinkedRepo(reposOf(exact), ref);
+
+  const anyCase = await Project.findOne(
+    {
+      linkedRepos: {
+        $elemMatch: {
+          owner: new RegExp(`^${escapeRegExp(ref.owner)}$`, 'i'),
+          name: new RegExp(`^${escapeRegExp(ref.name)}$`, 'i'),
+        },
+      },
+    },
+    projection,
+  )
+    .lean()
+    .exec();
+  return anyCase ? matchLinkedRepo(reposOf(anyCase), ref) : null;
+}
 
 /** Just enough of a project document for these decisions. */
 export interface LinkableProject {

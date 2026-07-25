@@ -2,11 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   CACHE_RETENTION_MS,
   REPO_CARD_FRESHNESS_MS,
+  cacheEntryFromDoc,
   cacheState,
+  classifyRepoAnswer,
   isCacheable,
   normalizeCachePath,
   readThrough,
   repoCardPayload,
+  unavailableMessage,
   type CacheStore,
   type CachedResponse,
 } from './github-cache';
@@ -106,6 +109,88 @@ describe('isCacheable', () => {
     for (const status of [401, 403, 429, 500, 502, 503]) {
       expect(isCacheable(status)).toBe(false);
     }
+  });
+});
+
+// ── what a repository answer is worth ────────────────────────────────────────
+
+const repoBody = {
+  id: 10270250,
+  name: 'react',
+  owner: { login: 'facebook' },
+  private: false,
+};
+const answer = (status: number, body: unknown) => ({
+  status,
+  body: typeof body === 'string' ? body : JSON.stringify(body),
+});
+
+describe('classifyRepoAnswer', () => {
+  it('stores a usable repository', () => {
+    expect(classifyRepoAnswer(answer(200, repoBody))).toBe('store');
+  });
+
+  it('stores a 404, so a deleted repository is not re-asked on every view', () => {
+    expect(classifyRepoAnswer(answer(404, { message: 'Not Found' }))).toBe('store');
+  });
+
+  it('never stores a private repository, and does not dress it up as an outage', () => {
+    // A GITHUB_TOKEN that can see private repositories must not leave one in a
+    // cache every visitor is served from — nor fall back to the public snapshot
+    // this repository had before it was made private.
+    expect(classifyRepoAnswer(answer(200, { ...repoBody, private: true }))).toBe('pass');
+  });
+
+  it.each([
+    ['truncated JSON', '{"id":1027025'],
+    ['an array', '[]'],
+    ['null', 'null'],
+    ['an empty body', ''],
+    ['no id', JSON.stringify({ name: 'react', owner: { login: 'facebook' } })],
+    ['an unusable id', JSON.stringify({ ...repoBody, id: 'not-a-number' })],
+    ['no name', JSON.stringify({ id: 1, owner: { login: 'facebook' } })],
+    ['no owner login', JSON.stringify({ id: 1, name: 'react', owner: {} })],
+  ])('refuses to let a 200 with %s overwrite good data', (_why, body) => {
+    expect(classifyRepoAnswer(answer(200, body))).toBe('retryable');
+  });
+
+  it.each([403, 429, 500, 502, 503])('treats %s as GitHub being busy', (status) => {
+    expect(classifyRepoAnswer(answer(status, { message: 'nope' }))).toBe('retryable');
+  });
+});
+
+// ── reading a document back out of Mongo ─────────────────────────────────────
+
+describe('cacheEntryFromDoc', () => {
+  const good = {
+    status: 200,
+    body: '{"id":1}',
+    fetchedAt: new Date('2026-07-24T11:55:00Z'),
+    expiresAt: new Date('2026-07-25T11:55:00Z'),
+  };
+
+  it('reads a well-formed document', () => {
+    expect(cacheEntryFromDoc('/repos/facebook/react', good)).toMatchObject({
+      path: '/repos/facebook/react',
+      status: 200,
+      body: '{"id":1}',
+    });
+  });
+
+  it.each([
+    ['nothing at all', null],
+    ['a missing body', { ...good, body: undefined }],
+    ['a body that is not text', { ...good, body: 42 }],
+    ['a status that is not a number', { ...good, status: 'two hundred' }],
+    ['a missing timestamp', { ...good, fetchedAt: undefined }],
+    ['an unreadable timestamp', { ...good, fetchedAt: 'the other day' }],
+  ])('answers null rather than throwing for %s', (_why, doc) => {
+    expect(cacheEntryFromDoc('/repos/facebook/react', doc)).toBeNull();
+  });
+
+  it('falls back to the retention horizon when a document predates expiresAt', () => {
+    const entry = cacheEntryFromDoc('/x', { ...good, expiresAt: undefined });
+    expect(entry?.expiresAt.getTime()).toBe(good.fetchedAt.getTime() + CACHE_RETENTION_MS);
   });
 });
 
@@ -231,6 +316,57 @@ describe('readThrough', () => {
     expect(read).toMatchObject({ source: 'network', body: '{"id":2}' });
   });
 
+  it('keeps serving a stored 404 while GitHub is unreachable', async () => {
+    // A repository that really is gone must keep saying so through an outage,
+    // rather than flipping to "temporarily unavailable" and back.
+    const gone: CachedResponse = {
+      ...entryFetchedAt(new Date(now.getTime() - 60 * 60_000)),
+      path: '/repos/nobody/nothing',
+      status: 404,
+      body: '{"message":"Not Found"}',
+    };
+    const { store } = fakeStore(gone);
+    const fetch = vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+
+    const read = await readThrough('/repos/nobody/nothing', { store, fetch, now });
+
+    expect(read).toMatchObject({ source: 'stale', status: 404 });
+  });
+
+  it('lets the caller classify an answer it must not store', async () => {
+    // 'pass': conclusive, but not ours to keep — and NOT a reason to serve the
+    // stale entry, which would show the public snapshot of a now-private repo.
+    const { store, rows } = fakeStore(entryFetchedAt(new Date(now.getTime() - 60 * 60_000)));
+    const fetch = upstream(200, '{"private":true}');
+
+    const read = await readThrough('/repos/facebook/react', {
+      store,
+      fetch,
+      now,
+      classify: () => 'pass',
+    });
+
+    expect(read).toMatchObject({ source: 'network', status: 200, body: '{"private":true}' });
+    expect(rows.get('/repos/facebook/react')?.body).toBe('{"id":1}');
+  });
+
+  it('lets the caller reject a 200 that is not usable, keeping the good stale entry', async () => {
+    const { store, rows } = fakeStore(entryFetchedAt(new Date(now.getTime() - 60 * 60_000)));
+    const fetch = upstream(200, '{"id":tru');
+
+    const read = await readThrough('/repos/facebook/react', {
+      store,
+      fetch,
+      now,
+      classify: () => 'retryable',
+    });
+
+    expect(read).toMatchObject({ source: 'stale', body: '{"id":1}' });
+    expect(rows.get('/repos/facebook/react')?.body).toBe('{"id":1}');
+  });
+
   it('honours a caller-chosen freshness window', async () => {
     const { store } = fakeStore(entryFetchedAt(new Date(now.getTime() - 30_000)));
     const fetch = upstream(200, '{"id":2}');
@@ -289,18 +425,90 @@ describe('repoCardPayload', () => {
     expect(body).toMatchObject({ state: 'ok', stale: true, fetchedAt: now.toISOString() });
   });
 
-  it.each([
-    ['not-found' as const, 404],
-    ['private' as const, 404],
-  ])('reports a repository that is gone or private as unavailable (%s)', (reason, status) => {
+  it('reports a repository GitHub does not have as unavailable', () => {
     const payload = repoCardPayload(
       ref,
-      { ok: false, reason, status: 400, message: 'gone' },
+      { ok: false, reason: 'not-found', status: 404, message: 'gone' },
       { source: 'network', fetchedAt: now },
     );
 
-    expect(payload.status).toBe(status);
-    expect(payload.body).toMatchObject({ state: 'unavailable', reason, owner: 'facebook', name: 'react' });
+    expect(payload.status).toBe(404);
+    expect(payload.body).toMatchObject({
+      state: 'unavailable',
+      reason: 'not-found',
+      owner: 'facebook',
+      name: 'react',
+    });
+  });
+
+  it('answers a private repository exactly as it answers a missing one', () => {
+    // The card path is public and unauthenticated. If "private" and "no such
+    // repository" read differently on the wire, anyone can walk owner/name pairs
+    // and learn which private repositories exist — an oracle the server token
+    // would be paying for. Same reason, same message, byte for byte.
+    const missing = repoCardPayload(
+      ref,
+      { ok: false, reason: 'not-found', status: 404, message: 'no such repository' },
+      { source: 'network', fetchedAt: now },
+    );
+    const priv = repoCardPayload(
+      ref,
+      { ok: false, reason: 'private', status: 400, message: 'react is private.' },
+      { source: 'network', fetchedAt: now },
+    );
+
+    expect(priv).toEqual(missing);
+    expect(priv.body).toMatchObject({ state: 'unavailable', reason: 'not-found' });
+    if (priv.body.state !== 'unavailable') throw new Error('expected an unavailable card');
+    // The one sentence says "it may be private" about *every* refusal, which is
+    // the opposite of an oracle: it is true of all of them and specific to none.
+    expect(priv.body.message).toBe(unavailableMessage(ref));
+  });
+
+  it('reports a repository GitHub has blocked as its own kind of unavailable', () => {
+    const payload = repoCardPayload(
+      ref,
+      { ok: false, reason: 'blocked', status: 451, message: 'blocked' },
+      { source: 'network', fetchedAt: now },
+    );
+
+    expect(payload.status).toBe(404);
+    expect(payload.body).toMatchObject({ state: 'unavailable', reason: 'blocked' });
+  });
+
+  it('refuses a repository whose id is not the one that was linked', () => {
+    // Owner/name is a label GitHub lets go: delete `facebook/react` and someone
+    // else may register the slug tomorrow. The project stored the numeric id, so
+    // a card that does not match it is a different repository — not this one.
+    const payload = repoCardPayload(ref, { ok: true, repo: summary }, {
+      source: 'network',
+      fetchedAt: now,
+    }, { repoId: 999 });
+
+    expect(payload.status).toBe(404);
+    expect(payload.body).toMatchObject({ state: 'unavailable', reason: 'not-found' });
+  });
+
+  it('serves the card when the id is the linked one', () => {
+    const payload = repoCardPayload(ref, { ok: true, repo: summary }, {
+      source: 'network',
+      fetchedAt: now,
+    }, { repoId: summary.repoId });
+
+    expect(payload.status).toBe(200);
+    expect(payload.body.state).toBe('ok');
+  });
+
+  it('serves the card when no id was recorded to check against', () => {
+    for (const expected of [undefined, { repoId: undefined }, { repoId: NaN }]) {
+      const payload = repoCardPayload(
+        ref,
+        { ok: true, repo: summary },
+        { source: 'network', fetchedAt: now },
+        expected,
+      );
+      expect(payload.status).toBe(200);
+    }
   });
 
   it.each([

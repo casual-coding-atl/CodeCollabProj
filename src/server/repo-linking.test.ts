@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { linkRepo, unlinkRepo, type LinkableProject, type RepoLinkDeps } from './repo-linking';
+import {
+  linkRepo,
+  matchLinkedRepo,
+  unlinkRepo,
+  type LinkableProject,
+  type RepoLinkDeps,
+} from './repo-linking';
 import { MAX_LINKED_REPOS, type FetchRepoResult, type GitHubRepoSummary } from './github';
 
 /**
@@ -273,5 +279,34 @@ describe('DELETE /api/projects/:id/repos/:repoId', () => {
     const { deps } = fakeDeps({ project: null });
     const answer = await unlinkRepo(deps, { projectId: PROJECT, userId: OWNER, repoId: '9001' });
     expect(answer.status).toBe(404);
+  });
+});
+
+// ── the gate on the public card proxy ────────────────────────────────────────
+
+describe('matchLinkedRepo', () => {
+  const repos = [
+    { repoId: 9001, owner: 'e2e-org', name: 'codecollab-web' },
+    { repoId: 9002, owner: 'Facebook', name: 'React' },
+  ];
+
+  it('finds the repository a ref names, and hands back its stored id', () => {
+    expect(matchLinkedRepo(repos, { owner: 'e2e-org', name: 'codecollab-web' })?.repoId).toBe(9001);
+  });
+
+  it('matches however the visitor cased it — GitHub does not care either', () => {
+    expect(matchLinkedRepo(repos, { owner: 'FACEBOOK', name: 'react' })?.repoId).toBe(9002);
+    expect(matchLinkedRepo(repos, { owner: 'facebook', name: 'REACT' })?.repoId).toBe(9002);
+  });
+
+  it('does not match a repository nothing links', () => {
+    expect(matchLinkedRepo(repos, { owner: 'e2e-org', name: 'codecollab-mobile' })).toBeNull();
+    expect(matchLinkedRepo(repos, { owner: 'someone', name: 'react' })).toBeNull();
+    expect(matchLinkedRepo([], { owner: 'e2e-org', name: 'codecollab-web' })).toBeNull();
+  });
+
+  it('survives a project written before repo ids were numbers', () => {
+    const odd = [{ repoId: '9001' as unknown as number, owner: 'e2e-org', name: 'codecollab-web' }];
+    expect(matchLinkedRepo(odd, { owner: 'e2e-org', name: 'codecollab-web' })?.repoId).toBe('9001');
   });
 });

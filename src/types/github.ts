@@ -23,8 +23,16 @@ export interface RepoCardData {
   htmlUrl: string;
 }
 
-/** Why a repository cannot be described right now, and whether that is permanent. */
-export type RepoCardUnavailableReason = 'not-found' | 'private' | 'blocked';
+/**
+ * Why a repository cannot be described right now, and whether that is permanent.
+ *
+ * There is deliberately no `private`. On this public endpoint, "private" and "no
+ * such repository" are the same answer, word for word — telling them apart would
+ * let anyone walk owner/name pairs and learn which private repositories exist,
+ * using the server's own GitHub token to do it. `blocked` stays distinct because
+ * GitHub says so publicly (a 451), so it reveals nothing.
+ */
+export type RepoCardUnavailableReason = 'not-found' | 'blocked';
 export type RepoCardTemporaryReason = 'rate-limited' | 'unauthorized' | 'unavailable';
 
 interface RepoCardIdentity {

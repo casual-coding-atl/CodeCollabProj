@@ -123,6 +123,10 @@ const projectSchema = new Schema(
   },
   { collection: 'projects', strict: false, timestamps: true },
 );
+// "Is this repository linked to any project?" — asked on every repo-card
+// request, before a single byte goes to GitHub (see findLinkedRepo in
+// ./repo-linking), so it must not be a collection scan.
+projectSchema.index({ 'linkedRepos.owner': 1, 'linkedRepos.name': 1 });
 export type ProjectDoc = InferSchemaType<typeof projectSchema> & { _id: mongoose.Types.ObjectId };
 export const Project: Model<ProjectDoc> =
   (mongoose.models.Project as Model<ProjectDoc>) ??

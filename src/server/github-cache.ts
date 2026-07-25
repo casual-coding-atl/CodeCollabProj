@@ -31,14 +31,36 @@ import { REPO_CARD_FRESHNESS_MS, type RepoCardResponse } from '../types/github';
  *
  * ## What gets stored
  *
- * Only answers GitHub is *sure about*: a 2xx, or a 404 (the repository really
- * is gone, so re-asking on every page view helps nobody). A 403/429/5xx says
- * only that GitHub is busy — storing it would poison the cache with an outage,
- * so those fall back to the stale entry instead.
+ * Every answer is classified before it goes anywhere near the collection
+ * (`classifyRepoAnswer`), because *status alone is not enough*:
  *
- * The decisions (`normalizeCachePath`, `cacheState`, `isCacheable`,
- * `readThrough`, `repoCardPayload`) are pure or dependency-injected, and tested
- * directly in `github-cache.test.ts` with a fake store and a fake upstream.
+ *  - **store** — a 404, or a 2xx whose body is actually a usable repository.
+ *  - **pass** — conclusive, but not ours to keep. A `private: true` body is the
+ *    case: a `GITHUB_TOKEN` that can see private repositories must never leave
+ *    one in a cache that serves every visitor. It is also not a reason to fall
+ *    back to the stale entry, which would be the public snapshot the repository
+ *    had before it was made private.
+ *  - **retryable** — GitHub is busy (403/429/5xx) or sent something unusable (a
+ *    truncated body, a 200 with no id). Neither may overwrite good data, and
+ *    both prefer a stale entry over failing.
+ *
+ * Classifying the *body*, not just the status, is what stops a truncated 200
+ * from replacing a good entry and then being served as fresh for ten minutes.
+ *
+ * ## Known limitation: no single flight
+ *
+ * Concurrent cold misses for the same path each make their own GitHub request;
+ * the last writer wins and the rest are wasted. This is bounded — the proxy
+ * only serves repositories a project actually links, so the herd is the number
+ * of people looking at one project page in the same second — and the fix (a
+ * distributed lease in Mongo, with the failure modes a lock brings) costs more
+ * than the requests it would save. If this ever shows up in the rate-limit
+ * budget, that is the change to make.
+ *
+ * The decisions (`normalizeCachePath`, `cacheState`, `classifyRepoAnswer`,
+ * `cacheEntryFromDoc`, `readThrough`, `repoCardPayload`) are pure or
+ * dependency-injected, and tested directly in `github-cache.test.ts` with a fake
+ * store and a fake upstream.
  */
 
 export { REPO_CARD_FRESHNESS_MS };
@@ -76,6 +98,9 @@ export type CacheState = 'fresh' | 'stale' | 'miss';
 /** Where the answer actually came from. */
 export type CacheSource = 'fresh' | 'stale' | 'network';
 
+/** What to do with an answer from GitHub. See "What gets stored" above. */
+export type AnswerDisposition = 'store' | 'pass' | 'retryable';
+
 export interface CacheStore {
   read(key: string): Promise<CachedResponse | null>;
   write(entry: CachedResponse): Promise<void>;
@@ -103,6 +128,8 @@ export interface ReadThroughOptions {
   now?: Date;
   freshnessMs?: number;
   retentionMs?: number;
+  /** What this kind of answer is worth. Defaults to status alone. */
+  classify?: (answer: UpstreamAnswer) => AnswerDisposition;
 }
 
 // ── the cache key ────────────────────────────────────────────────────────────
@@ -139,9 +166,70 @@ export function cacheState(
   return age < freshnessMs ? 'fresh' : 'stale';
 }
 
-/** Whether an answer is conclusive enough to keep. See "What gets stored" above. */
+/** Whether a status alone is conclusive enough to keep. */
 export function isCacheable(status: number): boolean {
   return (status >= 200 && status < 300) || status === 404;
+}
+
+/** The default: judge an answer by its status. */
+export function classifyByStatus(answer: UpstreamAnswer): AnswerDisposition {
+  return isCacheable(answer.status) ? 'store' : 'retryable';
+}
+
+/**
+ * What a `/repos/{owner}/{name}` answer is worth, judged on the body as well as
+ * the status. See "What gets stored" above for why each case is what it is.
+ */
+export function classifyRepoAnswer(answer: UpstreamAnswer): AnswerDisposition {
+  if (answer.status === 404) return 'store';
+  if (answer.status < 200 || answer.status >= 300) return 'retryable';
+
+  let body: unknown;
+  try {
+    body = JSON.parse(answer.body);
+  } catch {
+    return 'retryable';
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return 'retryable';
+
+  const fields = body as Record<string, unknown>;
+  // Never cached, never a reason to serve stale: see "pass" above.
+  if (fields.private === true) return 'pass';
+
+  // The fields a card cannot be built without. A 200 missing any of them is a
+  // truncated or unexpected body, and must not replace a usable entry.
+  const login = (fields.owner as { login?: unknown } | undefined)?.login;
+  const usable =
+    Number.isFinite(Number(fields.id)) &&
+    typeof fields.name === 'string' &&
+    fields.name !== '' &&
+    typeof login === 'string' &&
+    login !== '';
+  return usable ? 'store' : 'retryable';
+}
+
+/**
+ * A `github_cache` document as this module wants it, or null when the document
+ * cannot be trusted. Anything unreadable — a body that is not text, a status
+ * that is not a number, a timestamp that is not a date — is treated as a cache
+ * miss rather than propagated as a `NaN` status into a response.
+ */
+export function cacheEntryFromDoc(key: string, doc: unknown): CachedResponse | null {
+  if (!doc || typeof doc !== 'object') return null;
+  const row = doc as Record<string, unknown>;
+
+  if (typeof row.body !== 'string') return null;
+  const status = Number(row.status);
+  if (!Number.isFinite(status)) return null;
+
+  const fetchedAt = new Date(row.fetchedAt as string | number | Date);
+  if (Number.isNaN(fetchedAt.getTime())) return null;
+
+  const expires = row.expiresAt ? new Date(row.expiresAt as string | number | Date) : null;
+  const expiresAt =
+    expires && !Number.isNaN(expires.getTime()) ? expires : retentionExpiry(fetchedAt);
+
+  return { path: key, status, body: row.body, fetchedAt, expiresAt };
 }
 
 /** When Mongo may reap an entry fetched at `fetchedAt`. */
@@ -187,27 +275,37 @@ export async function readThrough(path: string, opts: ReadThroughOptions): Promi
     throw cause;
   }
 
-  if (isCacheable(answer.status)) {
-    const entry: CachedResponse = {
-      path: key,
-      status: answer.status,
-      body: answer.body,
-      fetchedAt: now,
-      expiresAt: retentionExpiry(now, opts.retentionMs),
-    };
-    await opts.store.write(entry).catch(() => undefined);
-    return { source: 'network', status: answer.status, body: answer.body, headers: answer.headers ?? JSON_HEADERS, fetchedAt: now };
-  }
-
-  // Rate-limited or erroring: say nothing new, and prefer what we already had.
-  if (cached) return served('stale', cached);
-  return {
+  const fromNetwork: CacheRead = {
     source: 'network',
     status: answer.status,
     body: answer.body,
     headers: answer.headers ?? JSON_HEADERS,
     fetchedAt: now,
   };
+
+  const disposition = (opts.classify ?? classifyByStatus)(answer);
+
+  if (disposition === 'store') {
+    await opts.store
+      .write({
+        path: key,
+        status: answer.status,
+        body: answer.body,
+        fetchedAt: now,
+        expiresAt: retentionExpiry(now, opts.retentionMs),
+      })
+      .catch(() => undefined);
+    return fromNetwork;
+  }
+
+  // Conclusive, but not ours to keep — and not a reason to reach for the stale
+  // entry either (a private repository's public past, for instance).
+  if (disposition === 'pass') return fromNetwork;
+
+  // Rate-limited, erroring or unusable: say nothing new, and prefer what we
+  // already had.
+  if (cached) return served('stale', cached);
+  return fromNetwork;
 }
 
 // ── the Mongo-backed store ───────────────────────────────────────────────────
@@ -216,15 +314,15 @@ export async function readThrough(path: string, opts: ReadThroughOptions): Promi
 export const mongoCacheStore: CacheStore = {
   async read(key) {
     await connectDB();
-    const doc = await GithubCache.findOne({ path: key }).lean().exec();
-    if (!doc || typeof doc.body !== 'string' || !doc.fetchedAt) return null;
-    return {
-      path: key,
-      status: Number(doc.status),
-      body: doc.body,
-      fetchedAt: new Date(doc.fetchedAt),
-      expiresAt: new Date(doc.expiresAt ?? retentionExpiry(new Date(doc.fetchedAt))),
-    };
+    // `expiresAt` is enforced in the query, not left to the TTL index. The
+    // index is a *reaper*, and it can be absent (a restored dump, a replica
+    // built before the index existed) or lag behind by a minute; without this
+    // condition a document from months ago would still come back and be served
+    // as merely "stale".
+    const doc = await GithubCache.findOne({ path: key, expiresAt: { $gt: new Date() } })
+      .lean()
+      .exec();
+    return cacheEntryFromDoc(key, doc);
   },
   async write(entry) {
     await connectDB();
@@ -241,12 +339,19 @@ export const mongoCacheStore: CacheStore = {
  */
 export async function cachedGitHubRequest(
   path: string,
-  opts: { token?: string; store?: CacheStore; freshnessMs?: number; now?: Date } = {},
+  opts: {
+    token?: string;
+    store?: CacheStore;
+    freshnessMs?: number;
+    now?: Date;
+    classify?: (answer: UpstreamAnswer) => AnswerDisposition;
+  } = {},
 ): Promise<{ response: Response; source: CacheSource; fetchedAt: Date }> {
   const read = await readThrough(path, {
     store: opts.store ?? mongoCacheStore,
     freshnessMs: opts.freshnessMs,
     now: opts.now,
+    classify: opts.classify,
     fetch: async () => {
       const response = await githubRequest(path, { token: opts.token });
       const headers: Record<string, string> = {};
@@ -295,6 +400,9 @@ export async function fetchRepoCard(
         token: requestOpts.token,
         store: opts.store,
         freshnessMs: opts.freshnessMs,
+        // Judge the body, not just the status: a private repository is never
+        // stored, and a truncated 200 never replaces a usable entry.
+        classify: classifyRepoAnswer,
       });
       source = read.source;
       fetchedAt = read.fetchedAt;
@@ -308,21 +416,58 @@ export async function fetchRepoCard(
 // ── the answer the card is served ────────────────────────────────────────────
 
 /**
+ * The one thing the public card path ever says about a repository it will not
+ * show: the same sentence whether the repository was deleted, was never linked
+ * here, or is private. Deliberately identical, so nobody can walk owner/name
+ * pairs against this endpoint and learn which private repositories exist —
+ * enumeration the server's own `GITHUB_TOKEN` would be paying for.
+ */
+export function unavailableMessage(ref: RepoRef): string {
+  return `GitHub has no public repository at ${ref.owner}/${ref.name}. It may be private, renamed or deleted.`;
+}
+
+/** The unavailable answer, for the route to reuse before it reads anything. */
+export function unavailablePayload(ref: RepoRef): { status: number; body: RepoCardResponse } {
+  return {
+    status: 404,
+    body: {
+      owner: ref.owner,
+      name: ref.name,
+      state: 'unavailable',
+      reason: 'not-found',
+      message: unavailableMessage(ref),
+    },
+  };
+}
+
+/**
  * What the proxy route answers, as a status and a body: the same typed union in
  * every case (see `src/types/github.ts`), so the card component has one shape to
  * render and never has to interpret an HTTP error itself.
  *
- * A repository that is gone or private is a 404 — permanently unavailable, and
- * the card says so. Everything else is temporary: 503 when GitHub is rate
- * limiting (the status that means "come back later"), 502 when it answered in a
- * way this server could not use.
+ * A repository that is gone, private or never linked is a 404 — all three
+ * spelled identically (see `unavailableMessage`). A repository GitHub has
+ * blocked is its own reason, because that is public knowledge and tells nobody
+ * anything they could not read on GitHub itself. Everything else is temporary:
+ * 503 when GitHub is rate limiting (the status that means "come back later"),
+ * 502 when it answered in a way this server could not use.
+ *
+ * `expected.repoId` is the numeric id the project linked. Owner/name is a label
+ * GitHub lets go — delete a repository and the slug can be registered by
+ * somebody else — so a card whose id is not the linked one is a *different*
+ * repository, and is refused rather than rendered under this project.
  */
 export function repoCardPayload(
   ref: RepoRef,
   result: FetchRepoResult,
   meta: { source: CacheSource; fetchedAt: Date },
+  expected?: { repoId?: number },
 ): { status: number; body: RepoCardResponse } {
   if (result.ok) {
+    const linkedId = Number(expected?.repoId);
+    if (Number.isFinite(linkedId) && Number(result.repo.repoId) !== linkedId) {
+      return unavailablePayload(ref);
+    }
     return {
       status: 200,
       body: {
@@ -338,10 +483,14 @@ export function repoCardPayload(
 
   const identity = { owner: ref.owner, name: ref.name };
 
-  if (result.reason === 'not-found' || result.reason === 'private' || result.reason === 'blocked') {
+  if (result.reason === 'not-found' || result.reason === 'private') {
+    return unavailablePayload(ref);
+  }
+
+  if (result.reason === 'blocked') {
     return {
       status: 404,
-      body: { ...identity, state: 'unavailable', reason: result.reason, message: result.message },
+      body: { ...identity, state: 'unavailable', reason: 'blocked', message: result.message },
     };
   }
 
