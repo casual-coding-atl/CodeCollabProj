@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
 import logger from './logger';
+import { queryClient, queryKeys } from '../config/queryClient';
 
 /**
  * The app's HTTP client for the in-process `/api` routes.
@@ -7,9 +8,16 @@ import logger from './logger';
  * Authentication is entirely Better Auth's httpOnly session cookie (ADR 0002),
  * which the browser attaches on its own — hence `withCredentials` and nothing
  * else. There is no Authorization header to set, no access token to read and no
- * refresh dance to orchestrate: when a session ends, the server says 401 and
- * the calling hook decides what to show. (The previous interceptor pair chased
- * `/auth/refresh-token`, an endpoint that no longer exists.)
+ * refresh dance to orchestrate: when a session ends, the server says 401.
+ * (The previous interceptor pair chased `/auth/refresh-token`, an endpoint that
+ * no longer exists.)
+ *
+ * A 401 is, however, news: the API has just told us this browser's session is
+ * no longer good — revoked from another device, suspended by a moderator, or
+ * simply expired — while the cached answer to "who is signed in?" may be up to
+ * five minutes old and still says otherwise. So a 401 invalidates that query,
+ * and the guards act on the truth on the next render instead of leaving the
+ * member in a UI they can no longer use.
  */
 
 /**
@@ -42,6 +50,12 @@ api.interceptors.response.use(
       isNetworkError: !error?.response,
     });
 
+    if (status === 401) {
+      // Re-ask Better Auth who we are. If the session really is gone the query
+      // resolves to null and the route guards take over; if the 401 was about
+      // this one endpoint, nothing changes.
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.currentUser() });
+    }
     if (status === 403) {
       logger.warn('🚫 Access forbidden - insufficient permissions');
     }

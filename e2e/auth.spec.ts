@@ -11,6 +11,8 @@ import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 
 const EMAIL = process.env.E2E_EMAIL || 'e2e@codecollab.test';
 const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
+const EMAIL2 = process.env.E2E_EMAIL2 || 'e2e2@codecollab.test';
+const PASSWORD2 = process.env.E2E_PASSWORD2 || 'e2e-password-123';
 
 /** Better Auth's session cookie — the only auth credential in the browser. */
 const SESSION_COOKIE = 'better-auth.session_token';
@@ -24,11 +26,29 @@ function throwaway(tag: string): { email: string; username: string } {
   return { email: `e2e-register-${tag}-${id}@codecollab.test`, username: `e2e_${tag}_${id}` };
 }
 
+/**
+ * Load a page and wait until React has taken it over.
+ *
+ * The markup arrives server-rendered, so a form is on screen and fillable well
+ * before any click handler is attached — submit in that window and the browser
+ * does a native GET, putting the password in the URL and going nowhere. The
+ * signal used here is the session check: `useAuth` fires `GET
+ * /api/auth/get-session` from an effect, so seeing that request means effects
+ * have run and the tree is interactive. Subscribing before `goto` avoids racing
+ * a response that lands first. (This replaces a fixed 600ms sleep, which was
+ * either too long or — under parallel load — not long enough.)
+ */
+async function gotoHydrated(page: Page, path: string): Promise<void> {
+  const hydrated = page.waitForResponse(
+    (res) => res.url().includes('/api/auth/get-session'),
+    { timeout: 20_000 }
+  );
+  await page.goto(path);
+  await hydrated;
+}
+
 async function signInThroughTheForm(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.waitForLoadState('load');
-  await page.locator('input[name="email"]').waitFor({ timeout: 15_000 });
-  await page.waitForTimeout(600); // allow hydration before interacting
+  await gotoHydrated(page, '/login');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await Promise.all([
@@ -74,15 +94,16 @@ test.describe('sign in', () => {
   });
 
   test('a wrong password is refused, with a message and no session', async ({ page, context }) => {
-    await page.goto('/login');
-    await page.waitForLoadState('load');
-    await page.locator('input[name="email"]').waitFor({ timeout: 15_000 });
-    await page.waitForTimeout(600);
+    await gotoHydrated(page, '/login');
     await page.fill('input[name="email"]', EMAIL);
     await page.fill('input[name="password"]', 'definitely-not-the-password');
     await page.click('button[type="submit"]');
 
-    await expect(page.getByRole('alert')).toBeVisible({ timeout: 10_000 });
+    // The member is told what went wrong, in Better Auth's words — asserting on
+    // "some alert appeared" would pass just as happily on a 500.
+    await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i, {
+      timeout: 10_000,
+    });
     await expect(page).toHaveURL(/\/login/);
     expect(await sessionCookie(context)).toBeFalsy();
   });
@@ -109,16 +130,38 @@ test.describe('sign out', () => {
     await page.goto('/security');
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
   });
+
+  test('leaves nothing of the departing member for the next one', async ({ page }) => {
+    // The first member's inbox holds a seeded message. Read it, so it is
+    // definitely in the query cache.
+    await signInThroughTheForm(page, EMAIL, PASSWORD);
+    await page.goto('/messages');
+    await expect(page.getByText('E2E seeded message').first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole('button', { name: /account menu/i }).click();
+    await Promise.all([
+      page.waitForURL('**/login', { timeout: 15_000 }),
+      page.getByTestId('logout-button').click(),
+    ]);
+
+    // Sign in as somebody else in the same tab. Their inbox is empty, and the
+    // previous member's message must not be served to them out of a cache that
+    // outlived the sign-out — which is exactly what happened while logout only
+    // cleared the auth, projects and users query families.
+    await signInThroughTheForm(page, EMAIL2, PASSWORD2);
+    await page.goto('/messages');
+    await expect(page.getByRole('heading', { name: /messages/i }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('E2E seeded message')).toHaveCount(0);
+  });
 });
 
 test.describe('register', () => {
   test('a new member signs up and lands on their dashboard', async ({ page, context }) => {
     const who = throwaway('form');
 
-    await page.goto('/register');
-    await page.waitForLoadState('load');
-    await page.locator('input[name="username"]').waitFor({ timeout: 15_000 });
-    await page.waitForTimeout(600); // allow hydration before interacting
+    await gotoHydrated(page, '/register');
 
     await page.fill('input[name="username"]', who.username);
     await page.fill('input[name="email"]', who.email);
@@ -236,10 +279,14 @@ test.describe('passkeys', () => {
       page.getByTestId('logout-button').click(),
     ]);
 
-    await page.waitForTimeout(600); // allow hydration before interacting
+    // The passkey button is rendered only after the WebAuthn-support effect has
+    // run, so waiting for it to appear *is* waiting for the page to be
+    // interactive — no sleep required.
+    const passkeyButton = page.getByTestId('passkey-signin');
+    await expect(passkeyButton).toBeVisible({ timeout: 15_000 });
     await Promise.all([
       page.waitForURL('**/dashboard', { timeout: 20_000 }),
-      page.getByTestId('passkey-signin').click(),
+      passkeyButton.click(),
     ]);
     expect(await sessionCookie(context)).toBeTruthy();
 

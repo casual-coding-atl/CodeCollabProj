@@ -55,13 +55,11 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Global error handler for queries
-queryClient.setMutationDefaults(['auth'], {
-  mutationFn: async (_variables: unknown): Promise<never> => {
-    // Custom logic for auth mutations can go here
-    throw new Error('Mutation function not implemented');
-  },
-});
+// (There used to be a `setMutationDefaults(['auth'], …)` here whose default
+// mutationFn threw "Mutation function not implemented". Every auth mutation
+// supplies its own mutationFn, so it never fired — but it was a live trap: any
+// auth mutation that ever omitted one, or was resumed from a paused/offline
+// state, would have thrown that instead of running.)
 
 // Query key factory for consistent cache keys
 export const queryKeys = {

@@ -14,7 +14,10 @@ export interface UseAuthReturn {
   // Loading states
   isLoading: boolean;
 
-  // Error states
+  /**
+   * The session check failed — a fault, not an answer. Distinct from
+   * `!isAuthenticated`, which means the server said nobody is signed in.
+   */
   error: Error | null;
   isError: boolean;
 
@@ -23,8 +26,6 @@ export interface UseAuthReturn {
 
   // Functions
   refetch: () => void;
-  logout: () => Promise<void>;
-  logoutAll: () => Promise<void>;
 
   // Helper functions
   hasRole: (role: UserRole) => boolean;
@@ -39,6 +40,11 @@ export interface UseAuthReturn {
  * reached with the httpOnly session cookie the browser sends on its own. There
  * is no token in JavaScript to inspect, refresh or clear — and an anonymous
  * visitor resolves to `null` rather than to a 401 the UI has to swallow.
+ *
+ * Deliberately read-only: there is no `logout` here. Signing out is more than
+ * an HTTP call — every cache holding the departing member's data has to go with
+ * it — so it lives in `useLogout`, which owns that. Handing out the raw service
+ * method from here invited callers to sign out and leave the caches behind.
  */
 export const useAuth = (): UseAuthReturn => {
   const {
@@ -56,7 +62,10 @@ export const useAuth = (): UseAuthReturn => {
     retry: (failureCount) => failureCount < 2,
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false,
+    // A session can end while the tab sits in the background — revoked from
+    // another device, suspended by a moderator, a role taken away. Coming back
+    // to the tab re-asks rather than trusting a five-minute-old answer.
+    refetchOnWindowFocus: true,
     refetchOnReconnect: true, // Revalidate the session on reconnect
     refetchInterval: false,
   });
@@ -78,8 +87,6 @@ export const useAuth = (): UseAuthReturn => {
 
     // Functions
     refetch,
-    logout: authService.logout,
-    logoutAll: authService.logoutAll,
 
     // Helper functions
     hasRole: (role: UserRole): boolean => user?.role === role,

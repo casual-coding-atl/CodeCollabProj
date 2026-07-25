@@ -14,6 +14,11 @@ export interface UseSessionsReturn {
 
   // Loading states
   isLoading: boolean;
+  /**
+   * False until we know which row is this browser. Until then no row can be
+   * safely offered for revocation — see `useSessions`.
+   */
+  isCurrentSessionKnown: boolean;
 
   // Error states
   error: AuthError | null;
@@ -23,8 +28,6 @@ export interface UseSessionsReturn {
   refetch: () => void;
   revokeSession: UseMutationResult<void, AuthError, string>;
   revokeOtherSessions: UseMutationResult<void, AuthError, void>;
-  logoutAll: () => void;
-  isLoggingOutAll: boolean;
 
   // Helper functions
   getCurrentSession: () => AuthSession | undefined;
@@ -37,8 +40,11 @@ export interface UseSessionsReturn {
  * two things they can do about them: revoke one, or revoke all the others.
  *
  * `list-sessions` doesn't flag which row is this browser, so the current
- * session is fetched alongside and matched by id — that's what keeps the UI
- * from offering to revoke the session you're using.
+ * session is fetched alongside and matched by id. The two queries settle
+ * independently, which is why `isCurrentSessionKnown` exists: in the window
+ * before the current-session answer lands, *every* row looks like someone
+ * else's, and the UI would cheerfully offer a Revoke button for the session the
+ * member is sitting in. Callers must not render revocation until it is true.
  */
 export const useSessions = (): UseSessionsReturn => {
   const queryClient = useQueryClient();
@@ -56,7 +62,10 @@ export const useSessions = (): UseSessionsReturn => {
     retry: (failureCount, err) => (err?.status === 401 ? false : failureCount < 2),
   });
 
-  const { data: currentSession } = useQuery<AuthSession | null, AuthError>({
+  const { data: currentSession, isSuccess: currentSessionKnown } = useQuery<
+    AuthSession | null,
+    AuthError
+  >({
     queryKey: queryKeys.auth.currentSession(),
     queryFn: authService.getCurrentSession,
     staleTime: 5 * 60 * 1000,
@@ -68,23 +77,16 @@ export const useSessions = (): UseSessionsReturn => {
 
   const revokeSession = useMutation<void, AuthError, string>({
     mutationFn: (token: string) => authService.revokeSession(token),
+    retry: 0,
     onSuccess: invalidate,
     onError: (err) => logger.warn('Revoking a session failed:', err.message),
   });
 
   const revokeOtherSessions = useMutation<void, AuthError, void>({
     mutationFn: () => authService.revokeOtherSessions(),
+    retry: 0,
     onSuccess: invalidate,
     onError: (err) => logger.warn('Revoking other sessions failed:', err.message),
-  });
-
-  const logoutAllMutation = useMutation<void, AuthError, void>({
-    mutationFn: authService.logoutAll,
-    onSuccess: () => queryClient.clear(),
-    onError: (err) => {
-      logger.warn('Logout from all devices failed:', err.message);
-      queryClient.clear();
-    },
   });
 
   const isCurrentSession = (session: AuthSession): boolean =>
@@ -95,6 +97,7 @@ export const useSessions = (): UseSessionsReturn => {
     sessionCount: sessions?.length || 0,
 
     isLoading,
+    isCurrentSessionKnown: currentSessionKnown,
 
     error: (error as AuthError | null) ?? null,
     isError,
@@ -102,8 +105,6 @@ export const useSessions = (): UseSessionsReturn => {
     refetch,
     revokeSession,
     revokeOtherSessions,
-    logoutAll: logoutAllMutation.mutate,
-    isLoggingOutAll: logoutAllMutation.isPending,
 
     getCurrentSession: () => sessions?.find(isCurrentSession),
     getOtherSessions: () => (sessions || []).filter((s) => !isCurrentSession(s)),

@@ -15,9 +15,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth, useRegister } from '../../hooks/auth';
+import { passwordSchema } from '@/lib/passwordPolicy';
 
-// Mirrors the previous inline validation and the server policy (8+ chars with
-// upper, lower, digit, and special character).
 const registerSchema = z
   .object({
     username: z
@@ -28,13 +27,7 @@ const registerSchema = z
       .string()
       .min(1, 'Email is required')
       .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
-    password: z
-      .string()
-      .min(1, 'Password is required')
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
-        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character'
-      ),
+    password: passwordSchema(),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
@@ -108,7 +101,10 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      {/* autoComplete tells the password manager which field is
+                          which, so it offers to save the new credentials instead
+                          of guessing or staying silent. */}
+                      <Input autoComplete="username" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -122,7 +118,7 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" {...field} />
+                      <Input type="email" autoComplete="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +132,12 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" data-testid="password-input" {...field} />
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        data-testid="password-input"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage data-testid="password-error" />
                   </FormItem>
@@ -150,7 +151,7 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" autoComplete="new-password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

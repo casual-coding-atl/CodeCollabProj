@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useChangePassword } from '../../hooks/auth/useChangePassword';
+import { passwordSchema } from '@/lib/passwordPolicy';
 
 /**
  * Change password, for a member who knows their current one.
@@ -25,18 +26,10 @@ import { useChangePassword } from '../../hooks/auth/useChangePassword';
  * you want after a password you suspect has leaked.
  */
 
-// Mirrors the server policy (Better Auth's minPasswordLength is 8) and the
-// strength rule the register form applies.
 const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z
-      .string()
-      .min(1, 'New password is required')
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
-        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character'
-      ),
+    newPassword: passwordSchema('New password is required'),
     confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
   .refine((data) => data.newPassword !== data.currentPassword, {

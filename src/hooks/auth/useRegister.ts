@@ -9,16 +9,20 @@ import type { RegisterData } from '../../types';
  * Register a new member (`POST /api/auth/sign-up/email`).
  *
  * Better Auth signs the new member in as part of sign-up (`autoSignIn`), so the
- * returned user is seeded into the current-user cache exactly as after a login.
+ * cache is emptied and re-seeded exactly as after a login — a browser that was
+ * showing someone else's data a moment ago must not still be showing it.
  */
 export const useRegister = (): UseMutationResult<AppUser, AuthError, RegisterData> => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: authService.register,
+    // Never retry: the second attempt hits "email already taken" and reports
+    // that instead of whatever actually went wrong with the first.
+    retry: 0,
     onSuccess: (user) => {
+      queryClient.clear();
       queryClient.setQueryData(queryKeys.auth.currentUser(), user);
-      queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
     },
     onError: (error) => {
       logger.warn('Registration failed:', error.message);

@@ -1,31 +1,31 @@
 import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { authService } from '../../services/authService';
-import { queryKeys } from '../../config/queryClient';
 import { AuthError } from '../../lib/auth-client';
 import logger from '../../utils/logger';
 
 /**
- * Sign out of this device (`POST /api/auth/sign-out`). Better Auth clears the
- * session cookie; we drop every cache that was scoped to the member so the next
- * render can't show their data.
+ * Sign out of this device (`POST /api/auth/sign-out`).
+ *
+ * Better Auth clears the session cookie; the whole query cache goes with it.
+ * Not the auth keys, not "auth plus projects plus users" — everything. A cache
+ * entry is only ever an answer the server gave *this member*, and the next
+ * person to use this browser is entitled to none of them: notifications, unread
+ * message counts and admin user lists all survived the previous, narrower
+ * clearing and were served straight to whoever signed in next.
  */
 export const useLogout = (): UseMutationResult<void, AuthError, void> => {
   const queryClient = useQueryClient();
 
-  const clearMemberCaches = (): void => {
-    queryClient.removeQueries({ queryKey: queryKeys.auth.all });
-    queryClient.removeQueries({ queryKey: queryKeys.projects.all });
-    queryClient.removeQueries({ queryKey: queryKeys.users.all });
-  };
-
   return useMutation({
     mutationFn: authService.logout,
-    onSuccess: clearMemberCaches,
+    retry: 0,
+    onSuccess: () => queryClient.clear(),
     onError: (error) => {
       // The cookie may already be gone (expired or revoked elsewhere) — from the
-      // member's point of view they are signed out either way.
+      // member's point of view they are signed out either way, so the caches go
+      // regardless.
       logger.warn('Logout failed:', error.message);
-      clearMemberCaches();
+      queryClient.clear();
     },
   });
 };
@@ -39,6 +39,7 @@ export const useLogoutAll = (): UseMutationResult<void, AuthError, void> => {
 
   return useMutation({
     mutationFn: authService.logoutAll,
+    retry: 0,
     onSuccess: () => queryClient.clear(),
     onError: (error) => {
       logger.warn('Logout from all devices failed:', error.message);

@@ -34,6 +34,7 @@ const SessionManager: React.FC = () => {
     sessions,
     sessionCount,
     isLoading,
+    isCurrentSessionKnown,
     error,
     refetch,
     revokeSession,
@@ -41,7 +42,12 @@ const SessionManager: React.FC = () => {
     isCurrentSession,
   } = useSessions();
 
-  const otherCount = sessions.filter((s) => !isCurrentSession(s)).length;
+  // Until we know which row is this browser, every row looks like someone
+  // else's — offering revocation then would let a member sign themselves out
+  // from a list that had not yet worked out where they were sitting.
+  const otherCount = isCurrentSessionKnown
+    ? sessions.filter((s) => !isCurrentSession(s)).length
+    : 0;
 
   return (
     <Card data-testid="session-manager">
@@ -71,7 +77,10 @@ const SessionManager: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {isLoading && (
+        {/* Held back until BOTH answers are in: the list, and which row is this
+            browser. Rendering on the list alone flashes rows that all look
+            revocable, including the member's own. */}
+        {(isLoading || !isCurrentSessionKnown) && !error && (
           <>
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
@@ -90,13 +99,14 @@ const SessionManager: React.FC = () => {
           </div>
         )}
 
-        {!isLoading && !error && sessionCount === 0 && (
+        {!isLoading && isCurrentSessionKnown && !error && sessionCount === 0 && (
           <p className="py-6 text-center text-sm text-muted-foreground">
             No active sessions to show.
           </p>
         )}
 
         {!isLoading &&
+          isCurrentSessionKnown &&
           !error &&
           sessions.map((session: AuthSession) => {
             const device = describeUserAgent(session.userAgent);

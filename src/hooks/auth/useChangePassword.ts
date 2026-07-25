@@ -16,6 +16,10 @@ export const useChangePassword = (): UseMutationResult<void, AuthError, Password
 
   return useMutation({
     mutationFn: authService.changePassword,
+    // Never retry: a retried change posts the same current password twice at
+    // any rate limit, and the second attempt would fail against the password it
+    // just changed.
+    retry: 0,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
     },

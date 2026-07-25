@@ -1,13 +1,15 @@
 import {
   authClient,
   toAppUser,
+  toAuthError,
   unwrap,
   unwrapVoid,
+  type AuthenticatedMember,
   type AuthSession,
   type Passkey,
   type SessionUser,
 } from '../lib/auth-client';
-import type { LoginCredentials, RegisterData, User } from '../types';
+import type { LoginCredentials, RegisterData } from '../types';
 
 /**
  * The app's auth operations, expressed over Better Auth (ADR 0002).
@@ -21,7 +23,7 @@ import type { LoginCredentials, RegisterData, User } from '../types';
  */
 
 /** The user as the rest of the app consumes it (`_id` alongside `id`). */
-export type AppUser = User & { _id: string };
+export type AppUser = AuthenticatedMember;
 
 export interface PasswordChangeData {
   currentPassword: string;
@@ -89,26 +91,37 @@ export const authService: AuthServiceInterface = {
   loginWithPasskey: async (): Promise<AppUser> => {
     const data = await unwrap(authClient.signIn.passkey());
     if (!data?.user) {
-      throw new Error('Passkey sign-in did not return a session');
+      throw toAuthError({ message: 'Passkey sign-in did not return a session', status: 500 });
     }
     return toAppUser(data.user as SessionUser);
   },
 
-  /** The signed-in member, or null when there is no session (not an error). */
+  /**
+   * The signed-in member, or `null` when nobody is.
+   *
+   * Only an *answered* "no session" is null. A 500, a dropped connection or a
+   * proxy error throws, because the difference matters: treating a fault as
+   * "signed out" would cache an anonymous answer for the whole staleTime and
+   * throw a perfectly valid member out of every guarded page until it expired.
+   * Better Auth answers an anonymous request with 200 and a null body, so the
+   * two really are distinguishable.
+   */
   getCurrentUser: async (): Promise<AppUser | null> => {
     const { data, error } = await authClient.getSession();
-    if (error || !data?.user) return null;
-    return toAppUser(data.user as SessionUser);
+    if (error) throw toAuthError(error);
+    return data?.user ? toAppUser(data.user as SessionUser) : null;
   },
 
   /**
    * This browser's session row, so the sessions list can mark which one the
-   * member is looking at (`list-sessions` doesn't say).
+   * member is looking at (`list-sessions` doesn't say). Faults throw here for
+   * the same reason: a silent null would leave every row unlabelled and offer
+   * to revoke the session the member is sitting in.
    */
   getCurrentSession: async (): Promise<AuthSession | null> => {
     const { data, error } = await authClient.getSession();
-    if (error || !data?.session) return null;
-    return data.session as AuthSession;
+    if (error) throw toAuthError(error);
+    return (data?.session as AuthSession | undefined) ?? null;
   },
 
   logout: async (): Promise<void> => {
@@ -171,19 +184,17 @@ export const authService: AuthServiceInterface = {
     return unwrap(authClient.passkey.listUserPasskeys()) as Promise<Passkey[]>;
   },
 
-  /** Prompts the authenticator; a cancelled prompt rejects. */
+  /**
+   * Prompts the authenticator; a cancelled prompt rejects with the same
+   * `AuthError` shape as every other failure here (callers read `.code` to tell
+   * a cancellation from a real fault). `addPasskey` resolves to a bare
+   * `{ error }` rather than going through `unwrap`, because on success its
+   * payload is the new passkey, which nothing needs — the list is refetched.
+   */
   addPasskey: async (name?: string): Promise<void> => {
     const res = await authClient.passkey.addPasskey(name ? { name } : undefined);
     if (res?.error) {
-      const { message, statusText, status, code } = res.error as {
-        message?: string;
-        statusText?: string;
-        status?: number;
-        code?: string;
-      };
-      const err = new Error(message || statusText || 'Could not register a passkey');
-      Object.assign(err, { status, code });
-      throw err;
+      throw toAuthError({ ...res.error, message: res.error.message || 'Could not add a passkey' });
     }
   },
 

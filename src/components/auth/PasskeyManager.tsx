@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { KeyRound, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useAddPasskey, useDeletePasskey, usePasskeys } from '../../hooks/auth';
-import type { Passkey } from '@/lib/auth-client';
+import { isPasskeyCancellation, supportsPasskeys, type Passkey } from '@/lib/auth-client';
 
 /**
  * Passkey registration and management.
@@ -43,13 +43,24 @@ const PasskeyManager: React.FC = () => {
   const deletePasskey = useDeletePasskey();
   const [name, setName] = useState('');
 
+  // Whether this browser does WebAuthn at all, decided after mount: the server
+  // can't know, and branching on it during render would hydrate into different
+  // markup than was sent.
+  const [canAddPasskeys, setCanAddPasskeys] = useState(false);
+  useEffect(() => setCanAddPasskeys(supportsPasskeys()), []);
+
   const handleAdd = (): void => {
     addPasskey.mutate(name.trim() || undefined, {
       onSuccess: () => {
         setName('');
         toast.success('Passkey added');
       },
-      onError: (error) => toast.error(error.message || 'Could not add a passkey'),
+      onError: (error) => {
+        // Dismissing the system prompt is a decision, not a failure. Shouting
+        // "Could not add a passkey" at someone who pressed Escape is noise.
+        if (isPasskeyCancellation(error)) return;
+        toast.error(error.message || 'Could not add a passkey');
+      },
     });
   };
 
@@ -71,26 +82,34 @@ const PasskeyManager: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="passkey-name">Name (optional)</Label>
-            <Input
-              id="passkey-name"
-              data-testid="passkey-name"
-              placeholder="Work laptop"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
+        {canAddPasskeys ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="passkey-name">Name (optional)</Label>
+              <Input
+                id="passkey-name"
+                data-testid="passkey-name"
+                placeholder="Work laptop"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <Button data-testid="add-passkey" onClick={handleAdd} disabled={addPasskey.isPending}>
+              {addPasskey.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <KeyRound className="size-4" />
+              )}
+              Add a passkey
+            </Button>
           </div>
-          <Button data-testid="add-passkey" onClick={handleAdd} disabled={addPasskey.isPending}>
-            {addPasskey.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <KeyRound className="size-4" />
-            )}
-            Add a passkey
-          </Button>
-        </div>
+        ) : (
+          // No point offering a button that can only fail. Any passkeys already
+          // registered still list below, so they can be removed from here too.
+          <p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            This browser doesn&apos;t support passkeys, so you can&apos;t add one here.
+          </p>
+        )}
 
         {isLoading && <Skeleton className="h-14 w-full" />}
 

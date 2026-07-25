@@ -2,7 +2,7 @@ import { createAuthClient } from 'better-auth/react';
 import { inferAdditionalFields } from 'better-auth/client/plugins';
 import { passkeyClient } from '@better-auth/passkey/client';
 import type { Auth } from '../server/auth';
-import type { Permission, User, UserRole } from '../types';
+import type { Permission, UserRole } from '../types';
 
 /**
  * The browser's half of Better Auth (ADR 0002).
@@ -63,7 +63,7 @@ export class AuthError extends Error {
   }
 }
 
-type AuthFailure = {
+export type AuthFailure = {
   message?: string;
   status?: number;
   statusText?: string;
@@ -72,8 +72,9 @@ type AuthFailure = {
 
 type AuthResult<T> = { data: T | null; error?: AuthFailure };
 
-function fail(error: NonNullable<AuthFailure>): never {
-  throw new AuthError(
+/** Reshape one of Better Auth's `error` objects into the app's `AuthError`. */
+export function toAuthError(error: NonNullable<AuthFailure>): AuthError {
+  return new AuthError(
     error.message || error.statusText || 'Request failed',
     error.status ?? 500,
     error.code
@@ -83,42 +84,96 @@ function fail(error: NonNullable<AuthFailure>): never {
 /** Resolve a Better Auth call to its data, or reject with an `AuthError`. */
 export async function unwrap<T>(call: Promise<AuthResult<T>>): Promise<T> {
   const res = await call;
-  if (res.error) fail(res.error);
+  if (res.error) throw toAuthError(res.error);
   return res.data as T;
 }
 
 /** Same, for endpoints whose success payload is empty (sign-out, revoke, …). */
 export async function unwrapVoid(call: Promise<AuthResult<unknown>>): Promise<void> {
   const res = await call;
-  if (res.error) fail(res.error);
+  if (res.error) throw toAuthError(res.error);
+}
+
+// ── WebAuthn ─────────────────────────────────────────────────────────────────
+
+/**
+ * Whether this browser can do WebAuthn at all. Called from an effect, never
+ * during render: the server can't know, and branching on it while rendering
+ * would produce markup that doesn't match the hydrated tree.
+ */
+export function supportsPasskeys(): boolean {
+  return !import.meta.env.SSR && typeof window.PublicKeyCredential === 'function';
+}
+
+/**
+ * A member dismissing the system passkey prompt is not a failure — it's them
+ * changing their mind, and it must not raise an error toast at someone who
+ * pressed Escape on purpose. Better Auth reports both its own `AUTH_CANCELLED`
+ * and SimpleWebAuthn's ceremony codes, which is what a `NotAllowedError` from
+ * `navigator.credentials` becomes.
+ */
+const CANCELLATION_CODES = new Set([
+  'AUTH_CANCELLED',
+  'REGISTRATION_CANCELLED',
+  'ERROR_CEREMONY_ABORTED',
+  'NotAllowedError',
+  'AbortError',
+]);
+
+export function isPasskeyCancellation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { code, name, message } = error as { code?: string; name?: string; message?: string };
+  if (code && CANCELLATION_CODES.has(code)) return true;
+  if (name && CANCELLATION_CODES.has(name)) return true;
+  return /NotAllowedError|aborted|cancell?ed/i.test(message ?? '');
 }
 
 // ── user shape ───────────────────────────────────────────────────────────────
 
 /**
- * Map a Better Auth session user onto the app's `User`. Components read both
- * `id` and `_id` (Mongo's spelling, which the rest of the API returns), so both
- * are populated from the one identifier Better Auth gives us.
+ * Who the browser believes is signed in.
+ *
+ * Deliberately NOT the app's full `User`: a session carries identity and
+ * authorization, not a profile. The earlier shape padded out `skills`,
+ * `experience`, `availability` and friends with invented defaults so it could
+ * claim to be a `User`, which meant any component reading them off `useAuth()`
+ * silently got fiction instead of the member's actual profile. Those fields
+ * belong to `useMyProfile()` / `/api/users/profile/me`, and are absent here so
+ * the type system says so.
  */
-export function toAppUser(user: SessionUser): User & { _id: string } {
+export interface AuthenticatedMember {
+  /** Better Auth's id. `_id` is the same value under Mongo's spelling, which
+   *  the rest of the API returns — components read whichever they know. */
+  id: string;
+  _id: string;
+  email: string;
+  username: string;
+  /** Better Auth's display name; the migration backfilled it from `username`. */
+  name: string;
+  profileImage?: string;
+  role: UserRole;
+  permissions: Permission[];
+  isActive: boolean;
+  isSuspended: boolean;
+  isEmailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Map a Better Auth session user onto the shape the app's components read. */
+export function toAppUser(user: SessionUser): AuthenticatedMember {
   return {
     id: user.id,
     _id: user.id,
     email: user.email,
     username: user.username || user.name || user.email,
+    name: user.name || user.username || user.email,
     profileImage: user.image ?? undefined,
     role: (user.role as UserRole) || 'user',
     permissions: (user.permissions as Permission[]) || [],
     isActive: user.isActive !== false,
     isSuspended: user.isSuspended === true,
     isEmailVerified: user.emailVerified,
-    // Fields the session doesn't carry — the profile endpoints own them.
-    skills: [],
-    experience: 'beginner',
-    availability: 'flexible',
-    portfolioLinks: [],
-    socialLinks: {},
-    isProfilePublic: true,
     createdAt: new Date(user.createdAt).toISOString(),
     updatedAt: new Date(user.updatedAt).toISOString(),
   };

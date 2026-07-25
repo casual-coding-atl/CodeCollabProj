@@ -6,19 +6,25 @@ import logger from '../../utils/logger';
 /**
  * Password reset and email verification, over Better Auth.
  *
- * There is deliberately no "is this reset token valid?" hook any more: Better
- * Auth has no such endpoint and validates the token when the new password is
- * submitted, so the reset page no longer pre-flights it.
+ * None of these retry. Every one of them is single-use or rate-limited at the
+ * far end: a reset token is consumed by the first attempt, so a silent retry
+ * fails against a token the first try just spent and reports "invalid token" for
+ * a reset that actually worked; a resend sends a second email.
+ *
+ * There is deliberately no "is this reset token valid?" hook: Better Auth has no
+ * such endpoint and validates the token when the new password is submitted, so
+ * the reset page no longer pre-flights it.
  */
 
 interface MessageResponse {
   message: string;
 }
 
-/** `POST /api/auth/forget-password` — emails a reset link. */
+/** `POST /api/auth/request-password-reset` — emails a reset link. */
 export const useRequestPasswordReset = (): UseMutationResult<MessageResponse, AuthError, string> =>
   useMutation({
     mutationFn: authService.requestPasswordReset,
+    retry: 0,
     onError: (error) => logger.warn('Password reset request failed:', error.message),
   });
 
@@ -30,6 +36,7 @@ export const useResetPassword = (): UseMutationResult<
 > =>
   useMutation({
     mutationFn: authService.resetPassword,
+    retry: 0,
     onError: (error) => logger.warn('Password reset failed:', error.message),
   });
 
@@ -41,6 +48,7 @@ export const useResendVerificationEmail = (): UseMutationResult<
 > =>
   useMutation({
     mutationFn: authService.resendVerificationEmail,
+    retry: 0,
     onError: (error) => logger.warn('Failed to send verification email:', error.message),
   });
 
@@ -48,6 +56,6 @@ export const useResendVerificationEmail = (): UseMutationResult<
 export const useVerifyEmail = (): UseMutationResult<MessageResponse, AuthError, string> =>
   useMutation({
     mutationFn: authService.verifyEmail,
-    retry: 0, // the token is single-use — a retry would fail on a fresh account
+    retry: 0,
     onError: (error) => logger.warn('Email verification failed:', error.message),
   });

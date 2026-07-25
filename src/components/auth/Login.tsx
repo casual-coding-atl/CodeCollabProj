@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth, useLogin, useLoginWithPasskey } from '../../hooks/auth';
+import { isPasskeyCancellation, supportsPasskeys } from '@/lib/auth-client';
 import LoginForm from './LoginForm';
 import VerificationAlert from './VerificationAlert';
 import type { LoginFormData } from '../../types/forms';
@@ -19,6 +20,11 @@ const Login: React.FC = () => {
 
   const [submittedEmail, setSubmittedEmail] = useState<string>('');
   const [needsVerification, setNeedsVerification] = useState<boolean>(false);
+
+  // Decided after mount — see PasskeyManager. A browser without WebAuthn is
+  // offered the password form and nothing it can't do.
+  const [canUsePasskeys, setCanUsePasskeys] = useState(false);
+  useEffect(() => setCanUsePasskeys(supportsPasskeys()), []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -55,13 +61,19 @@ const Login: React.FC = () => {
     );
   }
 
+  // A cancelled WebAuthn prompt isn't an error to report back to the member —
+  // they closed it themselves and can see the form is still there.
+  const passkeyError = isPasskeyCancellation(passkeyMutation.error)
+    ? null
+    : passkeyMutation.error;
+
   return (
     <div className="px-4 py-12">
       <LoginForm
         isLoading={loginMutation.isPending}
-        error={loginMutation.error ?? passkeyMutation.error}
+        error={loginMutation.error ?? passkeyError}
         onSubmit={handleSubmit}
-        onPasskeySignIn={handlePasskey}
+        onPasskeySignIn={canUsePasskeys ? handlePasskey : undefined}
         isPasskeyPending={passkeyMutation.isPending}
       />
     </div>

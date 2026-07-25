@@ -1,9 +1,23 @@
-import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
+import { useMutation, useQueryClient, UseMutationResult, QueryClient } from '@tanstack/react-query';
 import { authService, type AppUser } from '../../services/authService';
 import { queryKeys } from '../../config/queryClient';
 import { AuthError } from '../../lib/auth-client';
 import logger from '../../utils/logger';
 import type { LoginCredentials } from '../../types';
+
+/**
+ * Start a session in a cache that holds nobody else's data.
+ *
+ * The cache is emptied *before* the new member's identity is seeded into it.
+ * Signing in is the moment a browser changes hands — the previous member's
+ * projects, messages, notifications and admin lists must not survive it, and
+ * clearing only the auth keys (as this used to) left all of those visible to
+ * whoever signed in next.
+ */
+function startSession(queryClient: QueryClient, user: AppUser): void {
+  queryClient.clear();
+  queryClient.setQueryData(queryKeys.auth.currentUser(), user);
+}
 
 /**
  * Sign in with email and password (`POST /api/auth/sign-in/email`).
@@ -17,10 +31,10 @@ export const useLogin = (): UseMutationResult<AppUser, AuthError, LoginCredentia
 
   return useMutation({
     mutationFn: authService.login,
-    onSuccess: (user) => {
-      queryClient.setQueryData(queryKeys.auth.currentUser(), user);
-      queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-    },
+    // Never retry. A retried sign-in posts the same wrong password twice, which
+    // counts twice against any rate limit or lockout the server applies.
+    retry: 0,
+    onSuccess: (user) => startSession(queryClient, user),
     onError: (error) => {
       logger.warn('Login failed:', error.message);
       queryClient.removeQueries({ queryKey: queryKeys.auth.all });
@@ -40,10 +54,7 @@ export const useLoginWithPasskey = (): UseMutationResult<AppUser, AuthError, voi
     // Never retry: a retry would raise a second WebAuthn prompt at the member,
     // including after they deliberately cancelled the first one.
     retry: 0,
-    onSuccess: (user) => {
-      queryClient.setQueryData(queryKeys.auth.currentUser(), user);
-      queryClient.invalidateQueries({ queryKey: queryKeys.auth.all });
-    },
+    onSuccess: (user) => startSession(queryClient, user),
     onError: (error) => {
       logger.warn('Passkey sign-in failed:', error.message);
     },

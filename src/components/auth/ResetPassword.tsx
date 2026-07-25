@@ -16,14 +16,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useResetPassword } from '../../hooks/auth';
+import { passwordSchema } from '@/lib/passwordPolicy';
 
-// Mirrors the previous inline validation: password required + min 6, confirm matches.
+// The shared rule — this form used to accept six characters, two short of what
+// the server will actually store.
 const resetPasswordSchema = z
   .object({
-    password: z
-      .string()
-      .min(1, 'Password is required')
-      .min(6, 'Password must be at least 6 characters long'),
+    password: passwordSchema(),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
