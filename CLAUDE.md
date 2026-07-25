@@ -24,7 +24,8 @@ npm run typecheck  # tsc --noEmit
   - `admin.tsx` + `admin.*.tsx` — admin layout gated by `<AdminRoute requireRole={['admin']}>`.
   - `api.<resource>.*.ts` — **in-process API**. Each file is `createFileRoute('/api/...')({ server: { handlers: { GET, POST, ... } } })`.
 - **Server layer** (`src/server/`):
-  - `http.ts` — API helpers. Use `handler()` to wrap every route handler; `json()`/`error()` for responses; `requireUser(request)` / `requireRole(request, roles)` for auth; `issueSession()` + `setAuthCookies()` for login; `query(request)` for search params.
+  - `http.ts` — API helpers. Use `handler()` to wrap every route handler; `json()`/`error()` for responses; `requireUser(request)` / `requireRole(request, roles)` for auth; `query(request)` for search params.
+  - `auth.ts` — the Better Auth instance (`await getAuth()`); sessions, cookies and every `/api/auth/*` endpoint live there.
   - `models.ts` — Mongoose models (`User`, `Session`, `Project`, `Comment`, `Message`), `strict:false`, bound to the real collections.
   - `db.ts` — `connectDB()` cached connection. Call it in handlers before querying.
 - **Ported React app**: `components/`, `hooks/` (TanStack Query, by domain), `services/` (axios → same-origin `/api`), `config/`, `types/`, `utils/`.
