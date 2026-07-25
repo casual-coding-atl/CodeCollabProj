@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import type { Db } from 'mongodb';
 import * as z from 'zod';
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { passkey } from '@better-auth/passkey';
@@ -100,6 +100,32 @@ function githubProvider() {
     },
   };
 }
+
+/**
+ * Endpoints Better Auth mounts that this app refuses to serve. Better Auth
+ * mounts them unconditionally, so `disabledPaths` is the only way to say no.
+ *
+ *  - `/sign-in/social` — the public entry to social sign-in. GitHub is for
+ *    *linking* only (see githubProvider above), so even a member who has linked
+ *    it cannot sign in with it.
+ *  - `/get-access-token`, `/refresh-token` — these hand the caller's browser
+ *    the member's decrypted GitHub OAuth token. The whole point of linking is
+ *    that the token stays on the server (PRD #88, story 24): the browser gets
+ *    repo data from our own proxy, never credentials. Left mounted, any signed-
+ *    in tab — or any XSS in one — could read the token straight out of the API
+ *    and spend it against GitHub as the member.
+ *  - `/account-info` — proxies GitHub's user-info call on the member's rate
+ *    budget, on demand, for no feature this app has.
+ *
+ * Nothing server-side loses anything: `auth.api.*` and the GitHub reads in
+ * ./github go through the database and the account row directly.
+ */
+export const DISABLED_AUTH_PATHS = [
+  '/sign-in/social',
+  '/get-access-token',
+  '/refresh-token',
+  '/account-info',
+] as const;
 
 // ── usernames ────────────────────────────────────────────────────────────────
 
@@ -201,18 +227,22 @@ export async function assertMemberMaySignIn(userId: unknown): Promise<void> {
 
 // ── the instance ─────────────────────────────────────────────────────────────
 
-function buildAuth() {
+/**
+ * The whole configuration, over whichever database adapter it is handed.
+ *
+ * The adapter is a parameter for one reason: it lets a test build *this* config
+ * — the real hooks, the real disabled paths — over an in-memory store and ask
+ * an endpoint what it answers. Production always passes the MongoDB adapter,
+ * through `getAuth` below.
+ */
+export function buildAuth(database: BetterAuthOptions['database']) {
   if (!secret) {
     throw new Error('BETTER_AUTH_SECRET (or JWT_SECRET) must be set');
   }
   const baseURL = resolveBaseURL();
-  // Mongoose bundles the mongodb driver v6 while the app depends on v7; the two
-  // `Db` types are structurally incompatible but wire-identical at runtime.
-  const db = mongoose.connection.db as unknown as Db;
-  if (!db) throw new Error('MongoDB connection not ready');
 
   return betterAuth({
-    database: mongodbAdapter(db),
+    database,
     secret,
     baseURL,
     emailAndPassword: {
@@ -239,8 +269,9 @@ function buildAuth() {
       },
     },
     socialProviders: githubProvider(),
-    // See githubProvider(): linking is supported, social sign-in is not.
-    disabledPaths: ['/sign-in/social'],
+    // See DISABLED_AUTH_PATHS: linking is supported, social sign-in is not, and
+    // the token endpoints stay shut so the OAuth token never reaches a browser.
+    disabledPaths: [...DISABLED_AUTH_PATHS],
     account: {
       accountLinking: {
         // A member links GitHub from their security settings, already signed
@@ -321,7 +352,14 @@ let cached: Promise<Auth> | undefined;
 /** The shared Better Auth instance, built once the Mongo connection is up. */
 export function getAuth(): Promise<Auth> {
   if (!cached) {
-    cached = connectDB().then(() => buildAuth());
+    cached = connectDB().then(() => {
+      // Mongoose bundles the mongodb driver v6 while the app depends on v7; the
+      // two `Db` types are structurally incompatible but wire-identical at
+      // runtime.
+      const db = mongoose.connection.db as unknown as Db;
+      if (!db) throw new Error('MongoDB connection not ready');
+      return buildAuth(mongodbAdapter(db));
+    });
   }
   return cached;
 }
