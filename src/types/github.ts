@@ -24,7 +24,7 @@ export interface RepoCardData {
 }
 
 /** Why a repository cannot be described right now, and whether that is permanent. */
-export type RepoCardUnavailableReason = 'not-found' | 'private';
+export type RepoCardUnavailableReason = 'not-found' | 'private' | 'blocked';
 export type RepoCardTemporaryReason = 'rate-limited' | 'unauthorized' | 'unavailable';
 
 interface RepoCardIdentity {

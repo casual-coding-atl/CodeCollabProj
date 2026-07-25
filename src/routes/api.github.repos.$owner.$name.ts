@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, getAuthUser } from '../server/http';
-import { parseRepoRef, resolveGitHubToken } from '../server/github';
+import { parseRepoRef, resolveGitHubTokens } from '../server/github';
 import { fetchRepoCard, repoCardPayload } from '../server/github-cache';
 
 /**
@@ -32,9 +32,12 @@ export const Route = createFileRoute('/api/github/repos/$owner/$name')({
         if (!parsed.ok) return error(parsed.status, parsed.message);
 
         const user = await getAuthUser(request);
-        const token = await resolveGitHubToken(user?._id);
+        // Tiers, not one token: a member whose GitHub token has been revoked or
+        // spent must still get their card, served by the server token or
+        // anonymously (see tokenTiers in ../server/github).
+        const tokens = await resolveGitHubTokens(user?._id);
 
-        const { result, source, fetchedAt } = await fetchRepoCard(parsed.ref, { token });
+        const { result, source, fetchedAt } = await fetchRepoCard(parsed.ref, { tokens });
         const { status, body } = repoCardPayload(parsed.ref, result, { source, fetchedAt });
 
         return json(body, status, {

@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
-import mongoose from 'mongoose';
-import { handler, json, error, requireUser } from '../server/http';
+import { handler, json, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
-import { Project } from '../server/models';
-import { reposOf } from '../server/github';
+import { mongoRepoLinkDeps, unlinkRepo } from '../server/repo-linking';
 
 /**
  * /api/projects/$id/repos/$repoId
@@ -11,6 +9,7 @@ import { reposOf } from '../server/github';
  *
  * `$repoId` is GitHub's numeric repository id, the same identity the link
  * endpoint stored — a repository renamed since it was linked still unlinks.
+ * The rules live in ../server/repo-linking; this authenticates and answers.
  */
 export const Route = createFileRoute('/api/projects/$id/repos/$repoId')({
   server: {
@@ -19,26 +18,13 @@ export const Route = createFileRoute('/api/projects/$id/repos/$repoId')({
         const user = await requireUser(request);
         await connectDB();
 
-        if (!mongoose.Types.ObjectId.isValid(params.id)) return error(404, 'Project not found');
-        const repoId = Number(params.repoId);
-        if (!Number.isInteger(repoId)) return error(400, 'That is not a repository id');
+        const answer = await unlinkRepo(mongoRepoLinkDeps, {
+          projectId: params.id,
+          userId: String(user._id),
+          repoId: params.repoId,
+        });
 
-        const project = await Project.findById(params.id).exec();
-        if (!project) return error(404, 'Project not found');
-        if (String(project.owner) !== String(user._id)) {
-          return error(403, 'Only the project owner can unlink repositories');
-        }
-        if (!reposOf(project).some((repo) => Number(repo.repoId) === repoId)) {
-          return error(404, 'That repository is not linked to this project');
-        }
-
-        const updated = await Project.findByIdAndUpdate(
-          project._id,
-          { $pull: { linkedRepos: { repoId } } },
-          { new: true },
-        ).exec();
-
-        return json({ message: 'Repository unlinked', linkedRepos: reposOf(updated) });
+        return json(answer.body, answer.status);
       }),
     },
   },

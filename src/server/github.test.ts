@@ -2,19 +2,25 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   DEFAULT_GITHUB_API_BASE,
   MAX_LINKED_REPOS,
+  duplicateRefDenial,
   fetchPublicRepo,
   githubApiBase,
   linkDenial,
   parseRepoRef,
   pickToken,
   reposOf,
+  tokenTiers,
 } from './github';
 
 /**
  * The GitHub module's decisions, at the seam the routes call. Everything here is
  * either pure (URL parsing, the cap and duplicate rules, the token fallback
  * chain) or stubbed at the one outbound edge — `fetch` — so no test talks to
- * GitHub. The routes themselves are covered by the E2E seam.
+ * GitHub.
+ *
+ * What the endpoints *do* with these decisions is repo-linking.test.ts; the
+ * whole path through a browser is e2e/github-linking.spec.ts and
+ * e2e/github-repo-cards.spec.ts.
  */
 
 // ── parsing ──────────────────────────────────────────────────────────────────
@@ -85,6 +91,16 @@ describe('parseRepoRef', () => {
     }
   });
 
+  it('rejects a half-written escape sequence rather than throwing a URIError', () => {
+    // decodeURIComponent throws on these; a typo in a pasted link must be a 400
+    // from the parser, never a 500 out of the route.
+    for (const url of ['https://github.com/%ZZ/react', 'https://github.com/facebook/re%act']) {
+      const result = parseRepoRef({ url });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.status).toBe(400);
+    }
+  });
+
   it('rejects names longer than GitHub allows', () => {
     expect(parseRepoRef({ owner: 'a'.repeat(40), name: 'react' }).ok).toBe(false);
     expect(parseRepoRef({ owner: 'facebook', name: 'r'.repeat(101) }).ok).toBe(false);
@@ -127,6 +143,20 @@ describe('linkDenial', () => {
   });
 });
 
+describe('duplicateRefDenial', () => {
+  it('recognises a repository already linked, whatever case it was pasted in', () => {
+    const existing = [{ repoId: 1, owner: 'E2E-Org', name: 'CodeCollab-Web' }];
+    const denial = duplicateRefDenial(existing, { owner: 'e2e-org', name: 'codecollab-web' });
+    expect(denial?.status).toBe(409);
+    expect(denial?.message).toMatch(/already linked/i);
+  });
+
+  it('lets a repository the project does not have through', () => {
+    const existing = [{ repoId: 1, owner: 'e2e-org', name: 'other' }];
+    expect(duplicateRefDenial(existing, { owner: 'e2e-org', name: 'codecollab-web' })).toBeNull();
+  });
+});
+
 describe('reposOf', () => {
   it('reads the linked repositories off a project', () => {
     expect(reposOf({ linkedRepos: [linked(1)] })).toEqual([linked(1)]);
@@ -155,6 +185,26 @@ describe('pickToken', () => {
   it('ends up unauthenticated when neither exists', () => {
     expect(pickToken(undefined, {})).toBeUndefined();
     expect(pickToken(undefined, { GITHUB_TOKEN: '  ' })).toBeUndefined();
+  });
+});
+
+describe('tokenTiers', () => {
+  it('orders the chain member → server → anonymous', () => {
+    expect(tokenTiers('member', { GITHUB_TOKEN: 'server' })).toEqual([
+      'member',
+      'server',
+      undefined,
+    ]);
+  });
+
+  it('always ends anonymous, because every read here is of public data', () => {
+    expect(tokenTiers(undefined, {})).toEqual([undefined]);
+    expect(tokenTiers('member', {})).toEqual(['member', undefined]);
+    expect(tokenTiers(undefined, { GITHUB_TOKEN: 'server' })).toEqual(['server', undefined]);
+  });
+
+  it('does not try the same token twice', () => {
+    expect(tokenTiers('same', { GITHUB_TOKEN: 'same' })).toEqual(['same', undefined]);
   });
 });
 

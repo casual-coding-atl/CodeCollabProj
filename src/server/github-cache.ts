@@ -46,6 +46,17 @@ export { REPO_CARD_FRESHNESS_MS };
 /** How long an entry stays *readable* after it stops being fresh. */
 export const CACHE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Freshness for the check the link endpoint runs before saving a repository.
+ *
+ * Deliberately much shorter than a card's ten minutes: a member who has just
+ * made a repository public, or just created it, should not be told for another
+ * ten minutes that it does not exist. A minute is still enough to stop somebody
+ * from spending a GitHub request per submission by pasting the same wrong URL
+ * over and over.
+ */
+export const LINK_VALIDATION_FRESHNESS_MS = 60 * 1000;
+
 // ── types ────────────────────────────────────────────────────────────────────
 
 /** One cached GitHub response, as stored in `github_cache`. */
@@ -266,13 +277,19 @@ export interface CachedRepoRead {
  */
 export async function fetchRepoCard(
   ref: RepoRef,
-  opts: { token?: string; store?: CacheStore; freshnessMs?: number } = {},
+  opts: {
+    token?: string;
+    tokens?: Array<string | undefined>;
+    store?: CacheStore;
+    freshnessMs?: number;
+  } = {},
 ): Promise<CachedRepoRead> {
   let source: CacheSource = 'network';
   let fetchedAt = new Date();
 
   const result = await fetchPublicRepo(ref, {
     token: opts.token,
+    tokens: opts.tokens,
     request: async (path, requestOpts) => {
       const read = await cachedGitHubRequest(path, {
         token: requestOpts.token,
@@ -321,7 +338,7 @@ export function repoCardPayload(
 
   const identity = { owner: ref.owner, name: ref.name };
 
-  if (result.reason === 'not-found' || result.reason === 'private') {
+  if (result.reason === 'not-found' || result.reason === 'private' || result.reason === 'blocked') {
     return {
       status: 404,
       body: { ...identity, state: 'unavailable', reason: result.reason, message: result.message },
