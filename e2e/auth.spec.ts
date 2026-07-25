@@ -198,6 +198,38 @@ test.describe('sign in with GitHub', () => {
       await expect(page).toHaveURL(new RegExp(path));
       expect(await sessionCookie(context)).toBeFalsy();
     });
+
+    // The return leg needs no OAuth provider: a failed round trip lands back on
+    // our page as `?error=<code>`, and everything the member sees from there is
+    // ours to render. Driving that directly pins the code→sentence mapping and
+    // the param-stripping without ever leaving the origin.
+    test(`${path} turns a returned ?error= into a sentence and strips the param`, async ({
+      page,
+    }) => {
+      // account_not_linked is the anti-takeover case: an existing account for
+      // this email, GitHub not merged onto it. The message is SSR-rendered from
+      // the query param (so it is on screen before hydration); the param is then
+      // stripped by a post-hydration effect, which the poll below waits for.
+      await page.goto(`${path}?error=account_not_linked`);
+      await expect(page.getByRole('alert')).toContainText(/already exists/i, { timeout: 10_000 });
+      await expect(page.getByRole('alert')).toContainText(/security settings/i);
+
+      // Read once into state and then removed, so a reload or a shared link
+      // cannot resurrect a stale failure.
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('error'), { timeout: 10_000 })
+        .toBeNull();
+    });
+
+    test(`${path} maps an expired-state return to a retry sentence`, async ({ page }) => {
+      await page.goto(`${path}?error=state_mismatch`);
+      await expect(page.getByRole('alert')).toContainText(/expired or was started in another tab/i, {
+        timeout: 10_000,
+      });
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('error'), { timeout: 10_000 })
+        .toBeNull();
+    });
   }
 });
 
