@@ -96,6 +96,14 @@ export default defineConfig({
         // Every GitHub read goes to the fixture server below, never to
         // api.github.com.
         GITHUB_API_BASE: GITHUB_FIXTURE_URL,
+        // Blanked deliberately, and not just left unset: this env is merged
+        // over the process's, so a developer with a real OAuth app in their
+        // .env would otherwise run a *different* server from CI's. The OAuth
+        // round trip itself can't be tested — it leaves our origin — so what
+        // the suite pins instead is that a server without an OAuth app says so
+        // in a sentence rather than crashing (see e2e/auth.spec.ts).
+        GITHUB_CLIENT_ID: '',
+        GITHUB_CLIENT_SECRET: '',
       },
     },
     {

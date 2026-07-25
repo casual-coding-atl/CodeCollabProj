@@ -162,6 +162,45 @@ test.describe('sign in', () => {
   });
 });
 
+/**
+ * Signing in — and signing up — with GitHub.
+ *
+ * The round trip itself is not testable from here: pressing the button leaves
+ * this origin for github.com, and nothing short of a fake OAuth provider brings
+ * it back. What *is* testable, and worth pinning forever, is the state every
+ * dev machine and CI run is in — `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are
+ * blanked for the E2E server (see playwright.config.ts), so Better Auth has no
+ * GitHub provider at all and answers 404 PROVIDER_NOT_FOUND.
+ *
+ * A member pressing the button on such a server must be told what is missing.
+ * The failure this guards against is the boring one: a button that appears to
+ * do nothing, or navigates to a Better Auth error page saying "Not found".
+ */
+test.describe('sign in with GitHub', () => {
+  for (const { page: path, label } of [
+    { page: '/login', label: 'sign in' },
+    { page: '/register', label: 'join' },
+  ]) {
+    test(`${path} offers a GitHub button to ${label} with`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByTestId('github-signin')).toBeVisible();
+    });
+
+    test(`${path} explains a server with no GitHub app configured`, async ({ page, context }) => {
+      await gotoHydrated(page, path, '[data-testid="github-signin"]');
+      await page.getByTestId('github-signin').click();
+
+      await expect(page.getByRole('alert')).toHaveText(/not configured on this server/i, {
+        timeout: 10_000,
+      });
+      // Still here, and still nobody: no half-started session, no navigation to
+      // an error page of Better Auth's own.
+      await expect(page).toHaveURL(new RegExp(path));
+      expect(await sessionCookie(context)).toBeFalsy();
+    });
+  }
+});
+
 test.describe('sign out', () => {
   test('ends the session and locks the guarded pages again', async ({ page, context }) => {
     await signInThroughTheForm(page, EMAIL, PASSWORD);
