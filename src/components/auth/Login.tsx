@@ -32,8 +32,10 @@ const Login: React.FC = () => {
   const [needsVerification, setNeedsVerification] = useState<boolean>(false);
 
   // Decided after mount — see PasskeyManager. A browser without WebAuthn is
-  // offered the password form and nothing it can't do.
-  const [canUsePasskeys, setCanUsePasskeys] = useState(false);
+  // offered the password form and nothing it can't do. `undefined` until the
+  // effect runs is "not decided yet", which the form lays out differently from
+  // a decided "unsupported" (so the GitHub button doesn't jump width on mount).
+  const [canUsePasskeys, setCanUsePasskeys] = useState<boolean | undefined>(undefined);
   useEffect(() => setCanUsePasskeys(supportsPasskeys()), []);
 
   useEffect(() => {
@@ -98,6 +100,7 @@ const Login: React.FC = () => {
         onSubmit={handleSubmit}
         onPasskeySignIn={canUsePasskeys ? handlePasskey : undefined}
         isPasskeyPending={passkeyMutation.isPending}
+        passkeysUnavailable={canUsePasskeys === false}
         onGithubSignIn={handleGithub}
         isGithubPending={githubMutation.isPending}
       />

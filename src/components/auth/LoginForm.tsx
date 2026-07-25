@@ -26,6 +26,13 @@ interface LoginFormProps {
   /** Start the WebAuthn prompt. Omitted, the passkey affordance is hidden. */
   onPasskeySignIn?: () => void;
   isPasskeyPending?: boolean;
+  /**
+   * WebAuthn support is known only after mount, so `onPasskeySignIn` is absent
+   * for two different reasons — "not decided yet" and "this browser can't". This
+   * tells them apart: `true` means detection has run and found no support, so
+   * the passkey column can be dropped for good rather than reserved forever.
+   */
+  passkeysUnavailable?: boolean;
   /** Start the GitHub round trip. Always offered — every browser can do it. */
   onGithubSignIn: () => void;
   isGithubPending?: boolean;
@@ -59,6 +66,7 @@ const LoginForm: FC<LoginFormProps> = ({
   onSubmit,
   onPasskeySignIn,
   isPasskeyPending = false,
+  passkeysUnavailable = false,
   onGithubSignIn,
   isGithubPending = false,
 }) => {
@@ -116,45 +124,27 @@ const LoginForm: FC<LoginFormProps> = ({
           </div>
         )}
 
-        {/* The two ways in that aren't a password sit above the email form, and
-            not only because they're faster. Below it, these buttons move: the
-            email field is autofocused, so the first click anywhere else blurs
-            it, react-hook-form renders "Email is required", and everything
+        {/* The ways in that aren't a password sit above the email form, and not
+            only because they're faster. Below it, these buttons move: the email
+            field is autofocused, so the first click anywhere else blurs it,
+            react-hook-form renders "Email is required", and everything
             underneath jumps down — far enough that the click that caused the
             jump lands above the button and does nothing. Nothing above the form
             can shift under the pointer.
 
-            The row is two fixed columns for the same reason. Whether this
-            browser can do WebAuthn is only known after mount (see Login.tsx), so
-            the passkey button arrives late; giving it a column of its own from
-            the first render means it appears in an empty slot instead of
-            halving the width of the GitHub button somebody is already reaching
-            for. On a browser without WebAuthn that slot simply stays empty. */}
-        <div className="grid grid-cols-2 gap-3">
-          {onPasskeySignIn ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              data-testid="passkey-signin"
-              aria-label="Sign in with a passkey"
-              disabled={isPasskeyPending}
-              onClick={onPasskeySignIn}
-            >
-              {isPasskeyPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <KeyRound className="size-4" />
-              )}
-              Passkey
-            </Button>
-          ) : (
-            <span aria-hidden />
-          )}
-
+            Layout follows WebAuthn support, which is known only after mount (see
+            Login.tsx). While it is still undecided, the passkey column is
+            *reserved* — empty, not collapsed — so that when the passkey button
+            arrives it fills a waiting slot rather than halving the width of the
+            GitHub button someone is already reaching for. Once detection has run
+            and found no support (`passkeysUnavailable`), the column is dropped
+            for good and GitHub goes full-width, so a browser without WebAuthn is
+            never left with a permanent empty half. */}
+        {passkeysUnavailable ? (
           <Button
             type="button"
             variant="outline"
+            className="w-full"
             size="lg"
             data-testid="github-signin"
             aria-label="Sign in with GitHub"
@@ -168,7 +158,47 @@ const LoginForm: FC<LoginFormProps> = ({
             )}
             GitHub
           </Button>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {onPasskeySignIn ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                data-testid="passkey-signin"
+                aria-label="Sign in with a passkey"
+                disabled={isPasskeyPending}
+                onClick={onPasskeySignIn}
+              >
+                {isPasskeyPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <KeyRound className="size-4" />
+                )}
+                Passkey
+              </Button>
+            ) : (
+              <span aria-hidden />
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              data-testid="github-signin"
+              aria-label="Sign in with GitHub"
+              disabled={isGithubPending}
+              onClick={onGithubSignIn}
+            >
+              {isGithubPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <GithubMark className="size-4" />
+              )}
+              GitHub
+            </Button>
+          </div>
+        )}
 
         <div className="my-5 flex items-center gap-3">
           <span className="h-px flex-1 bg-border" />

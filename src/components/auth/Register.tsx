@@ -122,7 +122,6 @@ const Register: React.FC = () => {
             className="w-full"
             size="lg"
             data-testid="github-signin"
-            aria-label="Join with GitHub"
             disabled={githubMutation.isPending}
             onClick={handleGithub}
           >

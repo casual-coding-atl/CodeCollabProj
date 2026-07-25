@@ -97,8 +97,8 @@ const GithubAccountCard: React.FC = () => {
       <CardHeader>
         <CardTitle>GitHub</CardTitle>
         <CardDescription>
-          Connect your GitHub account so this app can read public GitHub data on your behalf.
-          Connecting is not a way to sign in, and your GitHub token never leaves the server.
+          Connect your GitHub account so this app can read public GitHub data on your behalf, and
+          so you can sign in with GitHub next time. Your GitHub token never leaves the server.
         </CardDescription>
       </CardHeader>
 
@@ -189,9 +189,11 @@ const GithubAccountCard: React.FC = () => {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Disconnect GitHub?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This app will stop reading GitHub on your behalf, and the stored token is
-                    deleted. Repositories already linked to your projects stay linked, and your
-                    password and passkeys keep working.
+                    This app will stop reading GitHub on your behalf, the stored token is deleted,
+                    and you will no longer be able to sign in with GitHub. Repositories already
+                    linked to your projects stay linked. Your password and passkeys keep working —
+                    and if GitHub is your only way in, disconnecting is refused so you are not
+                    locked out.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
