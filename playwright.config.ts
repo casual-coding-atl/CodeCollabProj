@@ -13,12 +13,24 @@ const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 const GITHUB_FIXTURE_PORT = Number(process.env.E2E_GITHUB_PORT) || 3199;
 const GITHUB_FIXTURE_URL = `http://localhost:${GITHUB_FIXTURE_PORT}`;
 
-/** Swap the database name in a Mongo connection string, preserving creds/host/query. */
-function withDbName(uri: string, name: string): string {
-  if (!uri) return uri;
+/**
+ * Swap the database name in a Mongo connection string, preserving creds/host/query.
+ *
+ * An unparseable URI throws rather than being handed back unchanged: returning
+ * it silently meant the E2E run pointed at whatever database that string names —
+ * in practice the developer's dev database — and then seeded and migrated it.
+ * Failing loudly is the only safe answer when we can't prove we swapped the name.
+ */
+export function withDbName(uri: string, name: string): string {
+  if (!uri) return uri; // absent is handled (and reported) by the global setup
   const [main, query] = uri.split('?');
   const m = main.match(/^(mongodb(?:\+srv)?:\/\/[^/]+)(?:\/[^/]*)?$/);
-  if (!m) return uri;
+  if (!m) {
+    throw new Error(
+      `Could not read the database name out of MONGODB_URI, so the E2E database can't be derived from it. ` +
+        `Set E2E_MONGODB_URI explicitly to the database the E2E suite may seed and wipe.`,
+    );
+  }
   return `${m[1]}/${name}${query ? `?${query}` : ''}`;
 }
 

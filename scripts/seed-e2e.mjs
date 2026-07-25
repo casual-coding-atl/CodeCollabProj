@@ -47,6 +47,25 @@ const Verification = collection('verification');
 
 await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
 
+/**
+ * This script deletes accounts, sessions, passkeys and notifications. Pointed at
+ * the wrong database — a stale MONGODB_URI in a shell, a copy-pasted production
+ * string — it would do that to real members. So it refuses to touch a database
+ * whose name doesn't say it is for E2E, and the check happens after connecting
+ * (so it sees the name the server actually resolved) but before the first write.
+ *
+ * E2E_ALLOW_DB=1 is the deliberate override, for a differently-named scratch DB.
+ */
+const dbName = mongoose.connection.name;
+if (!/e2e/i.test(dbName || '') && process.env.E2E_ALLOW_DB !== '1') {
+  console.error(
+    `Refusing to seed "${dbName}": this script deletes data and the database name does not look like an E2E one.\n` +
+      'Point MONGODB_URI at a database whose name contains "e2e", or set E2E_ALLOW_DB=1 if you are certain.',
+  );
+  await mongoose.disconnect();
+  process.exit(1);
+}
+
 async function upsertLegacyUser(email, username, password) {
   const h = await bcrypt.hash(password, 10);
   await User.updateOne(
@@ -82,7 +101,16 @@ const idStrings = ids.map(String);
 await Account.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
 await AuthSession.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
 await Passkey.deleteMany({ userId: { $in: [...ids, ...idStrings] } });
-await Verification.deleteMany({});
+
+// Verification rows are keyed by an `identifier` that embeds either the email or
+// the user id (`reset-password:<id>`, an address for email verification). Only
+// the seeded members' rows go — this used to be an unscoped deleteMany({}), which
+// on any shared database would have invalidated other people's live reset links.
+const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const seededIdentifiers = [EMAIL, EMAIL2, ...idStrings];
+await Verification.deleteMany({
+  identifier: { $regex: seededIdentifiers.map(escape).join('|') },
+});
 
 // Members created by the registration spec on earlier runs, with everything
 // Better Auth wrote for them.
