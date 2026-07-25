@@ -60,7 +60,7 @@ export const Route = createFileRoute('/api/admin/dashboard')({
 
             Comment.countDocuments().catch(() => 0),
 
-            Session.countDocuments({ isActive: true }).catch(() => 0),
+            Session.countDocuments({ expiresAt: { $gt: new Date() } }).catch(() => 0),
           ]);
 
           const users = (userStats[0] as Record<string, Array<{ count: number }>>) || {};

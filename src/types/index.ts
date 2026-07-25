@@ -32,6 +32,7 @@ export type {
   User,
   UserSummary,
   Project,
+  LinkedRepo,
   Session,
   Comment,
   Message,
@@ -50,32 +51,12 @@ export type {
   // Login / Registration
   LoginCredentials,
   RegisterData,
-  AuthUser,
-  LoginResponse,
-  RegisterResponse,
-  AuthResponse,
   // Password Reset
   PasswordResetRequest,
-  PasswordResetRequestResponse,
-  PasswordResetRequestResponseDev,
   PasswordResetConfirm,
-  VerifyPasswordResetTokenResponse,
   // Email Verification
   ResendVerificationRequest,
-  EmailVerificationResponse,
-  // Token Refresh
-  RefreshTokenRequest,
-  RefreshTokenResponse,
-  // Cookie Auth
-  CookieAuthCheckResult,
-  // Session Management
-  LogoutResponse,
-  LogoutAllResponse,
-  // Error States
-  NeedsVerificationError,
 } from './auth';
-
-export { isNeedsVerificationError } from './auth';
 
 // ============================================================================
 // Form Data Types

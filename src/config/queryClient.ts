@@ -55,13 +55,11 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Global error handler for queries
-queryClient.setMutationDefaults(['auth'], {
-  mutationFn: async (_variables: unknown): Promise<never> => {
-    // Custom logic for auth mutations can go here
-    throw new Error('Mutation function not implemented');
-  },
-});
+// (There used to be a `setMutationDefaults(['auth'], …)` here whose default
+// mutationFn threw "Mutation function not implemented". Every auth mutation
+// supplies its own mutationFn, so it never fired — but it was a live trap: any
+// auth mutation that ever omitted one, or was resumed from a paused/offline
+// state, would have thrown that instead of running.)
 
 // Query key factory for consistent cache keys
 export const queryKeys = {
@@ -69,13 +67,10 @@ export const queryKeys = {
   auth: {
     all: ['auth'] as const,
     currentUser: (): readonly string[] => [...queryKeys.auth.all, 'currentUser'],
-    passwordResetToken: (token: string): readonly string[] => [
-      ...queryKeys.auth.all,
-      'passwordResetToken',
-      token,
-    ],
+    currentSession: (): readonly string[] => [...queryKeys.auth.all, 'currentSession'],
     sessions: (): readonly string[] => [...queryKeys.auth.all, 'sessions'],
-    tokenRefresh: (): readonly string[] => [...queryKeys.auth.all, 'tokenRefresh'],
+    passkeys: (): readonly string[] => [...queryKeys.auth.all, 'passkeys'],
+    githubAccount: (): readonly string[] => [...queryKeys.auth.all, 'githubAccount'],
   },
   // Projects keys
   projects: {
@@ -88,6 +83,18 @@ export const queryKeys = {
     details: (): readonly string[] => [...queryKeys.projects.all, 'detail'],
     detail: (id: string): readonly string[] => [...queryKeys.projects.details(), id],
     search: (query: string): readonly string[] => [...queryKeys.projects.all, 'search', query],
+  },
+  // GitHub keys — proxied, cached reads of public GitHub data. Keyed by
+  // owner/name rather than by project: two projects linking the same repository
+  // share one client-side entry, exactly as they share the server-side one.
+  github: {
+    all: ['github'] as const,
+    repoCard: (owner: string, name: string): readonly string[] => [
+      ...queryKeys.github.all,
+      'repo',
+      owner.toLowerCase(),
+      name.toLowerCase(),
+    ],
   },
   // Comments keys
   comments: {

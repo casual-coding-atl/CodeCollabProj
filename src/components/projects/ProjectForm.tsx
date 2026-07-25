@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Plus, Trash2, X, Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
 import { useProject, useCreateProject, useUpdateProject } from '../../hooks/projects';
+import LinkedRepositories from './LinkedRepositories';
 import type {
   ProjectStatus,
   ProjectResource,
@@ -659,6 +660,11 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
           </Form>
         </CardContent>
       </Card>
+
+      {/* Linking a repository is its own immediate action against the saved
+          project, so it lives outside the form and only once there is a project
+          to attach it to. */}
+      {projectId && <LinkedRepositories projectId={projectId} />}
     </div>
   );
 };

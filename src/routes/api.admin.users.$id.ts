@@ -1,13 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireRole, query } from '../server/http';
 import { connectDB } from '../server/db';
-import { User, Session } from '../server/models';
+import { User, Session, Account, Passkey, ownedBy } from '../server/models';
 
 /**
  * DELETE /api/admin/users/$id
  * Replicates adminController.deleteUser: blocks self-delete and deleting admins;
- * `?permanent=true` hard-deletes the user + all sessions, otherwise soft-deletes
- * (isActive:false) and revokes active sessions.
+ * `?permanent=true` hard-deletes the user along with every credential Better
+ * Auth holds for them, otherwise soft-deletes (isActive:false) and revokes
+ * active sessions.
  */
 export const Route = createFileRoute('/api/admin/users/$id')({
   server: {
@@ -35,25 +36,28 @@ export const Route = createFileRoute('/api/admin/users/$id')({
         }
 
         if (permanent === 'true') {
-          // Permanent deletion.
+          // Permanent deletion. Sessions are not the only thing Better Auth
+          // keeps: the `account` rows hold the password hash and any linked
+          // OAuth tokens, and `passkey` the registered WebAuthn credentials.
+          // Leaving those behind would strand working sign-in secrets pointing
+          // at a user id that no longer exists.
           await User.findByIdAndDelete(userId);
-          await Session.deleteMany({ userId });
+          await Promise.all([
+            Session.deleteMany(ownedBy(userId)),
+            Account.deleteMany(ownedBy(userId)),
+            Passkey.deleteMany(ownedBy(userId)),
+          ]);
 
           return json({ message: 'User permanently deleted' });
         }
 
-        // Soft delete (deactivate) + revoke all active sessions.
+        // Soft delete (deactivate) + revoke all active sessions. Credentials
+        // stay: the account is recoverable, and `isActive: false` already stops
+        // Better Auth minting a new session (see assertMemberMaySignIn).
         user.set('isActive', false);
         await user.save();
 
-        await Session.updateMany(
-          { userId, isActive: true },
-          {
-            isActive: false,
-            revokedAt: new Date(),
-            revokedReason: 'account_deactivated',
-          }
-        );
+        await Session.deleteMany(ownedBy(userId));
 
         return json({ message: 'User account deactivated' });
       }),

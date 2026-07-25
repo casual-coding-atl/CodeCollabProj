@@ -12,8 +12,7 @@ import { useNavigate, useLocation, Outlet } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { useAuth } from '../../hooks/auth';
-import logger from '../../utils/logger';
+import { useAuth, useLogout } from '../../hooks/auth';
 
 interface MenuItem {
   text: string;
@@ -25,7 +24,8 @@ interface MenuItem {
 const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const logoutMutation = useLogout();
 
   const menuItems: MenuItem[] = [
     {
@@ -63,13 +63,12 @@ const AdminLayout: React.FC = () => {
     return location.pathname.startsWith(item.path);
   };
 
-  const handleLogout = async (): Promise<void> => {
-    try {
-      await logout();
-      navigate({ to: '/login' });
-    } catch (error) {
-      logger.error('Logout failed:', error);
-    }
+  // Through the same mutation the main header uses. Calling the auth service
+  // directly signed the admin out on the server but left the cached "who is
+  // signed in?" answer in place, so the very next render still believed them
+  // signed in and bounced them back out of /login.
+  const handleLogout = (): void => {
+    logoutMutation.mutate(undefined, { onSuccess: () => navigate({ to: '/login' }) });
   };
 
   const handleBackToApp = (): void => {

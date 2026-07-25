@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireRole } from '../server/http';
 import { connectDB } from '../server/db';
-import { User, Session } from '../server/models';
+import { User, Session, ownedBy } from '../server/models';
 
 /**
  * PUT /api/admin/users/$id/suspension
@@ -72,15 +72,9 @@ export const Route = createFileRoute('/api/admin/users/$id/suspension')({
             user.set('suspendedUntil', new Date(Date.now() + (duration as number)));
           }
 
-          // Revoke all active user sessions.
-          await Session.updateMany(
-            { userId, isActive: true },
-            {
-              isActive: false,
-              revokedAt: new Date(),
-              revokedReason: 'admin_suspend',
-            }
-          );
+          // Revoke every session they hold. Belt and braces: requireUser also
+          // denies a suspended member on their next request regardless.
+          await Session.deleteMany(ownedBy(userId));
         } else {
           // unsuspend()
           user.set('isSuspended', false);

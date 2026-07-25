@@ -29,21 +29,59 @@ export const User: Model<UserDoc> =
   (mongoose.models.User as Model<UserDoc>) ?? mongoose.model<UserDoc>('User', userSchema);
 
 // ── Session ──────────────────────────────────────────────────────────────────
+// Better Auth owns sessions (ADR 0002) and writes them to the singular `session`
+// collection; the legacy `sessions` collection is retired. This model exists
+// only so the admin panel can still count and revoke them — Better Auth's own
+// API is the way to *create* or validate one. `userId` is Mixed because the
+// adapter may store it as an ObjectId or as its string form.
 const sessionSchema = new Schema(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    userId: Schema.Types.Mixed,
     token: String,
-    refreshToken: String,
-    isActive: { type: Boolean, default: true },
     expiresAt: Date,
-    lastActivity: Date,
   },
-  { collection: 'sessions', strict: false },
+  { collection: 'session', strict: false },
 );
 export type SessionDoc = InferSchemaType<typeof sessionSchema> & { _id: mongoose.Types.ObjectId };
 export const Session: Model<SessionDoc> =
   (mongoose.models.Session as Model<SessionDoc>) ??
   mongoose.model<SessionDoc>('Session', sessionSchema);
+
+/**
+ * Every row belonging to a member, whichever way the adapter stored the id
+ * (Better Auth writes it as an ObjectId or as its string form depending on the
+ * path). Works for any of the auth-owned collections below.
+ */
+export function ownedBy(userId: string | mongoose.Types.ObjectId) {
+  const id = String(userId);
+  const or: Array<Record<string, unknown>> = [{ userId: id }];
+  if (mongoose.Types.ObjectId.isValid(id)) or.push({ userId: new mongoose.Types.ObjectId(id) });
+  return { $or: or };
+}
+
+// ── Account / Passkey ────────────────────────────────────────────────────────
+// The other two collections Better Auth keys off a member: `account` holds the
+// password credential and any linked OAuth tokens, `passkey` the registered
+// WebAuthn credentials. Nothing here creates them — these models exist so
+// deleting a member takes their sign-in secrets with them instead of leaving
+// orphaned credentials behind a recycled ObjectId.
+const accountSchema = new Schema(
+  { userId: Schema.Types.Mixed, providerId: String, accountId: String },
+  { collection: 'account', strict: false },
+);
+export type AccountDoc = InferSchemaType<typeof accountSchema> & { _id: mongoose.Types.ObjectId };
+export const Account: Model<AccountDoc> =
+  (mongoose.models.Account as Model<AccountDoc>) ??
+  mongoose.model<AccountDoc>('Account', accountSchema);
+
+const passkeySchema = new Schema(
+  { userId: Schema.Types.Mixed, name: String },
+  { collection: 'passkey', strict: false },
+);
+export type PasskeyDoc = InferSchemaType<typeof passkeySchema> & { _id: mongoose.Types.ObjectId };
+export const Passkey: Model<PasskeyDoc> =
+  (mongoose.models.Passkey as Model<PasskeyDoc>) ??
+  mongoose.model<PasskeyDoc>('Passkey', passkeySchema);
 
 // ── Project ──────────────────────────────────────────────────────────────────
 const collaboratorSchema = new Schema({
@@ -53,6 +91,21 @@ const collaboratorSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
 });
+/**
+ * A Linked Repository (CONTEXT.md): a public GitHub repo attached to a project
+ * by its owner, at most three per project. `repoId` is GitHub's numeric id — the
+ * identity that survives a rename — while `owner`/`name` are a cached label,
+ * refreshed from GitHub's responses whenever they drift.
+ */
+const linkedRepoSchema = new Schema(
+  {
+    repoId: { type: Number, required: true },
+    owner: { type: String, required: true },
+    name: { type: String, required: true },
+    linkedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
 const projectSchema = new Schema(
   {
     title: String,
@@ -66,9 +119,14 @@ const projectSchema = new Schema(
     },
     owner: { type: Schema.Types.ObjectId, ref: 'User' },
     collaborators: [collaboratorSchema],
+    linkedRepos: [linkedRepoSchema],
   },
   { collection: 'projects', strict: false, timestamps: true },
 );
+// "Is this repository linked to any project?" — asked on every repo-card
+// request, before a single byte goes to GitHub (see findLinkedRepo in
+// ./repo-linking), so it must not be a collection scan.
+projectSchema.index({ 'linkedRepos.owner': 1, 'linkedRepos.name': 1 });
 export type ProjectDoc = InferSchemaType<typeof projectSchema> & { _id: mongoose.Types.ObjectId };
 export const Project: Model<ProjectDoc> =
   (mongoose.models.Project as Model<ProjectDoc>) ??
@@ -138,3 +196,31 @@ export type NotificationDoc = InferSchemaType<typeof notificationSchema> & {
 export const Notification: Model<NotificationDoc> =
   (mongoose.models.Notification as Model<NotificationDoc>) ??
   mongoose.model<NotificationDoc>('Notification', notificationSchema);
+
+// ── GitHub cache ─────────────────────────────────────────────────────────────
+// Responses from api.github.com, keyed by normalized API path (PRD #88). The
+// data is public, so one entry serves every visitor.
+//
+// Two timestamps, deliberately: `fetchedAt` is what *freshness* is measured
+// from (ten minutes for a repo card), while `expiresAt` — a day later — is
+// where Mongo's TTL index reaps the document. Entries therefore outlive their
+// freshness, which is what lets a rate-limited or unreachable GitHub degrade a
+// card to slightly-stale rather than unavailable. The read logic lives in
+// ./github-cache.
+const githubCacheSchema = new Schema(
+  {
+    path: { type: String, required: true, unique: true },
+    status: { type: Number, required: true },
+    body: { type: String, required: true },
+    fetchedAt: { type: Date, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { collection: 'github_cache' },
+);
+githubCacheSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export type GithubCacheDoc = InferSchemaType<typeof githubCacheSchema> & {
+  _id: mongoose.Types.ObjectId;
+};
+export const GithubCache: Model<GithubCacheDoc> =
+  (mongoose.models.GithubCache as Model<GithubCacheDoc>) ??
+  mongoose.model<GithubCacheDoc>('GithubCache', githubCacheSchema);

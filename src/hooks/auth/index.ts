@@ -2,7 +2,9 @@
 export { useAuth } from './useAuth';
 export type { UseAuthReturn } from './useAuth';
 
-export { useLogin } from './useLogin';
+export { useLogin, useLoginWithPasskey } from './useLogin';
+
+export { useSignInWithGithub, useGithubSignInNotice } from './useGithubSignIn';
 
 export { useLogout, useLogoutAll } from './useLogout';
 
@@ -13,10 +15,16 @@ export type { UseSessionsReturn } from './useSessions';
 
 export { useRegister } from './useRegister';
 
+export { usePasskeys, useAddPasskey, useDeletePasskey } from './usePasskeys';
+
+export {
+  useLinkedGithubAccount,
+  useConnectGithub,
+  useDisconnectGithub,
+} from './useGithubAccount';
+
 export {
   useRequestPasswordReset,
-  useVerifyPasswordResetToken,
-  usePasswordResetTokenQuery,
   useResetPassword,
   useResendVerificationEmail,
   useVerifyEmail,

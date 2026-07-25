@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import PrivateRoute from '../components/routing/PrivateRoute';
-import ProjectForm from '../components/projects/ProjectForm';
+import Security from '../pages/Security';
 
-export const Route = createFileRoute('/_main/projects/$projectId/edit')({
+export const Route = createFileRoute('/_main/security')({
   component: () => (
     <PrivateRoute>
-      <ProjectForm />
+      <Security />
     </PrivateRoute>
   ),
 });

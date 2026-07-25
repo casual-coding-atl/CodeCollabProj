@@ -2,7 +2,9 @@ import React, { ReactNode } from 'react';
 import { Navigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '../../hooks/auth';
+import logger from '../../utils/logger';
 import type { UserRole } from '../../types';
 
 interface AdminRouteProps {
@@ -11,14 +13,16 @@ interface AdminRouteProps {
 }
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children, requireRole = 'admin' }) => {
-  const { isAuthenticated, isLoading, user, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, isError, user, refetch } = useAuth();
 
-  console.log('AdminRoute Debug:');
-  console.log('- isAuthenticated:', isAuthenticated);
-  console.log('- isLoading:', isLoading);
-  console.log('- user role:', user?.role);
-  console.log('- required role:', requireRole);
-  console.log('- hasRole check:', hasRole && hasRole(requireRole as UserRole));
+  if (process.env.NODE_ENV === 'development') {
+    logger.debug('AdminRoute:', {
+      isAuthenticated,
+      isLoading,
+      role: user?.role,
+      requireRole,
+    });
+  }
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -29,20 +33,43 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requireRole = 'admin'
     );
   }
 
+  // The session check failed rather than answering — don't mistake that for
+  // being signed out (see PrivateRoute).
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-12">
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>
+            We couldn&apos;t check your session just now. You may still be signed in.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => refetch()}>Try again</Button>
+      </div>
+    );
+  }
+
   // Check authentication
   if (!isAuthenticated) {
-    console.log('Not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user account is suspended
+  // A member suspended mid-session keeps their cookie until they act; the
+  // server denies every API call, so say why rather than showing an admin
+  // console that answers 403 to everything. The session carries the reason and
+  // the end date (`additionalFields` in src/server/auth.ts), so both are shown
+  // when an admin set them — a suspension nobody can read the terms of is just
+  // a locked door.
   if (user?.isSuspended) {
+    const until = user.suspendedUntil ? new Date(user.suspendedUntil) : null;
     return (
       <div className="p-6">
         <Alert variant="destructive">
           <AlertDescription>
             Your account has been suspended. Please contact support for assistance.
-            {user?.suspensionReason && <div>Reason: {user.suspensionReason}</div>}
+            {user.suspensionReason && <div>Reason: {user.suspensionReason}</div>}
+            {until && !Number.isNaN(until.getTime()) && (
+              <div>Until: {until.toLocaleString()}</div>
+            )}
           </AlertDescription>
         </Alert>
       </div>
@@ -54,7 +81,6 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requireRole = 'admin'
   const hasRequiredRole = user?.role ? allowedRoles.includes(user.role as UserRole) : false;
 
   if (!hasRequiredRole) {
-    console.log('Insufficient privileges, user role:', user?.role, 'required:', allowedRoles);
     return (
       <div className="p-6">
         <Alert variant="destructive">
@@ -70,7 +96,6 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requireRole = 'admin'
     );
   }
 
-  console.log('Admin access granted');
   return <>{children}</>;
 };
 

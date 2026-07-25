@@ -10,6 +10,7 @@ import {
   LogIn,
   UserPlus,
   LogOut,
+  ShieldCheck,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuth, useLogout } from '../../hooks/auth';
@@ -178,6 +179,11 @@ const Header: FC = () => {
                     <DropdownMenuItem asChild>
                       <RouterLink to="/profile">
                         <UserIcon className="size-4" /> Profile
+                      </RouterLink>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <RouterLink to="/security" data-testid="security-link">
+                        <ShieldCheck className="size-4" /> Security
                       </RouterLink>
                     </DropdownMenuItem>
                     {/* Dashboard is a bottom-tab/pill on larger surfaces; keep it here too for quick reach */}
