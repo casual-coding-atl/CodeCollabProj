@@ -50,6 +50,14 @@ export default defineConfig({
       MONGODB_URI: E2E_MONGODB_URI,
       JWT_SECRET: process.env.JWT_SECRET ?? 'e2e-test-secret-at-least-32-characters-1234',
       VITE_API_URL: '/api',
+      // Better Auth checks the request origin against its own base URL, so this
+      // MUST be the E2E server's URL — pointed at :3000 it rejects every
+      // sign-in from :3100 as a cross-origin request.
+      BETTER_AUTH_URL: BASE_URL,
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ??
+        process.env.JWT_SECRET ??
+        'e2e-test-secret-at-least-32-characters-1234',
     },
   },
 });
