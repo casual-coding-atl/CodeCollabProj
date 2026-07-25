@@ -98,8 +98,11 @@ test.describe('confirm dialog', () => {
     await login(page);
     await page.goto('/messages');
     await page.waitForLoadState('load');
-    const del = page.getByRole('button', { name: /delete message/i }).first();
-    test.skip((await del.count()) === 0, 'no message to delete');
+    // The button is labelled "Delete"; asking for /delete message/i matched
+    // nothing, so this test skipped itself on every run since it was written.
+    // The seed now puts a message in this member's inbox, so it can't skip.
+    const del = page.getByRole('button', { name: /^delete$/i }).first();
+    await expect(del).toBeVisible({ timeout: 15_000 });
     await del.click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();

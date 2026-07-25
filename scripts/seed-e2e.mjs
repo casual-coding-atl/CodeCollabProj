@@ -35,6 +35,10 @@ const Notification = mongoose.model(
   'Notification',
   new mongoose.Schema({}, { collection: 'notifications', strict: false }),
 );
+const Message = mongoose.model(
+  'Message',
+  new mongoose.Schema({}, { collection: 'messages', strict: false, timestamps: true }),
+);
 // Better Auth's own collections.
 const Account = collection('account');
 const AuthSession = collection('session');
@@ -94,6 +98,23 @@ if (throwaway.length > 0) {
 
 // Deterministic notifications: clear anything from previous runs for both users.
 await Notification.deleteMany({ userId: { $in: ids } });
+
+// One message in the first member's inbox, so the delete-confirmation spec has
+// something to delete instead of skipping itself.
+const MESSAGE_SUBJECT = 'E2E seeded message';
+await Message.updateOne(
+  { subject: MESSAGE_SUBJECT },
+  {
+    $set: {
+      subject: MESSAGE_SUBJECT,
+      content: 'A message seeded for end-to-end tests.',
+      sender: user2._id,
+      recipient: user._id,
+      read: false,
+    },
+  },
+  { upsert: true },
+);
 
 const TITLE = 'E2E Sample Project';
 await Project.updateOne(

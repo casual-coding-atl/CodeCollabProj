@@ -70,6 +70,41 @@ const LoginForm: FC<LoginFormProps> = ({
           </div>
         )}
 
+        {/* Passkeys sit above the email form, and not only because they're the
+            faster way in. Below it, this button moves: the email field is
+            autofocused, so the first click anywhere else blurs it, react-hook-form
+            renders "Email is required", and everything underneath jumps down —
+            far enough that the click that caused the jump lands above the button
+            and does nothing. Nothing above the form can shift under the pointer. */}
+        {onPasskeySignIn && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              data-testid="passkey-signin"
+              disabled={isPasskeyPending}
+              onClick={onPasskeySignIn}
+            >
+              {isPasskeyPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <KeyRound className="size-4" />
+              )}
+              Sign in with a passkey
+            </Button>
+
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                or continue with email
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </>
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -131,35 +166,6 @@ const LoginForm: FC<LoginFormProps> = ({
             </Button>
           </form>
         </Form>
-
-        {onPasskeySignIn && (
-          <>
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-                or
-              </span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              size="lg"
-              data-testid="passkey-signin"
-              disabled={isPasskeyPending}
-              onClick={onPasskeySignIn}
-            >
-              {isPasskeyPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <KeyRound className="size-4" />
-              )}
-              Sign in with a passkey
-            </Button>
-          </>
-        )}
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}

@@ -135,13 +135,12 @@ test.describe('register', () => {
 });
 
 test.describe('security page', () => {
-  test('lists this device and revokes the others', async ({ page, playwright }) => {
+  test('lists this device and revokes the others', async ({ page, playwright, baseURL }) => {
     const who = await signUpInThisBrowser(page);
-    const origin = new URL(page.url() || (await page.goto('/'))!.url()).origin;
 
     // Two more sessions for the same member, from other "devices".
     for (let i = 0; i < 2; i++) {
-      const other = await playwright.request.newContext({ baseURL: origin });
+      const other = await playwright.request.newContext({ baseURL });
       const res = await other.post('/api/auth/sign-in/email', {
         data: { email: who.email, password: NEW_PASSWORD },
       });
