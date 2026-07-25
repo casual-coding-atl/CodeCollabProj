@@ -35,8 +35,18 @@ Adopt **Better Auth** with the MongoDB adapter as the auth layer:
 - `requireUser`/`requireRole` keep their signatures; internals swap to
   `auth.api.getSession`. Roles/suspension stay custom fields enforced there
   (Better Auth's admin plugin deliberately NOT adopted for now).
-- Plugins: passkey now; GitHub social provider in the next phase, configured
-  for account **linking only** — social sign-in and sign-up are both refused.
+- Plugins: passkey now; GitHub social provider in the next phase. It shipped
+  **linking-only** first (`disableSignUp` + `/sign-in/social` in
+  `disabledPaths`) so the account-linking half could land while the sign-in UI
+  was still being built; that restriction has since been lifted and GitHub now
+  signs members in *and* up. Two things had to be settled to lift it, and both
+  are recorded in `src/server/auth.ts`: a member created by GitHub gets a
+  username derived from their GitHub login (Better Auth enforces required
+  additional fields on the OAuth create path, so one has to exist), and
+  `accountLinking.trustedProviders` stays **empty** — with GitHub untrusted,
+  better-auth links onto an existing member only if GitHub has verified the
+  email, and naming a provider "trusted" is how that check is waived, not how
+  it is imposed.
 - App-owned guardrails are bolted on where Better Auth's defaults are looser
   than the legacy app's: a `session.create.before` hook refuses to mint a
   session for a deactivated or suspended member (admin revocation would

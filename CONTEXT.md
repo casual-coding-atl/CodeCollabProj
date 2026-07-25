@@ -21,7 +21,11 @@ be linked to different projects. Only public repositories can be linked.
 
 **Linked GitHub Account** — The GitHub identity a member has connected to
 their account via OAuth. A member has at most one linked GitHub account, used
-for sign-in (future), profile enrichment, and authenticated GitHub reads.
+for sign-in, profile enrichment (future), and authenticated GitHub reads. It is
+linked either by connecting it from the security page while signed in, or by
+signing in with GitHub as a member whose GitHub-verified email this app already
+knows. A member who signs in with GitHub and is new here is created on the
+spot; their username is derived from their GitHub login.
 
 **Passkey** — A WebAuthn credential a member registers as an additional way to
 sign in, secondary to their primary credentials. A member may have several.
