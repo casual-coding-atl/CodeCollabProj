@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  DEFAULT_GITHUB_API_BASE,
   MAX_LINKED_REPOS,
   fetchPublicRepo,
+  githubApiBase,
   linkDenial,
   parseRepoRef,
   pickToken,
@@ -156,6 +158,27 @@ describe('pickToken', () => {
   });
 });
 
+// ── where the requests go ────────────────────────────────────────────────────
+
+describe('githubApiBase', () => {
+  it('is api.github.com unless an operator says otherwise', () => {
+    expect(githubApiBase({})).toBe(DEFAULT_GITHUB_API_BASE);
+    expect(githubApiBase({ GITHUB_API_BASE: '  ' })).toBe(DEFAULT_GITHUB_API_BASE);
+  });
+
+  it('can be pointed at a fixture server, which is how E2E stays hermetic', () => {
+    expect(githubApiBase({ GITHUB_API_BASE: 'http://localhost:3199' })).toBe(
+      'http://localhost:3199',
+    );
+  });
+
+  it('does not double the slash when the override has a trailing one', () => {
+    expect(githubApiBase({ GITHUB_API_BASE: 'http://localhost:3199/' })).toBe(
+      'http://localhost:3199',
+    );
+  });
+});
+
 // ── validating against GitHub ────────────────────────────────────────────────
 
 const publicRepoBody = {
@@ -286,6 +309,17 @@ describe('fetchPublicRepo', () => {
     const without = new Headers((spy.mock.calls[1][1] as RequestInit).headers);
     expect(without.get('authorization')).toBeNull();
     expect(without.get('accept')).toBe('application/vnd.github+json');
+  });
+
+  it('reads through a requester it is given instead of calling GitHub itself', async () => {
+    const spy = stubFetch(() => githubResponse(500, {}));
+    const request = vi.fn(async () => githubResponse(200, publicRepoBody));
+
+    const result = await fetchPublicRepo({ owner: 'facebook', name: 'react' }, { request });
+
+    expect(result.ok).toBe(true);
+    expect(request).toHaveBeenCalledWith('/repos/facebook/react', { token: undefined });
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('escapes the path segments it was given', async () => {

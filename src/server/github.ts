@@ -75,7 +75,18 @@ export type FetchRepoResult = { ok: true; repo: GitHubRepoSummary } | GitHubFail
 /** A project may link at most this many repositories (PRD #88). */
 export const MAX_LINKED_REPOS = 3;
 
-export const GITHUB_API_BASE = 'https://api.github.com';
+export const DEFAULT_GITHUB_API_BASE = 'https://api.github.com';
+
+/**
+ * Where `githubRequest` points. Always api.github.com in real life; the
+ * `GITHUB_API_BASE` override exists so the E2E suite can point the server at a
+ * local fixture server and stay hermetic (no live GitHub calls, no rate limit,
+ * deterministic repositories).
+ */
+export function githubApiBase(env: { GITHUB_API_BASE?: string } = process.env): string {
+  const base = env.GITHUB_API_BASE?.trim().replace(/\/+$/, '');
+  return base || DEFAULT_GITHUB_API_BASE;
+}
 
 const PASTE_HINT = 'Paste a repository link, for example https://github.com/owner/repo.';
 
@@ -247,8 +258,15 @@ export function githubRequest(path: string, opts: { token?: string } = {}): Prom
     'user-agent': 'CodeCollabProj',
   };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
-  return fetch(`${GITHUB_API_BASE}${path}`, { headers });
+  return fetch(`${githubApiBase()}${path}`, { headers });
 }
+
+/**
+ * A stand-in for `githubRequest`. The cached read path (./github-cache) passes
+ * one in so every read still goes through the same mapping below without this
+ * module having to know the cache exists.
+ */
+export type GitHubRequester = (path: string, opts: { token?: string }) => Promise<Response>;
 
 function summarize(body: Record<string, unknown>): GitHubRepoSummary {
   const owner = (body.owner as { login?: unknown } | undefined)?.login;
@@ -277,14 +295,14 @@ function summarize(body: Record<string, unknown>): GitHubRepoSummary {
  */
 export async function fetchPublicRepo(
   ref: RepoRef,
-  opts: { token?: string } = {},
+  opts: { token?: string; request?: GitHubRequester } = {},
 ): Promise<FetchRepoResult> {
   const slug = `${ref.owner}/${ref.name}`;
   const path = `/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
 
   let response: Response;
   try {
-    response = await githubRequest(path, opts);
+    response = await (opts.request ?? githubRequest)(path, { token: opts.token });
   } catch {
     return {
       ok: false,

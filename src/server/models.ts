@@ -192,3 +192,31 @@ export type NotificationDoc = InferSchemaType<typeof notificationSchema> & {
 export const Notification: Model<NotificationDoc> =
   (mongoose.models.Notification as Model<NotificationDoc>) ??
   mongoose.model<NotificationDoc>('Notification', notificationSchema);
+
+// ── GitHub cache ─────────────────────────────────────────────────────────────
+// Responses from api.github.com, keyed by normalized API path (PRD #88). The
+// data is public, so one entry serves every visitor.
+//
+// Two timestamps, deliberately: `fetchedAt` is what *freshness* is measured
+// from (ten minutes for a repo card), while `expiresAt` — a day later — is
+// where Mongo's TTL index reaps the document. Entries therefore outlive their
+// freshness, which is what lets a rate-limited or unreachable GitHub degrade a
+// card to slightly-stale rather than unavailable. The read logic lives in
+// ./github-cache.
+const githubCacheSchema = new Schema(
+  {
+    path: { type: String, required: true, unique: true },
+    status: { type: Number, required: true },
+    body: { type: String, required: true },
+    fetchedAt: { type: Date, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { collection: 'github_cache' },
+);
+githubCacheSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export type GithubCacheDoc = InferSchemaType<typeof githubCacheSchema> & {
+  _id: mongoose.Types.ObjectId;
+};
+export const GithubCache: Model<GithubCacheDoc> =
+  (mongoose.models.GithubCache as Model<GithubCacheDoc>) ??
+  mongoose.model<GithubCacheDoc>('GithubCache', githubCacheSchema);
