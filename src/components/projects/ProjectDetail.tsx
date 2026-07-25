@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
+import PrototypeGithubSection from './prototype-github-section';
 import {
   useProject,
   useRequestCollaboration,
@@ -750,6 +751,9 @@ const ProjectDetail: React.FC = () => {
             {/* Accepted collaborators live in the dedicated Collaborators tab — not duplicated here. */}
           </CardContent>
         </Card>
+
+        {/* PROTOTYPE — GitHub section UI variants (?ghproto=A|B|C). Remove after decision. */}
+        <PrototypeGithubSection />
 
         </TabsContent>
 
