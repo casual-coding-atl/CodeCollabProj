@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, requireUser, query } from '../server/http';
 import { connectDB } from '../server/db';
 import { Project } from '../server/models';
+import { grantFor } from '../server/meetup-prototype';
 
 /**
  * /api/projects
@@ -58,6 +59,22 @@ export const Route = createFileRoute('/api/projects')({
 
       POST: handler(async ({ request }) => {
         const user = await requireUser(request);
+
+        // PROTOTYPE(meetup-gate): creation requires the project:create
+        // permission (already stamped on pre-gate members = grandfathered) or
+        // a prototype Meetup verification grant. See src/server/meetup-prototype.ts.
+        const permissions = (user.get('permissions') as string[] | undefined) ?? [];
+        if (!permissions.includes('project:create') && !grantFor(String(user._id))) {
+          return json(
+            {
+              code: 'MEETUP_MEMBERSHIP_REQUIRED',
+              message:
+                'Project creation is for Casual Coding meetup members. Verify your membership to continue.',
+            },
+            403
+          );
+        }
+
         await connectDB();
 
         const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

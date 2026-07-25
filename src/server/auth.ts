@@ -397,7 +397,10 @@ export function newMemberDefaults<T extends Record<string, unknown>>(
 ): T & { role: string; permissions: string[]; isActive: boolean; isSuspended: boolean } {
   return {
     role: 'user',
-    permissions: ['project:create'],
+    // PROTOTYPE(meetup-gate): new signups no longer start with project:create —
+    // it is earned via Meetup verification. Pre-gate members keep theirs
+    // (grandfathered). Real build: backfill + this flip. Was ['project:create'].
+    permissions: [],
     isActive: true,
     isSuspended: false,
     ...user,
