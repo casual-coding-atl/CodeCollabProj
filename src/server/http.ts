@@ -3,6 +3,10 @@ import type { HydratedDocument } from 'mongoose';
 import { getAuth } from './auth';
 import { connectDB } from './db';
 import { User, type UserDoc } from './models';
+// The deactivation/suspension rules live in ./access so ./auth can apply the
+// same ones when a session is minted, without the two modules importing each
+// other.
+import { accessDenialReason } from './access';
 
 /** Auth helpers return hydrated docs (so .get()/.toObject()/.save() are typed). */
 export type UserHydrated = HydratedDocument<UserDoc>;
@@ -15,6 +19,10 @@ export type UserHydrated = HydratedDocument<UserDoc>;
  * Sessions and cookies belong to Better Auth (see ./auth and
  * src/routes/api.auth.$.ts). What stays ours is authorization: roles,
  * deactivation and suspension, enforced below on the Mongoose user doc.
+ *
+ * This is the *second* gate on the same rules. ./auth applies them when a
+ * session is minted; re-checking here is what makes a suspension land on a
+ * member who is already signed in, without anyone having to revoke sessions.
  */
 
 // ── response helpers ─────────────────────────────────────────────────────────
@@ -29,12 +37,6 @@ export function error(status: number, message: string) {
 }
 
 // ── auth from request ────────────────────────────────────────────────────────
-export function isCurrentlySuspended(u: UserDoc): boolean {
-  if (!u.isSuspended) return false;
-  if (!u.suspendedUntil) return true;
-  return new Date() < new Date(u.suspendedUntil);
-}
-
 /**
  * The authenticated member for a request, or null. Better Auth validates the
  * session cookie; we then load the user doc and apply the app's own rules, so a
@@ -49,8 +51,7 @@ export async function getAuthUser(request: Request): Promise<UserHydrated | null
   await connectDB();
   const user = (await User.findById(userId).exec()) as UserHydrated | null;
   if (!user) return null;
-  if (user.isActive === false) return null;
-  if (isCurrentlySuspended(user)) return null;
+  if (accessDenialReason(user) !== null) return null;
   return user;
 }
 
