@@ -72,8 +72,10 @@ const ForgotPassword: React.FC = () => {
               </span>
             </div>
 
+            {/* The Button base is shrink-0, so two w-full buttons overflow a
+                sm:flex-row — sm:flex-1 (basis 0) makes them share the row. */}
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button asChild className="w-full">
+              <Button asChild className="w-full sm:flex-1">
                 <RouterLink to="/login">Back to Login</RouterLink>
               </Button>
               <Button
@@ -82,7 +84,7 @@ const ForgotPassword: React.FC = () => {
                   form.reset({ email: '' });
                 }}
                 variant="outline"
-                className="w-full"
+                className="w-full sm:flex-1"
               >
                 Send Another Email
               </Button>
