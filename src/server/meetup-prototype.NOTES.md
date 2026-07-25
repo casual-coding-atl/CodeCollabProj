@@ -25,7 +25,13 @@ to verify right where they hit the wall.)
 
 **Run it:** `npm run dev`, register a fresh account, go to /projects/create.
 
-**Verdict:** _(fill in after the demo)_
-- Flow feels right? —
-- Meetup Pro confirmed by organizer? —
-- Anything to change before the real build? —
+**Verdict** (2026-07-25, after demo + UX pass + Codex review):
+- Flow feels right? — Yes ("the ui is close"). Viewing stays public; the gate
+  touches creation only.
+- Meetup Pro confirmed by organizer? — Still open. Blocks the OAuth verifier
+  only; gate + backfill + admin override ship regardless.
+- Anything to change before the real build? — Canonical permission name is
+  `projects.create` with a backfill (naming split found in review); linking
+  goes through better-auth's generic-oauth `POST /oauth2/link` with
+  `disableSignUp: true`; verification gets a freshness TTL. Full spec:
+  docs/superpowers/specs/2026-07-25-meetup-gated-project-creation-design.md
