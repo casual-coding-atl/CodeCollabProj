@@ -13,6 +13,8 @@ export { useCreateProject, useUpdateProject, useDeleteProject } from './useProje
 
 export { useLinkedRepos, useLinkRepo, useUnlinkRepo, repoErrorMessage } from './useLinkedRepos';
 
+export { useRepoCard, useRepoCards, type RepoCardQuery } from './useRepoCards';
+
 export {
   useJoinProject,
   useLeaveProject,

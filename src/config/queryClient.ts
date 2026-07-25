@@ -86,6 +86,18 @@ export const queryKeys = {
     detail: (id: string): readonly string[] => [...queryKeys.projects.details(), id],
     search: (query: string): readonly string[] => [...queryKeys.projects.all, 'search', query],
   },
+  // GitHub keys — proxied, cached reads of public GitHub data. Keyed by
+  // owner/name rather than by project: two projects linking the same repository
+  // share one client-side entry, exactly as they share the server-side one.
+  github: {
+    all: ['github'] as const,
+    repoCard: (owner: string, name: string): readonly string[] => [
+      ...queryKeys.github.all,
+      'repo',
+      owner.toLowerCase(),
+      name.toLowerCase(),
+    ],
+  },
   // Comments keys
   comments: {
     all: ['comments'] as const,

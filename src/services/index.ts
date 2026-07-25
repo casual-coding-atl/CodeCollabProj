@@ -7,6 +7,7 @@ export { commentsService } from './commentsService';
 export { usersService } from './usersService';
 export { adminService } from './adminService';
 export { notificationsService } from './notificationsService';
+export { githubService } from './githubService';
 
 // Re-export default exports as well
 export { default as authServiceDefault } from './authService';
@@ -44,6 +45,7 @@ export type {
   CommentsServiceInterface,
 } from './commentsService';
 export type { MarkReadPayload, MarkReadResponse } from './notificationsService';
+export type { GithubServiceInterface } from './githubService';
 export type {
   DashboardStats,
   AdminUserQueryParams,
