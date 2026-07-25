@@ -39,14 +39,24 @@ Adopt **Better Auth** with the MongoDB adapter as the auth layer:
   **linking-only** first (`disableSignUp` + `/sign-in/social` in
   `disabledPaths`) so the account-linking half could land while the sign-in UI
   was still being built; that restriction has since been lifted and GitHub now
-  signs members in *and* up. Two things had to be settled to lift it, and both
-  are recorded in `src/server/auth.ts`: a member created by GitHub gets a
-  username derived from their GitHub login (Better Auth enforces required
-  additional fields on the OAuth create path, so one has to exist), and
-  `accountLinking.trustedProviders` stays **empty** — with GitHub untrusted,
-  better-auth links onto an existing member only if GitHub has verified the
-  email, and naming a provider "trusted" is how that check is waived, not how
-  it is imposed.
+  signs members in *and* up. Three things had to be settled to lift it safely,
+  all recorded in `src/server/auth.ts`:
+  - a member created by GitHub gets a username derived from their GitHub login
+    (Better Auth enforces required additional fields on the OAuth create path,
+    so one has to exist), backed by a unique index on `users.username`;
+  - **automatic linking-by-email is disabled** (`disableImplicitLinking: true`,
+    `trustedProviders: []`). A GitHub sign-in whose email matches an existing
+    account is refused, not merged; merging is only possible from the
+    authenticated `/security` flow. This closes an account-takeover: because
+    email verification is stubbed (`emailVerified` is force-set for local
+    sign-ups), anyone could register a victim's address and, without this,
+    have the victim's later verified-GitHub sign-in silently merged onto the
+    attacker's row. `trustedProviders` stays empty for the mirror reason —
+    naming a provider "trusted" *waives* better-auth's incoming email-verified
+    check (`oauth2/link-account.mjs`), it does not impose one;
+  - a GitHub-created row keeps GitHub's real `emailVerified` (the `true`-forcing
+    is scoped to `/sign-up/email`), so an unverified GitHub email never becomes
+    a falsely-verified local account.
 - App-owned guardrails are bolted on where Better Auth's defaults are looser
   than the legacy app's: a `session.create.before` hook refuses to mint a
   session for a deactivated or suspended member (admin revocation would
