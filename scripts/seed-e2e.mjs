@@ -116,6 +116,15 @@ await Message.updateOne(
   { upsert: true },
 );
 
+// Linked Repositories pointing at the GitHub API fixture server
+// (e2e/fixtures/github-api.mjs), one per state a repo card can be in: a repo
+// that resolves, one GitHub answers 404 for, and one behind a rate limit.
+const LINKED_REPOS = [
+  { repoId: 9001, owner: 'e2e-org', name: 'codecollab-web', linkedAt: new Date() },
+  { repoId: 9002, owner: 'e2e-org', name: 'gone-repo', linkedAt: new Date() },
+  { repoId: 9003, owner: 'e2e-org', name: 'rate-limited-repo', linkedAt: new Date() },
+];
+
 const TITLE = 'E2E Sample Project';
 await Project.updateOne(
   { title: TITLE },
@@ -128,10 +137,15 @@ await Project.updateOne(
       technologies: ['TypeScript'],
       tags: ['e2e'],
       collaborators: [],
+      linkedRepos: LINKED_REPOS,
     },
   },
   { upsert: true },
 );
+
+// Anything the server cached from GitHub on a previous run, so a fixture that
+// has since changed cannot be served out of a day-old cache entry.
+await collection('github_cache').deleteMany({});
 
 console.log(
   `seeded pre-migration E2E users ${EMAIL} + ${EMAIL2} (${throwaway.length} throwaway account(s) removed) and project "${TITLE}"`,

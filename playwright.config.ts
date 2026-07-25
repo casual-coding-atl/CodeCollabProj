@@ -6,6 +6,13 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT) || 3100;
 const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
+// GitHub is stubbed for the whole suite: the app's single outbound edge is
+// pointed at a local fixture server (e2e/fixtures/github-api.mjs) instead of
+// api.github.com, so no test depends on the network, a rate limit, or a real
+// repository's star count.
+const GITHUB_FIXTURE_PORT = Number(process.env.E2E_GITHUB_PORT) || 3199;
+const GITHUB_FIXTURE_URL = `http://localhost:${GITHUB_FIXTURE_PORT}`;
+
 /** Swap the database name in a Mongo connection string, preserving creds/host/query. */
 function withDbName(uri: string, name: string): string {
   if (!uri) return uri;
@@ -39,25 +46,38 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // Always the E2E server (never reuse the dev server): build+start locally, or
   // just start in CI (which builds in a prior step). Bound to the E2E DB + port.
-  webServer: {
-    command: process.env.CI ? 'npm start' : 'npm run build && npm start',
-    url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    env: {
-      NODE_ENV: 'test',
-      PORT: String(PORT),
-      MONGODB_URI: E2E_MONGODB_URI,
-      JWT_SECRET: process.env.JWT_SECRET ?? 'e2e-test-secret-at-least-32-characters-1234',
-      VITE_API_URL: '/api',
-      // Better Auth checks the request origin against its own base URL, so this
-      // MUST be the E2E server's URL — pointed at :3000 it rejects every
-      // sign-in from :3100 as a cross-origin request.
-      BETTER_AUTH_URL: BASE_URL,
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET ??
-        process.env.JWT_SECRET ??
-        'e2e-test-secret-at-least-32-characters-1234',
+  //
+  webServer: [
+    {
+      command: process.env.CI ? 'npm start' : 'npm run build && npm start',
+      url: BASE_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        NODE_ENV: 'test',
+        PORT: String(PORT),
+        MONGODB_URI: E2E_MONGODB_URI,
+        JWT_SECRET: process.env.JWT_SECRET ?? 'e2e-test-secret-at-least-32-characters-1234',
+        VITE_API_URL: '/api',
+        // Better Auth checks the request origin against its own base URL, so this
+        // MUST be the E2E server's URL — pointed at :3000 it rejects every
+        // sign-in from :3100 as a cross-origin request.
+        BETTER_AUTH_URL: BASE_URL,
+        BETTER_AUTH_SECRET:
+          process.env.BETTER_AUTH_SECRET ??
+          process.env.JWT_SECRET ??
+          'e2e-test-secret-at-least-32-characters-1234',
+        // Every GitHub read goes to the fixture server below, never to
+        // api.github.com.
+        GITHUB_API_BASE: GITHUB_FIXTURE_URL,
+      },
     },
-  },
+    {
+      command: 'node e2e/fixtures/github-api.mjs',
+      url: `${GITHUB_FIXTURE_URL}/healthz`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      env: { GITHUB_FIXTURE_PORT: String(GITHUB_FIXTURE_PORT) },
+    },
+  ],
 });
