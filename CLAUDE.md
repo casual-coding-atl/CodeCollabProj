@@ -65,7 +65,7 @@ npm run typecheck  # tsc --noEmit
 
 ## Known gaps
 
-Email sending (reset/verify) and avatar binary storage are stubbed; email verification is disabled (register creates verified accounts). Some `/users/:id/*` endpoints were never implemented in the original backend and remain absent.
+Password-reset email sends for real via `src/server/email.ts` (Resend over plain HTTP, no SDK — env-gated on `RESEND_API_KEY` + `EMAIL_FROM`, issue #90); unconfigured deployments fall back to logging the link outside production only. Verification email is still stubbed and email verification is disabled (register creates verified accounts — load-bearing for the GitHub sign-in takeover fix, see `newMemberDefaults`). Avatar binary storage is stubbed. Some `/users/:id/*` endpoints were never implemented in the original backend and remain absent.
 
 ## Agent skills
 
