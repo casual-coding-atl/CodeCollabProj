@@ -162,6 +162,18 @@ export interface UserSummary {
 }
 
 /**
+ * A Linked Repository: a public GitHub repository attached to a project by its
+ * owner (at most three). `repoId` is GitHub's numeric id — the identity that
+ * survives a rename — and is how the unlink endpoint addresses one.
+ */
+export interface LinkedRepo {
+  repoId: number;
+  owner: string;
+  name: string;
+  linkedAt?: string;
+}
+
+/**
  * Project interface representing a project as returned from the API
  */
 export interface Project {
@@ -177,6 +189,7 @@ export interface Project {
   tags: string[];
   owner: string | User | UserSummary;
   collaborators: Collaborator[];
+  linkedRepos?: LinkedRepo[];
   resources: ProjectResource[];
   incentives: ProjectIncentives;
   createdAt: string;

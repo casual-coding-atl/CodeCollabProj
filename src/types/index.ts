@@ -32,6 +32,7 @@ export type {
   User,
   UserSummary,
   Project,
+  LinkedRepo,
   Session,
   Comment,
   Message,

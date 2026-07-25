@@ -11,6 +11,8 @@ export { useProject } from './useProject';
 
 export { useCreateProject, useUpdateProject, useDeleteProject } from './useProjectMutations';
 
+export { useLinkedRepos, useLinkRepo, useUnlinkRepo, repoErrorMessage } from './useLinkedRepos';
+
 export {
   useJoinProject,
   useLeaveProject,
