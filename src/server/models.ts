@@ -91,6 +91,21 @@ const collaboratorSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
 });
+/**
+ * A Linked Repository (CONTEXT.md): a public GitHub repo attached to a project
+ * by its owner, at most three per project. `repoId` is GitHub's numeric id — the
+ * identity that survives a rename — while `owner`/`name` are a cached label,
+ * refreshed from GitHub's responses whenever they drift.
+ */
+const linkedRepoSchema = new Schema(
+  {
+    repoId: { type: Number, required: true },
+    owner: { type: String, required: true },
+    name: { type: String, required: true },
+    linkedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
 const projectSchema = new Schema(
   {
     title: String,
@@ -104,6 +119,7 @@ const projectSchema = new Schema(
     },
     owner: { type: Schema.Types.ObjectId, ref: 'User' },
     collaborators: [collaboratorSchema],
+    linkedRepos: [linkedRepoSchema],
   },
   { collection: 'projects', strict: false, timestamps: true },
 );
