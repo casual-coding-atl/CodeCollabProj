@@ -13,6 +13,7 @@ const EMAIL = process.env.E2E_EMAIL || 'e2e@codecollab.test';
 const PASSWORD = process.env.E2E_PASSWORD || 'e2e-password-123';
 const EMAIL2 = process.env.E2E_EMAIL2 || 'e2e2@codecollab.test';
 const PASSWORD2 = process.env.E2E_PASSWORD2 || 'e2e-password-123';
+const USERNAME2 = process.env.E2E_USERNAME2 || 'e2e_user_two';
 
 /** Better Auth's session cookie — the only auth credential in the browser. */
 const SESSION_COOKIE = 'better-auth.session_token';
@@ -27,28 +28,36 @@ function throwaway(tag: string): { email: string; username: string } {
 }
 
 /**
- * Load a page and wait until React has taken it over.
+ * Load a page and wait until React owns the field we're about to type into.
  *
  * The markup arrives server-rendered, so a form is on screen and fillable well
- * before any click handler is attached — submit in that window and the browser
- * does a native GET, putting the password in the URL and going nowhere. The
- * signal used here is the session check: `useAuth` fires `GET
- * /api/auth/get-session` from an effect, so seeing that request means effects
- * have run and the tree is interactive. Subscribing before `goto` avoids racing
- * a response that lands first. (This replaces a fixed 600ms sleep, which was
- * either too long or — under parallel load — not long enough.)
+ * before React attaches to it. Fill in that window and the value lands in the
+ * DOM without react-hook-form ever seeing it: hydration then re-renders the
+ * controlled input back to empty, and the submit that follows reports "Email is
+ * required" for a form the test just filled in.
+ *
+ * The signal is React's own. Hydration tags every host node it takes over with
+ * `__reactFiber$…` / `__reactProps$…` keys, so their presence on *this* element
+ * means *this* element is live. Being a property of the page in front of us is
+ * the whole point: an earlier version waited for the `GET
+ * /api/auth/get-session` that `useAuth` fires from an effect, which a request
+ * still in flight from the PREVIOUS page could satisfy — letting the test type
+ * into a page that had not hydrated yet.
  */
-async function gotoHydrated(page: Page, path: string): Promise<void> {
-  const hydrated = page.waitForResponse(
-    (res) => res.url().includes('/api/auth/get-session'),
+async function gotoHydrated(page: Page, path: string, selector: string): Promise<void> {
+  await page.goto(path);
+  await page.waitForFunction(
+    (sel) => {
+      const el = document.querySelector(sel);
+      return !!el && Object.keys(el).some((key) => key.startsWith('__react'));
+    },
+    selector,
     { timeout: 20_000 }
   );
-  await page.goto(path);
-  await hydrated;
 }
 
 async function signInThroughTheForm(page: Page, email: string, password: string): Promise<void> {
-  await gotoHydrated(page, '/login');
+  await gotoHydrated(page, '/login', 'input[name="email"]');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await Promise.all([
@@ -94,7 +103,7 @@ test.describe('sign in', () => {
   });
 
   test('a wrong password is refused, with a message and no session', async ({ page, context }) => {
-    await gotoHydrated(page, '/login');
+    await gotoHydrated(page, '/login', 'input[name="email"]');
     await page.fill('input[name="email"]', EMAIL);
     await page.fill('input[name="password"]', 'definitely-not-the-password');
     await page.click('button[type="submit"]');
@@ -149,6 +158,14 @@ test.describe('sign out', () => {
     // outlived the sign-out — which is exactly what happened while logout only
     // cleared the auth, projects and users query families.
     await signInThroughTheForm(page, EMAIL2, PASSWORD2);
+
+    // Pin down who we are before asserting what we cannot see: "the message is
+    // absent" would be just as true of a page that failed to load, or of still
+    // being the first member on a screen that hadn't finished rendering.
+    await expect(
+      page.getByRole('button', { name: new RegExp(`account menu for ${USERNAME2}`, 'i') })
+    ).toBeVisible({ timeout: 15_000 });
+
     await page.goto('/messages');
     await expect(page.getByRole('heading', { name: /messages/i }).first()).toBeVisible({
       timeout: 15_000,
@@ -161,7 +178,7 @@ test.describe('register', () => {
   test('a new member signs up and lands on their dashboard', async ({ page, context }) => {
     const who = throwaway('form');
 
-    await gotoHydrated(page, '/register');
+    await gotoHydrated(page, '/register', 'input[name="username"]');
 
     await page.fill('input[name="username"]', who.username);
     await page.fill('input[name="email"]', who.email);
