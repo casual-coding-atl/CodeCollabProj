@@ -29,21 +29,31 @@ export const User: Model<UserDoc> =
   (mongoose.models.User as Model<UserDoc>) ?? mongoose.model<UserDoc>('User', userSchema);
 
 // ── Session ──────────────────────────────────────────────────────────────────
+// Better Auth owns sessions (ADR 0002) and writes them to the singular `session`
+// collection; the legacy `sessions` collection is retired. This model exists
+// only so the admin panel can still count and revoke them — Better Auth's own
+// API is the way to *create* or validate one. `userId` is Mixed because the
+// adapter may store it as an ObjectId or as its string form.
 const sessionSchema = new Schema(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    userId: Schema.Types.Mixed,
     token: String,
-    refreshToken: String,
-    isActive: { type: Boolean, default: true },
     expiresAt: Date,
-    lastActivity: Date,
   },
-  { collection: 'sessions', strict: false },
+  { collection: 'session', strict: false },
 );
 export type SessionDoc = InferSchemaType<typeof sessionSchema> & { _id: mongoose.Types.ObjectId };
 export const Session: Model<SessionDoc> =
   (mongoose.models.Session as Model<SessionDoc>) ??
   mongoose.model<SessionDoc>('Session', sessionSchema);
+
+/** Every session row belonging to a member, whichever way the id was stored. */
+export function sessionsOf(userId: string | mongoose.Types.ObjectId) {
+  const id = String(userId);
+  const or: Array<Record<string, unknown>> = [{ userId: id }];
+  if (mongoose.Types.ObjectId.isValid(id)) or.push({ userId: new mongoose.Types.ObjectId(id) });
+  return { $or: or };
+}
 
 // ── Project ──────────────────────────────────────────────────────────────────
 const collaboratorSchema = new Schema({

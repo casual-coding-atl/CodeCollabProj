@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireRole, query } from '../server/http';
 import { connectDB } from '../server/db';
-import { User, Session } from '../server/models';
+import { User, Session, sessionsOf } from '../server/models';
 
 /**
  * DELETE /api/admin/users/$id
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/admin/users/$id')({
         if (permanent === 'true') {
           // Permanent deletion.
           await User.findByIdAndDelete(userId);
-          await Session.deleteMany({ userId });
+          await Session.deleteMany(sessionsOf(userId));
 
           return json({ message: 'User permanently deleted' });
         }
@@ -46,14 +46,7 @@ export const Route = createFileRoute('/api/admin/users/$id')({
         user.set('isActive', false);
         await user.save();
 
-        await Session.updateMany(
-          { userId, isActive: true },
-          {
-            isActive: false,
-            revokedAt: new Date(),
-            revokedReason: 'account_deactivated',
-          }
-        );
+        await Session.deleteMany(sessionsOf(userId));
 
         return json({ message: 'User account deactivated' });
       }),
