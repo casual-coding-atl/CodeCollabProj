@@ -241,6 +241,17 @@ function buildAuth() {
     socialProviders: githubProvider(),
     // See githubProvider(): linking is supported, social sign-in is not.
     disabledPaths: ['/sign-in/social'],
+    account: {
+      accountLinking: {
+        // A member links GitHub from their security settings, already signed
+        // in, and the linked identity can never sign anyone in. Insisting the
+        // GitHub email match the app email would therefore protect nothing
+        // while blocking the ordinary case of a separate work or personal
+        // GitHub address. Better Auth still requires the GitHub email to be
+        // verified before it will link, which is the check that matters.
+        allowDifferentEmails: true,
+      },
+    },
     user: {
       modelName: 'users',
       additionalFields: {

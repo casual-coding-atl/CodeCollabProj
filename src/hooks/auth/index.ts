@@ -16,6 +16,12 @@ export { useRegister } from './useRegister';
 export { usePasskeys, useAddPasskey, useDeletePasskey } from './usePasskeys';
 
 export {
+  useLinkedGithubAccount,
+  useConnectGithub,
+  useDisconnectGithub,
+} from './useGithubAccount';
+
+export {
   useRequestPasswordReset,
   useResetPassword,
   useResendVerificationEmail,

@@ -72,6 +72,7 @@ export const queryKeys = {
     currentSession: (): readonly string[] => [...queryKeys.auth.all, 'currentSession'],
     sessions: (): readonly string[] => [...queryKeys.auth.all, 'sessions'],
     passkeys: (): readonly string[] => [...queryKeys.auth.all, 'passkeys'],
+    githubAccount: (): readonly string[] => [...queryKeys.auth.all, 'githubAccount'],
   },
   // Projects keys
   projects: {

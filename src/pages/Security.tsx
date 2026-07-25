@@ -1,5 +1,6 @@
 import React from 'react';
 import ChangePassword from '../components/auth/ChangePassword';
+import GithubAccountCard from '../components/auth/GithubAccountCard';
 import PasskeyManager from '../components/auth/PasskeyManager';
 import SessionManager from '../components/auth/SessionManager';
 
@@ -17,6 +18,7 @@ const Security: React.FC = () => (
     </div>
 
     <PasskeyManager />
+    <GithubAccountCard />
     <SessionManager />
     <ChangePassword />
   </div>
