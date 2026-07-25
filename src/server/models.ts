@@ -47,13 +47,41 @@ export const Session: Model<SessionDoc> =
   (mongoose.models.Session as Model<SessionDoc>) ??
   mongoose.model<SessionDoc>('Session', sessionSchema);
 
-/** Every session row belonging to a member, whichever way the id was stored. */
-export function sessionsOf(userId: string | mongoose.Types.ObjectId) {
+/**
+ * Every row belonging to a member, whichever way the adapter stored the id
+ * (Better Auth writes it as an ObjectId or as its string form depending on the
+ * path). Works for any of the auth-owned collections below.
+ */
+export function ownedBy(userId: string | mongoose.Types.ObjectId) {
   const id = String(userId);
   const or: Array<Record<string, unknown>> = [{ userId: id }];
   if (mongoose.Types.ObjectId.isValid(id)) or.push({ userId: new mongoose.Types.ObjectId(id) });
   return { $or: or };
 }
+
+// ── Account / Passkey ────────────────────────────────────────────────────────
+// The other two collections Better Auth keys off a member: `account` holds the
+// password credential and any linked OAuth tokens, `passkey` the registered
+// WebAuthn credentials. Nothing here creates them — these models exist so
+// deleting a member takes their sign-in secrets with them instead of leaving
+// orphaned credentials behind a recycled ObjectId.
+const accountSchema = new Schema(
+  { userId: Schema.Types.Mixed, providerId: String, accountId: String },
+  { collection: 'account', strict: false },
+);
+export type AccountDoc = InferSchemaType<typeof accountSchema> & { _id: mongoose.Types.ObjectId };
+export const Account: Model<AccountDoc> =
+  (mongoose.models.Account as Model<AccountDoc>) ??
+  mongoose.model<AccountDoc>('Account', accountSchema);
+
+const passkeySchema = new Schema(
+  { userId: Schema.Types.Mixed, name: String },
+  { collection: 'passkey', strict: false },
+);
+export type PasskeyDoc = InferSchemaType<typeof passkeySchema> & { _id: mongoose.Types.ObjectId };
+export const Passkey: Model<PasskeyDoc> =
+  (mongoose.models.Passkey as Model<PasskeyDoc>) ??
+  mongoose.model<PasskeyDoc>('Passkey', passkeySchema);
 
 // ── Project ──────────────────────────────────────────────────────────────────
 const collaboratorSchema = new Schema({
