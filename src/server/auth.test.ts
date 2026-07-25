@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { APIError } from 'better-auth/api';
 import { memoryAdapter } from 'better-auth/adapters/memory';
 
@@ -22,6 +22,8 @@ const {
   assertNoUsernameChange,
   buildAuth,
   deriveUsername,
+  newMemberDefaults,
+  randomUsername,
   resolveBaseURL,
   sanitizeUsername,
   usernameSchema,
@@ -241,6 +243,119 @@ describe('deriveUsername', () => {
     const e = await thrown(() => deriveUsername('octocat', null));
     expect(e.status).toBe('CONFLICT');
     expect(e.body?.code).toBe('USERNAME_TAKEN');
+  });
+});
+
+describe('randomUsername', () => {
+  it('is a valid, suffixed username derived from the seed, without touching the DB', () => {
+    const name = randomUsername('octocat');
+    expect(name).toMatch(/^octocat\d{6}$/);
+    expect(usernameSchema.safeParse(name).success).toBe(true);
+    expect(exists).not.toHaveBeenCalled();
+  });
+
+  it('still produces a valid name from an unusable seed', () => {
+    const name = randomUsername('');
+    expect(name).toMatch(/^member\d{6}$/);
+    expect(usernameSchema.safeParse(name).success).toBe(true);
+  });
+});
+
+describe('newMemberDefaults', () => {
+  it('stamps the app-domain defaults a Mongoose schema would have', () => {
+    const data = newMemberDefaults({ username: 'newcomer', email: 'a@b.c' }, '/sign-up/email');
+    expect(data).toMatchObject({
+      username: 'newcomer',
+      role: 'user',
+      permissions: ['project:create'],
+      isActive: true,
+      isSuspended: false,
+    });
+  });
+
+  it('forces emailVerified true for an email/password sign-up', () => {
+    // Verification is stubbed, so a local account has to start verified or it is
+    // a dead end — the legacy invariant.
+    const data = newMemberDefaults({ username: 'ep', emailVerified: false }, '/sign-up/email');
+    expect(data.emailVerified).toBe(true);
+  });
+
+  it('keeps GitHub’s real emailVerified on the OAuth create path', () => {
+    // The anti-pre-hijack rule: a GitHub row whose email GitHub would not vouch
+    // for must NOT be minted as verified. `/callback/:id` is the OAuth path.
+    const unverified = newMemberDefaults(
+      { username: 'gh', emailVerified: false },
+      '/callback/github',
+    );
+    expect(unverified.emailVerified).toBe(false);
+
+    const verified = newMemberDefaults({ username: 'gh', emailVerified: true }, '/callback/github');
+    expect(verified.emailVerified).toBe(true);
+  });
+
+  it('does not invent a verification when the path is unknown', () => {
+    // Ambiguity errs safe: only the email sign-up path is allowed to force it.
+    const data = newMemberDefaults({ username: 'x', emailVerified: false }, undefined);
+    expect(data.emailVerified).toBe(false);
+  });
+
+  it('lets an explicit role or permission win over the default', () => {
+    const data = newMemberDefaults(
+      { username: 'x', role: 'admin', permissions: ['everything'] },
+      '/sign-up/email',
+    );
+    expect(data.role).toBe('admin');
+    expect(data.permissions).toEqual(['everything']);
+  });
+});
+
+describe('account linking is explicit-only (config invariants)', () => {
+  // These read the built configuration rather than restating it, so a future
+  // edit that loosens the anti-takeover posture — trusting GitHub, turning
+  // implicit linking back on, or letting a GitHub sign-in overwrite an existing
+  // member's profile/username — trips a test. GitHub creds so the provider is
+  // actually registered and its options are inspectable.
+  const prev = {
+    id: process.env.GITHUB_CLIENT_ID,
+    secret: process.env.GITHUB_CLIENT_SECRET,
+  };
+  beforeAll(() => {
+    process.env.GITHUB_CLIENT_ID = 'test-id';
+    process.env.GITHUB_CLIENT_SECRET = 'test-secret';
+  });
+  afterAll(() => {
+    process.env.GITHUB_CLIENT_ID = prev.id;
+    process.env.GITHUB_CLIENT_SECRET = prev.secret;
+  });
+
+  function options() {
+    return buildAuth(memoryAdapter({})).options as {
+      account?: {
+        accountLinking?: {
+          disableImplicitLinking?: boolean;
+          trustedProviders?: string[];
+          updateUserInfoOnLink?: boolean;
+        };
+      };
+      socialProviders?: { github?: { overrideUserInfoOnSignIn?: boolean } };
+    };
+  }
+
+  it('refuses to auto-merge a GitHub identity onto an existing account', () => {
+    expect(options().account?.accountLinking?.disableImplicitLinking).toBe(true);
+  });
+
+  it('trusts no provider (naming one would waive its email-verified check)', () => {
+    expect(options().account?.accountLinking?.trustedProviders).toEqual([]);
+  });
+
+  it('never rewrites an existing member from the GitHub profile on link or sign-in', () => {
+    // Pins the invariant behind CONTEXT.md's "profile enrichment (future)":
+    // both switches that would let a GitHub sign-in overwrite a member's
+    // username/name/image stay off.
+    const o = options();
+    expect(o.account?.accountLinking?.updateUserInfoOnLink).toBeFalsy();
+    expect(o.socialProviders?.github?.overrideUserInfoOnSignIn).toBeFalsy();
   });
 });
 

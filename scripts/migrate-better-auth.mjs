@@ -108,7 +108,7 @@ if (report.clean) {
     );
   if (report.duplicateUsernames.length)
     console.warn(
-      `[migrate:auth] ⚠ ${report.duplicateUsernames.length} username(s) duplicated case-insensitively — sign-up now rejects these, and a unique index cannot be added until they are resolved: ${show(report.duplicateUsernames.map((d) => `${d.username} ×${d.count}`))}`,
+      `[migrate:auth] ⚠ ${report.duplicateUsernames.length} username(s) duplicated case-insensitively — sign-up rejects these, and the exact-case unique index below will refuse to build while an *exact* duplicate remains (resolve them, then re-run): ${show(report.duplicateUsernames.map((d) => `${d.username} ×${d.count}`))}`,
     );
 }
 
@@ -158,7 +158,39 @@ const indexes = [
   [sessions, { token: 1 }, { name: 'session_token_unique', unique: true }],
   [sessions, { userId: 1 }, { name: 'session_userId' }],
   [sessions, { expiresAt: 1 }, { name: 'session_expiresAt' }],
-  [users, { email: 1 }, { name: 'users_email' }],
+  // Username uniqueness is enforced here, not just check-then-inserted in the
+  // create hook: without an index, two concurrent GitHub sign-ups whose logins
+  // sanitize to the same name both pass the pre-check and both insert. The
+  // index makes the DB pick a winner and hand the loser a duplicate-key error.
+  //
+  // Exact-case, and partial on a present string, for two collation reasons:
+  // a case-insensitive unique index needs a collation this collection was not
+  // created with, and a plain unique index would treat several username-less
+  // legacy rows as duplicate nulls. So this closes the concurrent-signup race
+  // (identical sanitized names ARE exact-equal); the app's own case-insensitive
+  // check still guards `Alex`/`alex` on the ordinary path.
+  [
+    users,
+    { username: 1 },
+    {
+      name: 'users_username_unique',
+      unique: true,
+      partialFilterExpression: { username: { $type: 'string' } },
+    },
+  ],
+  // Email uniqueness, same shape and same safety net (report-first above,
+  // warn-and-continue below if legacy exact-case duplicates block it). Better
+  // Auth already treats the lowercased email as unique when it looks a member
+  // up; this stops a second row from ever being written for one.
+  [
+    users,
+    { email: 1 },
+    {
+      name: 'users_email_unique',
+      unique: true,
+      partialFilterExpression: { email: { $type: 'string' } },
+    },
+  ],
 ];
 
 if (dryRun) {

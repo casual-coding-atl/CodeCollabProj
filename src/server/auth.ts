@@ -105,6 +105,16 @@ type GithubProfile = { login?: string | null; email?: string | null };
  * `overrideUserInfoOnSignIn` are both off, so an existing member's username is
  * never overwritten). One extra query per GitHub sign-in is the price of not
  * having to guess which branch the callback is about to take.
+ *
+ * It must not throw. `mapProfileToUser` runs inside `getUserInfo`, which the
+ * OAuth callback calls *before* its try/catch (better-auth/dist/api/routes/
+ * callback.mjs — `getUserInfo` at the top, the `try` only around
+ * `handleOAuthUserInfo`). A throw here — a Mongo blip in the uniqueness probe,
+ * or `deriveUsername` giving up — would escape as an unhandled rejection with
+ * the authorization code already spent, stranding the member on raw JSON at the
+ * callback URL. So a failed derivation falls back to a random-suffixed name
+ * (`randomUsername`) and lets account creation proceed; the unique index on
+ * `users.username` is the backstop if that name is somehow taken too.
  */
 function githubProvider() {
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -114,10 +124,21 @@ function githubProvider() {
     github: {
       clientId,
       clientSecret,
+      // These scopes are appended to Better Auth's own `read:user`/`user:email`
+      // and are the *only* thing the stored token can do. That is fine here
+      // precisely because the token never leaves the server: `/get-access-token`
+      // and friends are shut (DISABLED_AUTH_PATHS) and the repo proxy is gated,
+      // so a broad scope would still only ever be spent by our own read paths.
       scope: ['read:user', 'user:email'],
-      mapProfileToUser: async (profile: GithubProfile) => ({
-        username: await deriveUsername(profile.login, profile.email),
-      }),
+      mapProfileToUser: async (profile: GithubProfile) => {
+        try {
+          return { username: await deriveUsername(profile.login, profile.email) };
+        } catch (err) {
+          // Never let a derivation failure escape the callback (see above).
+          console.warn('[auth] GitHub username derivation failed, using a random one:', err);
+          return { username: randomUsername(profile.login ?? profile.email) };
+        }
+      },
     },
   };
 }
@@ -188,11 +209,15 @@ async function usernameTaken(username: string): Promise<boolean> {
  * Refuse a username somebody already holds. Runs in the user-create hook, so it
  * covers every path that creates a member, not just POST /sign-up/email.
  *
- * There is a race here that only a unique index could close, and a
- * case-insensitive unique index needs a collation the legacy `users` collection
- * does not have. Losing the race needs two sign-ups for the same name in the
- * same handful of milliseconds; the migration script reports existing duplicates
- * so an index can be added deliberately later.
+ * This is a check-then-insert, so a unique index does the actual enforcing: the
+ * migration builds an exact-case unique index on `users.username`
+ * (`users_username_unique`), which turns two same-name sign-ups in the same
+ * handful of milliseconds into one winner and one duplicate-key error rather
+ * than two rows. Exact-case, not case-insensitive, because a case-insensitive
+ * unique index needs a collation the legacy `users` collection was not created
+ * with; this check stays case-insensitive so `Alex`/`alex` still cannot coexist
+ * in the ordinary (non-racing) path, and the index closes the narrow window it
+ * cannot.
  */
 export async function assertUsernameAvailable(username: unknown): Promise<void> {
   if (typeof username !== 'string' || username.length === 0) return;
@@ -239,6 +264,19 @@ function withSuffix(base: string, n: number): string {
 }
 
 /**
+ * A last-resort username that does not touch the database, for when
+ * `deriveUsername` cannot (a Mongo blip, or every suffix somehow taken). It is
+ * not checked for uniqueness on purpose — the caller is on a path that must not
+ * throw (`mapProfileToUser`), and the `users.username` unique index is the
+ * backstop if this six-digit suffix collides, which is a coin flip against an
+ * empty room. The member can rename afterwards through PUT /api/users/profile.
+ */
+export function randomUsername(seed: unknown): string {
+  const base = sanitizeUsername(seed);
+  return withSuffix(base, 100_000 + Math.floor(Math.random() * 900_000));
+}
+
+/**
  * The username a member GitHub is introducing gets, since they never typed one.
  *
  * Preference order is GitHub's `login` (the name they already answer to) then
@@ -263,7 +301,7 @@ export async function deriveUsername(login: unknown, email: unknown): Promise<st
     if (!(await usernameTaken(candidate))) return candidate;
   }
   for (let attempt = 0; attempt < 5; attempt++) {
-    const candidate = withSuffix(base, 100_000 + Math.floor(Math.random() * 900_000));
+    const candidate = randomUsername(base);
     if (!(await usernameTaken(candidate))) return candidate;
   }
   throw new APIError('CONFLICT', {
@@ -325,6 +363,48 @@ export async function assertMemberMaySignIn(userId: unknown): Promise<void> {
   }
 }
 
+// ── new-member defaults ──────────────────────────────────────────────────────
+
+/** The route path Better Auth's email/password sign-up runs under. */
+const EMAIL_SIGNUP_PATH = '/sign-up/email';
+
+/**
+ * The app-domain fields every new member row needs, merged onto whatever Better
+ * Auth is about to write. Extracted from the `user.create.before` hook so the
+ * one genuinely tricky decision in it — when to force `emailVerified` — is
+ * unit-testable without standing up an OAuth flow.
+ *
+ * `role`/`permissions`/`isActive`/`isSuspended` are defaults: they sit *before*
+ * the spread so an explicit incoming value wins (nothing sets them today, but a
+ * future admin-create path might).
+ *
+ * `emailVerified` is the careful one, and it depends on which endpoint is
+ * creating the member (`createdViaPath`, from Better Auth's endpoint context):
+ *  - `/sign-up/email` — forced true. Verification is stubbed and no sender is
+ *    wired, so an unverified local account would be a dead end; the legacy
+ *    register endpoint made verified accounts and the migration backfilled every
+ *    member as verified. Drop this the day email sending lands.
+ *  - the OAuth callback (`/callback/:id`) — left exactly as GitHub reported it.
+ *    Forcing it true here would mint a *falsely* verified local row for an email
+ *    the member never proved they own (GitHub lets you attach an unverified
+ *    address), and that lie would outlive this hook. `disableImplicitLinking`
+ *    already refuses to merge such a row, but it must not claim a verification
+ *    GitHub declined to give.
+ */
+export function newMemberDefaults<T extends Record<string, unknown>>(
+  user: T,
+  createdViaPath: string | undefined,
+): T & { role: string; permissions: string[]; isActive: boolean; isSuspended: boolean } {
+  return {
+    role: 'user',
+    permissions: ['project:create'],
+    isActive: true,
+    isSuspended: false,
+    ...user,
+    ...(createdViaPath === EMAIL_SIGNUP_PATH ? { emailVerified: true } : {}),
+  };
+}
+
 // ── the instance ─────────────────────────────────────────────────────────────
 
 /**
@@ -381,31 +461,35 @@ export function buildAuth(database: BetterAuthOptions['database']) {
         // it will link, which is the check that matters.
         allowDifferentEmails: true,
 
-        // `trustedProviders` is deliberately left empty, and this is the one
-        // knob here that would be easy to turn the wrong way.
-        //
-        // Signing in with GitHub as somebody whose email already belongs to a
-        // member has to resolve somehow, and Better Auth's default already
-        // resolves it the way we want: better-auth/dist/oauth2/link-account.mjs
-        // refuses the implicit link only when
+        // Automatic linking-by-email is off, and this is a security decision,
+        // not a preference. The gate in better-auth/dist/oauth2/link-account.mjs
+        // that decides whether a GitHub sign-in may attach itself to a member
+        // who *already exists* (found by email) is:
         //
         //   !isTrustedProvider && !userInfo.emailVerified
         //     || requireLocalEmailVerified && !dbUser.user.emailVerified
         //     || accountLinking.enabled === false
-        //     || accountLinking.disableImplicitLinking === true
+        //     || accountLinking.disableImplicitLinking === true   ← this
         //
-        // so with GitHub *untrusted*, a GitHub-verified email links onto the
-        // existing member and an unverified one is refused as
-        // `?error=account_not_linked`. Naming GitHub as trusted does not add
-        // the verification check — it is precisely how you *waive* it, since it
-        // short-circuits the `!userInfo.emailVerified` half. That would let
-        // anyone who can attach a victim's address to a GitHub account without
-        // proving it walk into the victim's account here.
+        // With `disableImplicitLinking: true`, an email match on an existing
+        // account is *always* refused (returns "account not linked", which the
+        // callback turns into `?error=account_not_linked`) rather than merged.
+        // A new email still creates an account, and a member who linked GitHub
+        // explicitly from /security still signs in — that path finds the linked
+        // `account` row and never reaches this gate.
         //
-        // (The second clause holds too: `requireLocalEmailVerified` defaults to
-        // true, and every member row in this app is `emailVerified: true` — the
-        // legacy register endpoint wrote it, the migration backfilled it, and
-        // the create hook below stamps it.)
+        // The reason it cannot be left to the emailVerified checks alone:
+        // `emailVerified` on the *local* row is not proof the person signing in
+        // with GitHub owns it. Anyone can register an email/password account for
+        // an address they do not control (verification is stubbed — the create
+        // hook stamps `emailVerified: true`), then wait for the real owner to
+        // sign in with GitHub and have their verified GitHub identity silently
+        // merged onto the attacker's row, password and sessions intact. Making
+        // /security — where the member is already authenticated — the only merge
+        // path removes that whole class. (`trustedProviders` stays empty for the
+        // mirror-image reason: naming a provider trusted *waives* the incoming
+        // `emailVerified` check, it does not impose one.)
+        disableImplicitLinking: true,
         trustedProviders: [],
       },
     },
@@ -452,31 +536,18 @@ export function buildAuth(database: BetterAuthOptions['database']) {
           // The username has already been validated by then (Better Auth's
           // field validator), whether the member typed it or `deriveUsername`
           // built it; what is left is the uniqueness check no validator can do.
-          before: async (user) => {
+          //
+          // The second argument is Better Auth's endpoint context (the store
+          // from `runWithEndpointContext`, dist/api/dispatch.mjs), whose `path`
+          // is the route that triggered the create — `/sign-up/email` or, for
+          // OAuth, `/callback/:id`. It is how we tell an email sign-up from a
+          // GitHub one; see `emailVerified` below.
+          before: async (user, context) => {
             await assertUsernameAvailable((user as { username?: unknown }).username);
-            return {
-              data: {
-                role: 'user',
-                permissions: ['project:create'],
-                isActive: true,
-                isSuspended: false,
-                ...user,
-                // AFTER the spread on purpose: sign-up hands us
-                // `emailVerified: false`, but verification is disabled and no
-                // sender is wired, so an unverified account would be a dead end.
-                // The legacy register endpoint created verified accounts and the
-                // migration backfilled every existing member as verified —
-                // this keeps that invariant, which `requireLocalEmailVerified`
-                // above now depends on. Drop it the day email sending lands.
-                //
-                // It also covers a GitHub sign-up whose email GitHub would not
-                // vouch for. That row is only ever *this* GitHub identity's: a
-                // later sign-in from a different GitHub account with the same
-                // address still meets the untrusted-provider gate and is
-                // refused unless GitHub has verified it.
-                emailVerified: true,
-              },
-            };
+            const createdVia = (context as { path?: string } | null)?.path;
+            // The emailVerified decision (and why it turns on `createdVia`)
+            // lives in newMemberDefaults, next to its unit tests.
+            return { data: newMemberDefaults(user as Record<string, unknown>, createdVia) };
           },
         },
       },
