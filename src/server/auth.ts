@@ -29,7 +29,9 @@ import { accessDenialReason } from './access';
  *   session at all — enforced here when one is minted and in ./http on every
  *   request.
  * - Usernames stay ours too: settable once at sign-up (validated and unique
- *   here), never through Better Auth's always-on POST /update-user.
+ *   here), never through Better Auth's always-on POST /update-user. Somebody
+ *   who signs up *through GitHub* never types one, so one is derived from their
+ *   GitHub login — see `deriveUsername`.
  *
  * The instance is built lazily because the Mongo `Db` handle only exists after
  * the shared Mongoose connection resolves — we reuse that pool rather than
@@ -72,21 +74,37 @@ function relyingPartyId(baseURL: string): string {
 }
 
 /**
+ * The slice of GitHub's `GET /user` payload this app reads. Better Auth hands
+ * `mapProfileToUser` the whole thing; declaring only what we use keeps us off
+ * a type from a transitive dependency (`@better-auth/core`).
+ */
+type GithubProfile = { login?: string | null; email?: string | null };
+
+/**
  * GitHub, registered only when credentials exist so dev/CI without an OAuth app
  * boots fine.
  *
- * Linking-only, by design: the roadmap wants members to *attach* a GitHub
- * identity to the account they already have, and never to sign in (let alone
- * sign up) with one. Two layers enforce that, because they fail differently:
+ * GitHub now signs members **in and up**: an identity GitHub vouches for and
+ * this app has never seen becomes a member here, and one it recognises by
+ * verified email is linked onto the account that already exists. (It was
+ * linking-only for one release — `disableSignUp` + a disabled
+ * `/sign-in/social` — while the sign-in UI was still being built.)
  *
- *  - `disableImplicitSignUp` + `disableSignUp` stop the OAuth callback from
- *    ever creating a user, whatever kicked the flow off;
- *  - `/sign-in/social` is in `disabledPaths` below, so the public entry point
- *    to social sign-in 404s even for a member who *has* linked GitHub.
+ * `mapProfileToUser` exists solely to answer the one question GitHub cannot:
+ * what to call the new member. `username` is a required additional field, and
+ * Better Auth validates required fields on the OAuth create path exactly as on
+ * `/sign-up/email` (`parseAdditionalUserInputFromProviderProfile` →
+ * `parseInputData`, better-auth/dist/db/schema.mjs), so without this every
+ * GitHub sign-up would die as `?error=username_is_required`. Only fields
+ * declared in `user.additionalFields` survive that filter, which is why we
+ * return `username` and nothing else.
  *
- * `POST /link-social` is a different endpoint and its callback branch returns
- * before any of the sign-up machinery (see better-auth's oauth2/link-account),
- * so linking keeps working. Undo both when GitHub sign-in is actually wanted.
+ * It runs on *every* GitHub callback, including sign-ins by members who have
+ * been here for years, and the derived name is then thrown away (Better Auth
+ * only reads it on the create branch; `updateUserInfoOnLink` and
+ * `overrideUserInfoOnSignIn` are both off, so an existing member's username is
+ * never overwritten). One extra query per GitHub sign-in is the price of not
+ * having to guess which branch the callback is about to take.
  */
 function githubProvider() {
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -97,8 +115,9 @@ function githubProvider() {
       clientId,
       clientSecret,
       scope: ['read:user', 'user:email'],
-      disableImplicitSignUp: true,
-      disableSignUp: true,
+      mapProfileToUser: async (profile: GithubProfile) => ({
+        username: await deriveUsername(profile.login, profile.email),
+      }),
     },
   };
 }
@@ -107,9 +126,6 @@ function githubProvider() {
  * Endpoints Better Auth mounts that this app refuses to serve. Better Auth
  * mounts them unconditionally, so `disabledPaths` is the only way to say no.
  *
- *  - `/sign-in/social` — the public entry to social sign-in. GitHub is for
- *    *linking* only (see githubProvider above), so even a member who has linked
- *    it cannot sign in with it.
  *  - `/get-access-token`, `/refresh-token` — these hand the caller's browser
  *    the member's decrypted GitHub OAuth token. The whole point of linking is
  *    that the token stays on the server (PRD #88, story 24): the browser gets
@@ -119,11 +135,15 @@ function githubProvider() {
  *  - `/account-info` — proxies GitHub's user-info call on the member's rate
  *    budget, on demand, for no feature this app has.
  *
+ * `/sign-in/social` used to be on this list and deliberately is not any more:
+ * it is how signing in with GitHub starts. The token endpoints are a different
+ * argument entirely — they are about what a *browser* may hold, not about who
+ * may sign in — so they stay shut.
+ *
  * Nothing server-side loses anything: `auth.api.*` and the GitHub reads in
  * ./github go through the database and the account row directly.
  */
 export const DISABLED_AUTH_PATHS = [
-  '/sign-in/social',
   '/get-access-token',
   '/refresh-token',
   '/account-info',
@@ -144,14 +164,28 @@ export const usernameSchema = z
   .max(30, 'Username must not exceed 30 characters')
   .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores');
 
+const USERNAME_MIN = 3;
+const USERNAME_MAX = 30;
+
 /** Escape a value for use inside a RegExp literal. */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * Refuse a username somebody already holds, comparing case-insensitively so
- * `Alex` cannot be minted alongside `alex`. Runs in the user-create hook, so it
+ * Whether somebody already holds this username, compared case-insensitively so
+ * `Alex` cannot be minted alongside `alex`.
+ */
+async function usernameTaken(username: string): Promise<boolean> {
+  await connectDB();
+  const taken = await User.exists({
+    username: new RegExp(`^${escapeRegExp(username)}$`, 'i'),
+  }).exec();
+  return Boolean(taken);
+}
+
+/**
+ * Refuse a username somebody already holds. Runs in the user-create hook, so it
  * covers every path that creates a member, not just POST /sign-up/email.
  *
  * There is a race here that only a unique index could close, and a
@@ -162,16 +196,80 @@ function escapeRegExp(value: string): string {
  */
 export async function assertUsernameAvailable(username: unknown): Promise<void> {
   if (typeof username !== 'string' || username.length === 0) return;
-  await connectDB();
-  const taken = await User.exists({
-    username: new RegExp(`^${escapeRegExp(username)}$`, 'i'),
-  }).exec();
-  if (taken) {
+  if (await usernameTaken(username)) {
     throw new APIError('CONFLICT', {
       code: 'USERNAME_TAKEN',
       message: 'An account with that username already exists',
     });
   }
+}
+
+/**
+ * Fold a GitHub login — or, failing that, an email local part — into a name
+ * this app would have accepted from a member typing it: 3–30 characters of
+ * letters, digits and underscores (`usernameSchema`).
+ *
+ * GitHub logins allow `-`, email local parts allow `.` and more; both become
+ * `_` rather than being dropped, so `alex-robinett` stays legible as
+ * `alex_robinett` instead of collapsing into `alexrobinett`. Runs of separators
+ * collapse and the edges are trimmed, because `__alex__` is nobody's idea of a
+ * name. What survives can still be too short (GitHub allows one-character
+ * logins), so it is padded — and if nothing survives at all, `member` stands in
+ * and the collision suffix below makes it `member2`, `member3`, …
+ *
+ * Pure on purpose: no database, no uniqueness. That is `deriveUsername`.
+ */
+export function sanitizeUsername(seed: unknown): string {
+  const base = String(seed ?? '')
+    // An email address contributes its local part; a GitHub login has no `@`,
+    // so the same line serves both.
+    .split('@')[0]
+    .replace(/[^a-zA-Z0-9_]+/g, '_')
+    .replace(/_{2,}/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, USERNAME_MAX);
+  if (!base) return 'member';
+  return base.padEnd(USERNAME_MIN, '_');
+}
+
+/** `alex` + 2 → `alex2`, keeping the whole thing inside 30 characters. */
+function withSuffix(base: string, n: number): string {
+  const suffix = String(n);
+  return `${base.slice(0, USERNAME_MAX - suffix.length)}${suffix}`;
+}
+
+/**
+ * The username a member GitHub is introducing gets, since they never typed one.
+ *
+ * Preference order is GitHub's `login` (the name they already answer to) then
+ * the email local part, sanitized by `sanitizeUsername` and then made unique:
+ * `alex`, `alex2`, `alex3`, … case-insensitively, so it cannot collide with the
+ * `Alex` who is already here. Members can rename themselves afterwards through
+ * PUT /api/users/profile.
+ *
+ * Only the sequential range is tried before giving up on politeness and
+ * reaching for randomness: a hundred queries is already an absurd number of
+ * namesakes, and an unbounded loop would turn one hostile signup pattern into a
+ * denial of service. Failing outright is the last resort, and surfaces to the
+ * member as a GitHub round trip that could not create their account.
+ */
+export async function deriveUsername(login: unknown, email: unknown): Promise<string> {
+  const preferred = typeof login === 'string' && login.trim() !== '' ? login : email;
+  const base = sanitizeUsername(preferred);
+
+  if (!(await usernameTaken(base))) return base;
+  for (let n = 2; n <= 100; n++) {
+    const candidate = withSuffix(base, n);
+    if (!(await usernameTaken(candidate))) return candidate;
+  }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = withSuffix(base, 100_000 + Math.floor(Math.random() * 900_000));
+    if (!(await usernameTaken(candidate))) return candidate;
+  }
+  throw new APIError('CONFLICT', {
+    code: 'USERNAME_TAKEN',
+    message: 'Could not find an available username for this GitHub account',
+  });
 }
 
 /**
@@ -271,25 +369,54 @@ export function buildAuth(database: BetterAuthOptions['database']) {
       },
     },
     socialProviders: githubProvider(),
-    // See DISABLED_AUTH_PATHS: linking is supported, social sign-in is not, and
-    // the token endpoints stay shut so the OAuth token never reaches a browser.
+    // See DISABLED_AUTH_PATHS: the token endpoints stay shut so the OAuth token
+    // never reaches a browser. Social sign-in itself is served.
     disabledPaths: [...DISABLED_AUTH_PATHS],
     account: {
       accountLinking: {
         // A member links GitHub from their security settings, already signed
-        // in, and the linked identity can never sign anyone in. Insisting the
-        // GitHub email match the app email would therefore protect nothing
-        // while blocking the ordinary case of a separate work or personal
-        // GitHub address. Better Auth still requires the GitHub email to be
-        // verified before it will link, which is the check that matters.
+        // in. Insisting the GitHub email match the app email would block the
+        // ordinary case of a separate work or personal GitHub address, and
+        // Better Auth still requires that GitHub email to be *verified* before
+        // it will link, which is the check that matters.
         allowDifferentEmails: true,
+
+        // `trustedProviders` is deliberately left empty, and this is the one
+        // knob here that would be easy to turn the wrong way.
+        //
+        // Signing in with GitHub as somebody whose email already belongs to a
+        // member has to resolve somehow, and Better Auth's default already
+        // resolves it the way we want: better-auth/dist/oauth2/link-account.mjs
+        // refuses the implicit link only when
+        //
+        //   !isTrustedProvider && !userInfo.emailVerified
+        //     || requireLocalEmailVerified && !dbUser.user.emailVerified
+        //     || accountLinking.enabled === false
+        //     || accountLinking.disableImplicitLinking === true
+        //
+        // so with GitHub *untrusted*, a GitHub-verified email links onto the
+        // existing member and an unverified one is refused as
+        // `?error=account_not_linked`. Naming GitHub as trusted does not add
+        // the verification check — it is precisely how you *waive* it, since it
+        // short-circuits the `!userInfo.emailVerified` half. That would let
+        // anyone who can attach a victim's address to a GitHub account without
+        // proving it walk into the victim's account here.
+        //
+        // (The second clause holds too: `requireLocalEmailVerified` defaults to
+        // true, and every member row in this app is `emailVerified: true` — the
+        // legacy register endpoint wrote it, the migration backfilled it, and
+        // the create hook below stamps it.)
+        trustedProviders: [],
       },
     },
     user: {
       modelName: 'users',
       additionalFields: {
         // Members pick their own username at sign-up — required, format-checked
-        // and (in the create hook) unique. The rest are server-owned
+        // and (in the create hook) unique. Somebody arriving through GitHub
+        // never typed one, so `mapProfileToUser` derives it before Better Auth
+        // gets here; `required: true` is enforced on that path too, which is
+        // exactly why it has to. The rest are server-owned
         // (input: false) so nobody can grant themselves a role or un-suspend.
         username: {
           type: 'string',
@@ -319,7 +446,12 @@ export function buildAuth(database: BetterAuthOptions['database']) {
           // Better Auth writes through the Mongo driver, so the Mongoose schema
           // defaults never fire. Stamp the app-domain defaults the legacy
           // register endpoint wrote, or a new member lands without a role or
-          // the permission to create a project.
+          // the permission to create a project. Every path that mints a member
+          // comes through here — /sign-up/email and the GitHub callback alike.
+          //
+          // The username has already been validated by then (Better Auth's
+          // field validator), whether the member typed it or `deriveUsername`
+          // built it; what is left is the uniqueness check no validator can do.
           before: async (user) => {
             await assertUsernameAvailable((user as { username?: unknown }).username);
             return {
@@ -334,7 +466,14 @@ export function buildAuth(database: BetterAuthOptions['database']) {
                 // sender is wired, so an unverified account would be a dead end.
                 // The legacy register endpoint created verified accounts and the
                 // migration backfilled every existing member as verified —
-                // this keeps that invariant. Drop it the day email sending lands.
+                // this keeps that invariant, which `requireLocalEmailVerified`
+                // above now depends on. Drop it the day email sending lands.
+                //
+                // It also covers a GitHub sign-up whose email GitHub would not
+                // vouch for. That row is only ever *this* GitHub identity's: a
+                // later sign-in from a different GitHub account with the same
+                // address still meets the untrusted-provider gate and is
+                // refused unless GitHub has verified it.
                 emailVerified: true,
               },
             };
@@ -343,6 +482,10 @@ export function buildAuth(database: BetterAuthOptions['database']) {
       },
       session: {
         create: {
+          // Every sign-in mints its session through
+          // `internalAdapter.createSession`, and the OAuth callback is no
+          // exception (better-auth/dist/oauth2/link-account.mjs) — so a
+          // suspended member cannot get in through GitHub either.
           before: async (session) => {
             await assertMemberMaySignIn(session.userId);
           },

@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { APIError } from 'better-auth/api';
+import { memoryAdapter } from 'better-auth/adapters/memory';
 
 // The app-owned rules bolted onto Better Auth: who may be handed a session, who
 // may hold a username, and what a production boot refuses to guess. Mongo is
 // stubbed at the same seam http.test.ts uses, so everything asserted here is
 // what a Better Auth endpoint would observe.
+
+process.env.BETTER_AUTH_SECRET ??= 'test-secret-for-username-checks';
+process.env.BETTER_AUTH_URL ??= 'http://localhost:3000';
 
 const findById = vi.fn();
 const exists = vi.fn();
@@ -12,8 +16,16 @@ const exists = vi.fn();
 vi.mock('./db', () => ({ connectDB: async () => undefined }));
 vi.mock('./models', () => ({ User: { findById, exists } }));
 
-const { assertMemberMaySignIn, assertUsernameAvailable, assertNoUsernameChange, resolveBaseURL, usernameSchema } =
-  await import('./auth');
+const {
+  assertMemberMaySignIn,
+  assertUsernameAvailable,
+  assertNoUsernameChange,
+  buildAuth,
+  deriveUsername,
+  resolveBaseURL,
+  sanitizeUsername,
+  usernameSchema,
+} = await import('./auth');
 
 /** The next User.findById(...) resolves to this doc (null = no such member). */
 function userDoc(user: Record<string, unknown> | null) {
@@ -22,6 +34,25 @@ function userDoc(user: Record<string, unknown> | null) {
 /** Whether the next username uniqueness probe finds a holder. */
 function usernameTakenBy(id: string | null) {
   exists.mockReturnValue({ exec: async () => (id ? { _id: id } : null) });
+}
+
+/**
+ * Names this app already holds, answered case-insensitively — the same question
+ * `User.exists` is asked with a `/^name$/i` regex, so the mock has to compare
+ * the way Mongo would rather than by string equality.
+ */
+function usernamesInUse(...taken: string[]) {
+  const held = taken.map((name) => name.toLowerCase());
+  exists.mockImplementation(({ username }: { username: RegExp }) => ({
+    exec: async () => (held.some((name) => username.test(name)) ? { _id: 'someone' } : null),
+  }));
+}
+
+/** Every username `deriveUsername` probed, in order. */
+function probed(): string[] {
+  return (exists.mock.calls as Array<[{ username: RegExp }]>).map(([{ username }]) =>
+    username.source.replace(/^\^|\$$/g, '').replace(/\\/g, ''),
+  );
 }
 
 const active = { _id: 'user-1', email: 'a@b.c', isActive: true, isSuspended: false };
@@ -120,6 +151,99 @@ describe('assertUsernameAvailable', () => {
   });
 });
 
+describe('sanitizeUsername', () => {
+  // Whatever comes back has to be something a member could have typed into the
+  // register form, so every case below is also checked against the schema.
+  function sanitized(seed: unknown): string {
+    const name = sanitizeUsername(seed);
+    expect(usernameSchema.safeParse(name).success, `${name} is not a valid username`).toBe(true);
+    return name;
+  }
+
+  it('keeps a GitHub login that already fits', () => {
+    expect(sanitized('octocat')).toBe('octocat');
+    expect(sanitized('Octo_Cat9')).toBe('Octo_Cat9');
+  });
+
+  it('turns the separators GitHub allows and we do not into underscores', () => {
+    // GitHub logins may contain '-'; dropping it would run the words together.
+    expect(sanitized('alex-robinett')).toBe('alex_robinett');
+  });
+
+  it('takes the local part of an email address', () => {
+    expect(sanitized('alex.robinett@example.com')).toBe('alex_robinett');
+  });
+
+  it('collapses runs of separators and trims the edges', () => {
+    expect(sanitized('--alex--robinett--')).toBe('alex_robinett');
+  });
+
+  it('pads a name too short to be legal', () => {
+    // GitHub allows one-character logins; this app has never allowed under 3.
+    expect(sanitized('jo')).toBe('jo_');
+    expect(sanitized('x')).toBe('x__');
+  });
+
+  it('falls back to a stand-in when nothing usable survives', () => {
+    expect(sanitized('---')).toBe('member');
+    expect(sanitized('')).toBe('member');
+    expect(sanitized(undefined)).toBe('member');
+    expect(sanitized(null)).toBe('member');
+  });
+
+  it('truncates to the 30 characters the schema allows', () => {
+    expect(sanitized('a'.repeat(40))).toBe('a'.repeat(30));
+  });
+});
+
+describe('deriveUsername', () => {
+  it('prefers the GitHub login over the email address', async () => {
+    usernamesInUse();
+    await expect(deriveUsername('octocat', 'someone-else@example.com')).resolves.toBe('octocat');
+  });
+
+  it('falls back to the email local part when GitHub has no login for them', async () => {
+    usernamesInUse();
+    await expect(deriveUsername(undefined, 'alex.robinett@example.com')).resolves.toBe(
+      'alex_robinett',
+    );
+    await expect(deriveUsername('   ', 'alex@example.com')).resolves.toBe('alex');
+  });
+
+  it('adds a numeric suffix when the derived name is taken', async () => {
+    usernamesInUse('octocat');
+    await expect(deriveUsername('octocat', 'octocat@example.com')).resolves.toBe('octocat2');
+  });
+
+  it('keeps counting past the second collision', async () => {
+    usernamesInUse('octocat', 'octocat2', 'octocat3');
+    await expect(deriveUsername('octocat', null)).resolves.toBe('octocat4');
+    expect(probed()).toEqual(['octocat', 'octocat2', 'octocat3', 'octocat4']);
+  });
+
+  it('will not hand somebody a name that differs only in case', async () => {
+    // `Octocat` is somebody else. Mongo's case-insensitive probe is what
+    // catches it, so the suffix is what the new member gets.
+    usernamesInUse('OCTOCAT');
+    await expect(deriveUsername('octocat', null)).resolves.toBe('octocat2');
+  });
+
+  it('makes room for the suffix rather than overrunning 30 characters', async () => {
+    const long = 'a'.repeat(30);
+    usernamesInUse(long);
+    const name = await deriveUsername(long, null);
+    expect(name).toBe(`${'a'.repeat(29)}2`);
+    expect(usernameSchema.safeParse(name).success).toBe(true);
+  });
+
+  it('gives up rather than looping forever when everything is taken', async () => {
+    exists.mockReturnValue({ exec: async () => ({ _id: 'someone' }) });
+    const e = await thrown(() => deriveUsername('octocat', null));
+    expect(e.status).toBe('CONFLICT');
+    expect(e.body?.code).toBe('USERNAME_TAKEN');
+  });
+});
+
 describe('usernameSchema', () => {
   it('accepts the legacy format: 3–30 letters, digits and underscores', () => {
     for (const name of ['abc', 'a_1', 'A'.repeat(30)]) {
@@ -166,6 +290,51 @@ describe('assertNoUsernameChange', () => {
   it('tolerates a missing or non-object body', () => {
     expect(() => assertNoUsernameChange('/update-user', undefined)).not.toThrow();
     expect(() => assertNoUsernameChange('/update-user', 'nonsense')).not.toThrow();
+  });
+});
+
+describe('signing up with an email address', () => {
+  // Asked of the real configuration over an in-memory store, because the claim
+  // is about what Better Auth does with `username` — not about our helpers.
+  // Deriving a username for GitHub must not have quietly made it optional for
+  // everyone: a member who fills in the register form still names themselves.
+  const auth = buildAuth(memoryAdapter({}));
+
+  async function signUp(body: Record<string, unknown>): Promise<Response> {
+    return auth.handler(
+      new Request('http://localhost:3000/api/auth/sign-up/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  it('still refuses a sign-up that names no username', async () => {
+    usernamesInUse();
+    const response = await signUp({
+      email: 'nameless@example.com',
+      password: 'a-long-enough-password',
+      name: 'Nameless',
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { code?: string; message?: string };
+    expect(body.code).toBe('MISSING_FIELD');
+    expect(body.message).toMatch(/username/i);
+  });
+
+  it('still refuses a username the format rules reject', async () => {
+    usernamesInUse();
+    const response = await signUp({
+      email: 'punctuated@example.com',
+      password: 'a-long-enough-password',
+      name: 'Punctuated',
+      username: 'has spaces',
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toMatch(/letters, numbers, and underscores/i);
   });
 });
 
