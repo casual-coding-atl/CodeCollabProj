@@ -1,5 +1,4 @@
-import api from '../utils/api';
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import type { User, UserRole, Session, Project } from '../types';
 
 /**
@@ -13,53 +12,18 @@ export interface UserDetailsResponse {
 }
 
 // Create a custom axios instance for admin operations with longer timeout
+// Admin calls carry the same Better Auth session cookie as everything else
+// (withCredentials). A 401 here means the session is gone — the admin route
+// guard sends the member to /login on the next render; there is nothing to
+// refresh.
 const adminApi: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000, // 30 second timeout for admin operations
-  withCredentials: true, // Send cookies with all requests for httpOnly cookie auth
+  withCredentials: true,
 });
-
-// Auth is carried by the httpOnly access cookie (withCredentials above). We do NOT
-// inject an Authorization header from localStorage — for cookie sessions it is
-// empty, and any value there is encrypted and unusable by the server.
-
-/**
- * Refresh token response type
- */
-interface RefreshTokenResponse {
-  accessToken: string;
-}
-
-/**
- * Extended axios config with retry flag
- */
-interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
-  _retry?: boolean;
-}
-
-// Handle auth errors for admin API
-adminApi.interceptors.response.use(
-  (response: AxiosResponse): AxiosResponse => response,
-  async (error: AxiosError): Promise<AxiosResponse | never> => {
-    const originalRequest = error.config as ExtendedAxiosRequestConfig | undefined;
-
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        // Cookie-based refresh: the httpOnly refresh cookie is sent automatically.
-        // On success the server sets a new access cookie; just retry the request.
-        await api.post<RefreshTokenResponse>('/auth/refresh-token', {});
-        return adminApi.request(originalRequest);
-      } catch {
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
-  }
-);
 
 /**
  * Dashboard statistics

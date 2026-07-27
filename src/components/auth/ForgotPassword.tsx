@@ -16,16 +16,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useRequestPasswordReset } from '../../hooks/auth';
-import type { PasswordResetRequestResponseDev } from '../../types/auth';
-
-interface AxiosError {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-  message?: string;
-}
 
 // Mirrors the previous inline validation: email required + valid.
 const forgotPasswordSchema = z.object({
@@ -46,31 +36,20 @@ const ForgotPassword: React.FC = () => {
     defaultValues: { email: '' },
   });
 
-  const [passwordResetData, setPasswordResetData] =
-    useState<PasswordResetRequestResponseDev | null>(null);
+  // Better Auth answers the same way whether or not the address exists, and it
+  // never hands the reset token to the browser — the link only arrives by email.
+  const [requestSent, setRequestSent] = useState<boolean>(false);
 
   const handleSubmit = (values: ForgotPasswordSchema): void => {
     requestPasswordResetMutation.mutate(values.email, {
-      onSuccess: (data) => {
-        setPasswordResetData(data as PasswordResetRequestResponseDev);
-      },
-      onError: (error) => {
-        console.error('Password reset request failed:', error);
-      },
+      onSuccess: () => setRequestSent(true),
     });
   };
 
-  const getErrorMessage = (): string => {
-    if (!requestPasswordResetMutation.error) return '';
-    const axiosError = requestPasswordResetMutation.error as AxiosError;
-    return (
-      axiosError?.response?.data?.message ||
-      requestPasswordResetMutation.error?.message ||
-      'Failed to send password reset email'
-    );
-  };
+  const getErrorMessage = (): string =>
+    requestPasswordResetMutation.error?.message || 'Failed to send password reset email';
 
-  if (passwordResetData) {
+  if (requestSent) {
     return (
       <div className="px-4 py-12">
         <Card className="mx-auto w-full max-w-md">
@@ -78,53 +57,34 @@ const ForgotPassword: React.FC = () => {
             <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
               check your inbox
             </p>
-            <CardTitle className="text-2xl">Password Reset Link Generated</CardTitle>
+            <CardTitle className="text-2xl">Check Your Email</CardTitle>
           </CardHeader>
           <CardContent>
             <div
               role="alert"
-              className="mb-4 rounded-md border border-primary/30 bg-primary/10 px-3 py-3 text-sm text-primary"
+              className="mb-4 flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-3 text-sm text-primary"
             >
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                <div className="w-full">
-                  {process.env.NODE_ENV === 'development' ? (
-                    <>
-                      Development mode: A password reset link has been generated. You can copy the
-                      link below or click it to reset your password.
-                      <div className="mt-2 rounded-md bg-muted p-3">
-                        <p className="mb-2 break-all text-xs text-muted-foreground">
-                          {passwordResetData.resetUrl}
-                        </p>
-                        <Button asChild size="sm">
-                          <RouterLink to="/reset-password" search={{ token: passwordResetData.resetToken }}>
-                            Click to Reset Password
-                          </RouterLink>
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      If an account with that email exists, a password reset link has been sent to
-                      your email address. Please check your inbox and follow the instructions to
-                      reset your password.
-                    </>
-                  )}
-                </div>
-              </div>
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              <span>
+                If an account with that email exists, a password reset link has been sent to your
+                email address. Please check your inbox and follow the instructions to reset your
+                password.
+              </span>
             </div>
 
+            {/* The Button base is shrink-0, so two w-full buttons overflow a
+                sm:flex-row — sm:flex-1 (basis 0) makes them share the row. */}
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button asChild className="w-full">
+              <Button asChild className="w-full sm:flex-1">
                 <RouterLink to="/login">Back to Login</RouterLink>
               </Button>
               <Button
                 onClick={() => {
-                  setPasswordResetData(null);
+                  setRequestSent(false);
                   form.reset({ email: '' });
                 }}
                 variant="outline"
-                className="w-full"
+                className="w-full sm:flex-1"
               >
                 Send Another Email
               </Button>

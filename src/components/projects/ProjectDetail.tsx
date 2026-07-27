@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/auth';
+import LinkedRepoCards from './LinkedRepoCards';
 import {
   useProject,
   useRequestCollaboration,
@@ -750,6 +751,10 @@ const ProjectDetail: React.FC = () => {
             {/* Accepted collaborators live in the dedicated Collaborators tab — not duplicated here. */}
           </CardContent>
         </Card>
+
+        {/* Linked Repositories, as GitHub currently describes them. Renders
+            nothing when the project has none. */}
+        <LinkedRepoCards repos={currentProject.linkedRepos} />
 
         </TabsContent>
 

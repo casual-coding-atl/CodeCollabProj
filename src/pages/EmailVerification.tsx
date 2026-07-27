@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearch } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import api from '../utils/api';
+import { authService } from '../services/authService';
 
 type VerificationStatus = 'verifying' | 'success' | 'error';
 
@@ -38,10 +38,7 @@ const EmailVerification: React.FC = () => {
     let ignore = false;
 
     if (!requestRef.current || requestRef.current.token !== token) {
-      requestRef.current = {
-        token,
-        promise: api.get<VerifyResponse>(`/auth/verify-email/${token}`).then((res) => res.data),
-      };
+      requestRef.current = { token, promise: authService.verifyEmail(token) };
     }
 
     requestRef.current.promise.then(
@@ -51,14 +48,10 @@ const EmailVerification: React.FC = () => {
           setMessage(data.message);
         }
       },
-      (error) => {
-        const axiosError = error as {
-          response?: { data?: { message?: string } };
-          message?: string;
-        };
+      (error: Error) => {
         if (!ignore) {
           setStatus('error');
-          setMessage(axiosError.response?.data?.message || 'Verification failed');
+          setMessage(error.message || 'Verification failed');
         }
       }
     );

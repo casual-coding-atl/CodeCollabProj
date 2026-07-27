@@ -10,8 +10,9 @@ const isDevelopment = import.meta.env.DEV;
  */
 const SENSITIVE_FIELDS: readonly string[] = [
   'token',
-  'accessToken',
-  'refreshToken',
+  'sessionToken',
+  'currentPassword',
+  'newPassword',
   'password',
   'passwordHash',
 ];

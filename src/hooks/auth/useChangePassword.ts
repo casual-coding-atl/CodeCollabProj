@@ -1,61 +1,30 @@
 import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
-import { authService } from '../../services/authService';
+import { authService, type PasswordChangeData } from '../../services/authService';
 import { queryKeys } from '../../config/queryClient';
+import { AuthError } from '../../lib/auth-client';
+import logger from '../../utils/logger';
 
 /**
- * Password change data for the API
+ * Change the signed-in member's password (`POST /api/auth/change-password`).
+ *
+ * Better Auth revokes every *other* session as part of the change, so the
+ * member stays signed in here and is signed out everywhere else — the sessions
+ * list is refreshed to show that.
  */
-interface PasswordChangeData {
-  currentPassword: string;
-  newPassword: string;
-}
-
-/**
- * Response from password change endpoint
- */
-interface PasswordChangeResponse {
-  message: string;
-}
-
-/**
- * Axios error type for error handling
- */
-interface AxiosError {
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-      errors?: Array<{ field?: string; message: string }>;
-    };
-  };
-  message?: string;
-}
-
-/**
- * Change password mutation hook
- * Handles password changes and session revocation
- */
-export const useChangePassword = (): UseMutationResult<
-  PasswordChangeResponse,
-  AxiosError,
-  PasswordChangeData
-> => {
+export const useChangePassword = (): UseMutationResult<void, AuthError, PasswordChangeData> => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: authService.changePassword,
-    onSuccess: (data) => {
-      // Clear all auth data since sessions are revoked
-      queryClient.removeQueries({ queryKey: queryKeys.auth.all });
-
-      console.log('✅ Password changed successfully:', data.message);
+    // Never retry: a retried change posts the same current password twice at
+    // any rate limit, and the second attempt would fail against the password it
+    // just changed.
+    retry: 0,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() });
     },
     onError: (error) => {
-      console.error('❌ Password change failed:', {
-        status: error?.response?.status,
-        message: error?.response?.data?.message || error.message,
-        errors: error?.response?.data?.errors,
-      });
+      logger.warn('Password change failed:', error.message);
     },
   });
 };

@@ -1,5 +1,5 @@
 import api from '../utils/api';
-import type { Project, CollaboratorStatus } from '../types';
+import type { Project, CollaboratorStatus, LinkedRepo } from '../types';
 
 /**
  * Project filter parameters
@@ -54,6 +54,27 @@ export interface CollaborationResponse {
 }
 
 /**
+ * Linking a repository: a github.com URL in any common form, or an explicit
+ * owner/name pair. The server parses and validates it against GitHub.
+ */
+export interface LinkRepoPayload {
+  projectId: string;
+  url: string;
+}
+
+export interface UnlinkRepoPayload {
+  projectId: string;
+  repoId: number;
+}
+
+/** Both repo endpoints answer with the project's Linked Repositories after the change. */
+export interface LinkedReposResponse {
+  message: string;
+  repo?: LinkedRepo;
+  linkedRepos: LinkedRepo[];
+}
+
+/**
  * Projects service interface
  */
 export interface ProjectsServiceInterface {
@@ -72,6 +93,8 @@ export interface ProjectsServiceInterface {
   getUserProjects: (userId: string) => Promise<Project[]>;
   getByStatus: (status: string) => Promise<Project[]>;
   getFeatured: () => Promise<Project[]>;
+  linkRepo: (payload: LinkRepoPayload) => Promise<LinkedReposResponse>;
+  unlinkRepo: (payload: UnlinkRepoPayload) => Promise<LinkedReposResponse>;
 }
 
 /**
@@ -182,6 +205,22 @@ export const projectsService: ProjectsServiceInterface = {
   // Get featured projects
   getFeatured: async (): Promise<Project[]> => {
     const response = await api.get<Project[]>('/projects?featured=true');
+    return response.data;
+  },
+
+  // Link a public GitHub repository to a project (owner only). The server does
+  // the parsing and the GitHub check, so a bad link comes back as a 4xx whose
+  // message is written for the member.
+  linkRepo: async ({ projectId, url }: LinkRepoPayload): Promise<LinkedReposResponse> => {
+    const response = await api.post<LinkedReposResponse>(`/projects/${projectId}/repos`, { url });
+    return response.data;
+  },
+
+  // Unlink by GitHub's numeric repo id — the identity that survives renames.
+  unlinkRepo: async ({ projectId, repoId }: UnlinkRepoPayload): Promise<LinkedReposResponse> => {
+    const response = await api.delete<LinkedReposResponse>(
+      `/projects/${projectId}/repos/${repoId}`
+    );
     return response.data;
   },
 };

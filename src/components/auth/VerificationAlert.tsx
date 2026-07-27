@@ -69,12 +69,15 @@ const VerificationAlert: React.FC<VerificationAlertProps> = ({ email, onBack }) 
           </div>
         </div>
 
+        {/* sm:flex-1 on the paired buttons: the Button base is shrink-0, so
+            two w-full buttons would overflow the sm:flex-row (see
+            ForgotPassword.tsx). */}
         {!showResendForm ? (
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               onClick={() => setShowResendForm(true)}
               variant="outline"
-              className="w-full"
+              className="w-full sm:flex-1"
               aria-label="Send verification email"
             >
               Send Verification Email
@@ -83,7 +86,7 @@ const VerificationAlert: React.FC<VerificationAlertProps> = ({ email, onBack }) 
               <Button
                 onClick={onBack}
                 variant="ghost"
-                className="w-full"
+                className="w-full sm:flex-1"
                 aria-label="Back to login"
               >
                 Back to Login
@@ -111,7 +114,7 @@ const VerificationAlert: React.FC<VerificationAlertProps> = ({ email, onBack }) 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full sm:flex-1"
                   disabled={resendVerificationMutation.isPending}
                   aria-label="Submit verification email request"
                 >
@@ -120,7 +123,7 @@ const VerificationAlert: React.FC<VerificationAlertProps> = ({ email, onBack }) 
                 <Button
                   onClick={() => setShowResendForm(false)}
                   variant="ghost"
-                  className="w-full"
+                  className="w-full sm:flex-1"
                   aria-label="Cancel verification email request"
                 >
                   Cancel

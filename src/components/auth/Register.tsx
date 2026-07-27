@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, Link as RouterLink } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -15,30 +14,16 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { useAuth, useRegister } from '../../hooks/auth';
+import { Loader2 } from 'lucide-react';
+import {
+  useAuth,
+  useGithubSignInNotice,
+  useRegister,
+  useSignInWithGithub,
+} from '../../hooks/auth';
+import GithubMark from '@/components/icons/GithubMark';
+import { passwordSchema } from '@/lib/passwordPolicy';
 
-interface AxiosError {
-  response?: {
-    data?: {
-      message?: string;
-      errors?: { msg?: string; message?: string }[];
-    };
-  };
-  message?: string;
-}
-
-interface RegisterResponse {
-  token?: string;
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-  };
-  message?: string;
-}
-
-// Mirrors the previous inline validation and the server policy (8+ chars with
-// upper, lower, digit, and special character).
 const registerSchema = z
   .object({
     username: z
@@ -49,13 +34,7 @@ const registerSchema = z
       .string()
       .min(1, 'Email is required')
       .regex(/\S+@\S+\.\S+/, 'Email is invalid'),
-    password: z
-      .string()
-      .min(1, 'Password is required')
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
-        'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character'
-      ),
+    password: passwordSchema(),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
@@ -72,6 +51,13 @@ const Register: React.FC = () => {
   // TanStack Query mutation
   const registerMutation = useRegister();
 
+  // Joining with GitHub is the same endpoint as signing in with it: an identity
+  // GitHub vouches for and this app has never seen becomes a member (the
+  // username is derived from their GitHub login — see src/server/auth.ts). A
+  // failed round trip comes back here, which is why the error path is this page.
+  const githubMutation = useSignInWithGithub('/register');
+  const github = useGithubSignInNotice('/register');
+
   const form = useForm<RegisterSchema>({
     resolver: zodResolver(registerSchema),
     mode: 'onTouched',
@@ -83,9 +69,6 @@ const Register: React.FC = () => {
     },
   });
 
-  const [registrationSuccess, setRegistrationSuccess] = useState<boolean>(false);
-  const [submittedEmail, setSubmittedEmail] = useState<string>('');
-
   useEffect(() => {
     if (isAuthenticated) {
       navigate({ to: '/dashboard' });
@@ -94,68 +77,23 @@ const Register: React.FC = () => {
 
   const handleSubmit = (values: RegisterSchema): void => {
     const { confirmPassword: _confirmPassword, ...registerData } = values;
-    setSubmittedEmail(values.email);
+    // Sign-up starts a session (Better Auth's autoSignIn), so a new member lands
+    // on their dashboard rather than on a "check your email" dead end.
     registerMutation.mutate(registerData, {
-      onSuccess: (data: RegisterResponse) => {
-        setRegistrationSuccess(true);
-        // If auto-login in development mode, navigate to dashboard
-        if (data.token && data.user) {
-          navigate({ to: '/dashboard' });
-        }
-      },
+      onSuccess: () => navigate({ to: '/dashboard' }),
     });
   };
 
-  const getErrorMessage = (): string => {
-    if (!registerMutation.error) return '';
-    const axiosError = registerMutation.error as AxiosError;
-    const data = axiosError?.response?.data;
-    // Surface express-validator errors (returned as an `errors` array) so the user
-    // sees why registration was rejected, not just a generic message.
-    if (data?.errors?.length) {
-      return data.errors
-        .map((e) => e.msg || e.message)
-        .filter(Boolean)
-        .join(' ');
-    }
-    return data?.message || registerMutation.error.message || 'Registration failed';
+  const handleGithub = (): void => {
+    github.clear();
+    githubMutation.mutate();
   };
 
-  if (registrationSuccess) {
-    return (
-      <div className="px-4 py-12">
-        <Card className="mx-auto w-full max-w-md">
-          <CardHeader className="text-center">
-            <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-              welcome aboard
-            </p>
-            <CardTitle className="text-2xl">Registration Successful!</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              role="alert"
-              className="mb-4 flex items-start gap-3 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary"
-            >
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-              <span>
-                We&apos;ve sent a verification email to <strong>{submittedEmail}</strong>. Please
-                check your inbox and click the verification link to activate your account.
-              </span>
-            </div>
-
-            <p className="mb-4 text-sm text-muted-foreground">
-              If you don&apos;t see the email, please check your spam folder. You can also request a
-              new verification email from the login page.
-            </p>
-
-            <Button asChild className="w-full" size="lg">
-              <RouterLink to="/login">Go to Login</RouterLink>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // One error area for both ways of joining. The form's failure wins when both
+  // are somehow set, because it is the one the member just caused.
+  const errorMessage = registerMutation.error
+    ? registerMutation.error.message || 'Registration failed'
+    : (githubMutation.error?.message ?? github.notice);
 
   return (
     <div className="px-4 py-12">
@@ -167,14 +105,41 @@ const Register: React.FC = () => {
           <CardTitle className="text-2xl">Register</CardTitle>
         </CardHeader>
         <CardContent>
-          {registerMutation.error && (
+          {errorMessage && (
             <div
               role="alert"
               className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              {getErrorMessage()}
+              {errorMessage}
             </div>
           )}
+
+          {/* Above the form, like the login page's — nothing the form does
+              underneath can move it out from under a pointer. */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            size="lg"
+            data-testid="github-signin"
+            disabled={githubMutation.isPending}
+            onClick={handleGithub}
+          >
+            {githubMutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GithubMark className="size-4" />
+            )}
+            Join with GitHub
+          </Button>
+
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              or sign up with email
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -185,7 +150,10 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      {/* autoComplete tells the password manager which field is
+                          which, so it offers to save the new credentials instead
+                          of guessing or staying silent. */}
+                      <Input autoComplete="username" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -199,7 +167,7 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" {...field} />
+                      <Input type="email" autoComplete="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -213,7 +181,12 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" data-testid="password-input" {...field} />
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        data-testid="password-input"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage data-testid="password-error" />
                   </FormItem>
@@ -227,7 +200,7 @@ const Register: React.FC = () => {
                   <FormItem>
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input type="password" autoComplete="new-password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
