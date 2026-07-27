@@ -10,6 +10,7 @@ import { passkey } from '@better-auth/passkey';
 import { connectDB } from './db';
 import { User } from './models';
 import { accessDenialReason } from './access';
+import { dispatchResetPasswordEmail } from './email';
 
 /**
  * Better Auth — the app's authentication layer (ADR 0002).
@@ -434,18 +435,13 @@ export function buildAuth(database: BetterAuthOptions['database']) {
         verify: ({ hash, password }) => bcrypt.compare(password, hash),
       },
       // Without this, POST /request-password-reset 400s instead of giving the
-      // legacy non-enumerating "if this email exists, check your inbox". No
-      // sender is wired yet (see CLAUDE.md "Known gaps"), so the link goes to
-      // the server log — and only outside production, where it would be a
-      // password-reset token sitting in the log drain.
+      // legacy non-enumerating "if this email exists, check your inbox". The
+      // whole delivery policy — Resend when configured, log-the-link only
+      // outside production when not, failures logged and never awaited or
+      // rethrown (both would re-open enumeration: a throw by status, an await
+      // by response timing) — lives and is tested in ./email.
       sendResetPassword: async ({ user, url }) => {
-        if (process.env.NODE_ENV === 'production') {
-          console.warn(
-            `[auth] password reset requested for ${user.email} but no email sender is configured — the member will never receive it.`,
-          );
-          return;
-        }
-        console.warn(`[auth] password reset for ${user.email} (no email sender wired): ${url}`);
+        dispatchResetPasswordEmail({ email: user.email, username: user.name || undefined }, url);
       },
     },
     socialProviders: githubProvider(),
