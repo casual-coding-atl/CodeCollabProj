@@ -1,4 +1,4 @@
-import React, { useState, useMemo, type ChangeEvent, type FormEvent } from 'react';
+import React, { useState, useMemo, useCallback, type ChangeEvent, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { useParams, useNavigate, Link as RouterLink } from '@tanstack/react-router';
 import AvatarGroup from '../common/AvatarGroup';
@@ -31,6 +31,11 @@ import {
   useDeleteProject,
 } from '../../hooks/projects';
 import { useComments, useCreateComment } from '../../hooks/comments';
+import { useProjectEvaluations, useRequestEvaluation } from '../../hooks/agentic-evaluation';
+import EvaluationRequestForm from '../agentic-evaluation/EvaluationRequestForm';
+import EvaluationCard from '../agentic-evaluation/EvaluationCard';
+import EvaluationResults from '../agentic-evaluation/EvaluationResults';
+import type { IdeationReadmeInput } from '../../types/agentic-evaluation/evaluation';
 import type {
   Project,
   User,
@@ -133,6 +138,32 @@ const ProjectDetail: React.FC = () => {
   // Local state
   const [comment, setComment] = useState<string>('');
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
+  const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
+
+  // Evaluation data & mutation (owner-only — server enforces access; UI tab
+  // is only rendered when isOwner is true, so results only appear for the owner).
+  const {
+    data: evaluations = [],
+    isLoading: evaluationsLoading,
+  } = useProjectEvaluations(projectId);
+  const requestEvaluationMutation = useRequestEvaluation();
+
+  const handleRequestEvaluation = useCallback(
+    (input: IdeationReadmeInput) => {
+      if (!projectId) return;
+      requestEvaluationMutation.mutate(
+        { projectId, input },
+        {
+          onSuccess: (data) => {
+            const newId = (data.evaluation as { _id?: string; id?: string })._id
+              ?? data.evaluation.id;
+            if (newId) setExpandedEvalId(newId);
+          },
+        }
+      );
+    },
+    [projectId, requestEvaluationMutation],
+  );
 
   // Helper to get user ID from various user object shapes
   const getUserId = (
@@ -395,6 +426,7 @@ const ProjectDetail: React.FC = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="collaborators">Collaborators</TabsTrigger>
           <TabsTrigger value="comments">Comments</TabsTrigger>
+          {isOwner && <TabsTrigger value="evaluation">Evaluation</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="collaborators">
@@ -757,6 +789,52 @@ const ProjectDetail: React.FC = () => {
         <LinkedRepoCards repos={currentProject.linkedRepos} />
 
         </TabsContent>
+
+        {/* ── Evaluation tab (owner only) ──────────────────────────────── */}
+        {isOwner && (
+          <TabsContent value="evaluation" className="grid gap-4">
+            {evaluationsLoading ? (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Loading evaluations…</span>
+              </div>
+            ) : (
+              <>
+                {evaluations.length > 0 && (
+                  <div className="grid gap-3">
+                    {evaluations.map((ev) => {
+                      const evId = (ev as { _id?: string; id?: string })._id ?? ev.id;
+                      const isExpanded = expandedEvalId === evId;
+                      return (
+                        <div key={evId} className="grid gap-2">
+                          <EvaluationCard
+                            evaluation={ev}
+                            isExpanded={isExpanded}
+                            onToggle={() => setExpandedEvalId(isExpanded ? null : evId ?? null)}
+                          />
+                          {isExpanded && <EvaluationResults evaluation={ev} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <EvaluationRequestForm
+                  projectId={projectId as string}
+                  onSubmit={handleRequestEvaluation}
+                  isPending={requestEvaluationMutation.isPending}
+                  error={
+                    requestEvaluationMutation.error
+                      ? (requestEvaluationMutation.error as Error & {
+                          response?: { data?: { message?: string } };
+                        })?.response?.data?.message ??
+                        requestEvaluationMutation.error.message
+                      : null
+                  }
+                />
+              </>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="comments">
         {/* Comments Section */}
