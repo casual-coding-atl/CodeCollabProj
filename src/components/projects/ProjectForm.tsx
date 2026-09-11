@@ -163,6 +163,133 @@ const mapProjectToFormData = (initialProject: ProjectApiResponse | undefined): P
   };
 };
 
+// ── Dropdown suggestion lists ─────────────────────────────────────────────────
+// Module-level so they are not re-created on every render.
+// TECHNOLOGY_OPTIONS: concrete tools, languages, frameworks, platforms, and
+//   environments — things a project is *built with*.
+// SKILL_OPTIONS: disciplines and competencies — things a collaborator *knows*.
+// Zero overlap between the two lists by design.
+
+const TECHNOLOGY_OPTIONS: string[] = [
+  // Languages & Runtimes
+  'JavaScript',
+  'TypeScript',
+  'Python',
+  'Java',
+  'Go',
+  'Rust',
+  'C#',
+  'Swift',
+  // Frontend Frameworks
+  'React',
+  'Next.js',
+  'Vue.js',
+  'Svelte',
+  'Angular',
+  // Backend Frameworks
+  'Node.js',
+  'Express',
+  'FastAPI',
+  'Django',
+  'Flask',
+  // AI / LLM Platforms & APIs
+  'OpenAI API',
+  'Anthropic Claude API',
+  'Google Gemini API',
+  'Azure AI',
+  'AWS Bedrock',
+  'Hugging Face',
+  'Ollama',
+  // Agentic Frameworks & SDKs
+  'LangChain',
+  'LlamaIndex',
+  'LangGraph',
+  'CrewAI',
+  'AutoGen',
+  'Google ADK',
+  'Pydantic AI',
+  'Vercel AI SDK',
+  // Databases & Storage
+  'MongoDB',
+  'PostgreSQL',
+  'Redis',
+  'Pinecone',
+  'Weaviate',
+  'pgvector',
+  'Supabase',
+  'Firebase',
+  // Dev Tools & Environments
+  'VS Code',
+  'Cursor',
+  'Docker',
+  'Git',
+  'GitHub Actions',
+  // Cloud & Hosting
+  'AWS',
+  'Google Cloud',
+  'Azure',
+  'Vercel',
+  'Railway',
+];
+
+const SKILL_OPTIONS: string[] = [
+  // AI / ML Disciplines
+  'Machine Learning',
+  'Deep Learning',
+  'Natural Language Processing',
+  'Computer Vision',
+  'Reinforcement Learning',
+  'LLM Fine-tuning',
+  'RAG (Retrieval-Augmented Generation)',
+  'Prompt Engineering',
+  'Embeddings & Vector Search',
+  'Agentic AI Development',
+  'Multi-Agent Systems',
+  'AI Safety & Alignment',
+  // Software Engineering
+  'Full-Stack Development',
+  'Frontend Development',
+  'Backend Development',
+  'Mobile Development',
+  'API Design',
+  'Database Design',
+  'System Architecture',
+  'Microservices',
+  'Real-Time Systems',
+  // Data
+  'Data Engineering',
+  'Data Science',
+  'Data Analysis',
+  'ETL Pipelines',
+  'Data Visualization',
+  // DevOps & Infrastructure
+  'DevOps',
+  'CI/CD',
+  'Cloud Architecture',
+  'Infrastructure as Code',
+  'Containerization',
+  'Site Reliability Engineering',
+  // Security & Quality
+  'Application Security',
+  'Performance Optimization',
+  'Testing & QA',
+  'Accessibility',
+  'Code Review',
+  // Product & Design
+  'UI/UX Design',
+  'Product Management',
+  'Technical Writing',
+  'Agile / Scrum',
+  'Open Source Contribution',
+  // Cross-Cutting
+  'Technical Leadership',
+  'Mentoring',
+  'Research',
+  'Documentation',
+  'Workflow Automation',
+  'Observability & Monitoring',
+];
+
 interface ComboboxTagEditorProps {
   id: string;
   label: string;
@@ -300,21 +427,6 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
     append: appendResource,
     remove: removeResourceField,
   } = useFieldArray({ control: form.control, name: 'resources' });
-
-  const commonSkills: string[] = [
-    'JavaScript',
-    'Python',
-    'Java',
-    'React',
-    'Node.js',
-    'TypeScript',
-    'HTML',
-    'CSS',
-    'MongoDB',
-    'SQL',
-    'Git',
-    'Docker',
-  ];
 
   const technologies = form.watch('technologies');
   const requiredSkills = form.watch('requiredSkills');
@@ -512,7 +624,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
                 value={technologies}
                 onChange={(next) => form.setValue('technologies', next, { shouldDirty: true })}
                 placeholder="Select or type technologies"
-                options={commonSkills}
+                options={TECHNOLOGY_OPTIONS}
               />
 
               <ComboboxTagEditor
@@ -521,7 +633,7 @@ const ProjectFormFields: React.FC<ProjectFormFieldsProps> = ({ initialProject, p
                 value={requiredSkills}
                 onChange={(next) => form.setValue('requiredSkills', next, { shouldDirty: true })}
                 placeholder="Select or type skills"
-                options={commonSkills}
+                options={SKILL_OPTIONS}
               />
 
               <ComboboxTagEditor

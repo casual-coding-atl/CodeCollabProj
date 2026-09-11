@@ -132,6 +132,17 @@ export const queryKeys = {
       messageId,
     ],
   },
+  // Evaluation keys (Agentic Evaluation Framework — Phase 1)
+  evaluations: {
+    all: ['evaluations'] as const,
+    lists: (): readonly string[] => [...queryKeys.evaluations.all, 'list'],
+    list: (projectId: string): readonly string[] => [
+      ...queryKeys.evaluations.lists(),
+      projectId,
+    ],
+    details: (): readonly string[] => [...queryKeys.evaluations.all, 'detail'],
+    detail: (id: string): readonly string[] => [...queryKeys.evaluations.details(), id],
+  },
 } as const;
 
 // Cache invalidation helpers

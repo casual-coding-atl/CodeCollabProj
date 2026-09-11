@@ -224,3 +224,70 @@ export type GithubCacheDoc = InferSchemaType<typeof githubCacheSchema> & {
 export const GithubCache: Model<GithubCacheDoc> =
   (mongoose.models.GithubCache as Model<GithubCacheDoc>) ??
   mongoose.model<GithubCacheDoc>('GithubCache', githubCacheSchema);
+
+// ── Evaluation ────────────────────────────────────────────────────────────────
+// Phase 1: ideation evaluation. Up to MAX_EVALUATIONS_PER_TYPE documents are
+// kept per (projectId, agentType) pair; the oldest is deleted when a new one
+// would exceed the cap (enforced in the route handler, not here).
+export const MAX_EVALUATIONS_PER_TYPE = 3;
+
+const evaluationFindingSchema = new Schema(
+  {
+    dimension: { type: String, required: true },
+    assessment: { type: String, required: true },
+    suggestion: { type: String },
+  },
+  { _id: false },
+);
+
+const ideationFindingsSchema = new Schema(
+  {
+    summary: { type: String, required: true },
+    findings: [evaluationFindingSchema],
+    actionItems: [String],
+    readinessScore: { type: Number, min: 1, max: 5, required: true },
+  },
+  { _id: false },
+);
+
+const ideationInputSchema = new Schema(
+  {
+    problemStatement: { type: String, required: true },
+    targetAudience: { type: String, required: true },
+    coreFeatures: { type: String, required: true },
+    techApproach: { type: String },
+    successMetrics: { type: String, required: true },
+    timelineAndConstraints: { type: String, required: true },
+    risksAndQuestions: { type: String, required: true },
+  },
+  { _id: false },
+);
+
+const EVALUATION_AGENT_TYPES = ['ideation'] as const;
+const EVALUATION_STATUSES = ['pending', 'completed', 'failed'] as const;
+
+const evaluationSchema = new Schema(
+  {
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    agentType: { type: String, enum: EVALUATION_AGENT_TYPES, required: true },
+    status: { type: String, enum: EVALUATION_STATUSES, default: 'pending' },
+    input: { type: ideationInputSchema, required: true },
+    findings: { type: ideationFindingsSchema },
+    userNotes: { type: String },
+    requestedAt: { type: Date, default: Date.now },
+    completedAt: { type: Date },
+  },
+  { collection: 'evaluations', timestamps: false },
+);
+// Feed: list evaluations for a project newest-first.
+evaluationSchema.index({ projectId: 1, agentType: 1, requestedAt: -1 });
+// Cap enforcement: find the oldest doc when trimming to MAX_EVALUATIONS_PER_TYPE.
+evaluationSchema.index({ projectId: 1, agentType: 1, requestedAt: 1 });
+
+export type EvaluationDoc = InferSchemaType<typeof evaluationSchema> & {
+  _id: mongoose.Types.ObjectId;
+};
+export const Evaluation: Model<EvaluationDoc> =
+  (mongoose.models.Evaluation as Model<EvaluationDoc>) ??
+  mongoose.model<EvaluationDoc>('Evaluation', evaluationSchema);
