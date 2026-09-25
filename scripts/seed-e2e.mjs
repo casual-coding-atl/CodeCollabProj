@@ -211,12 +211,33 @@ await Project.updateOne(
   { upsert: true },
 );
 
+// A third project with no linked repositories, used by the evaluation E2E spec
+// to assert that the Reality Check finding is absent and no evidence section
+// reaches the Claude fixture when there are no repos.
+const NO_REPOS_TITLE = 'E2E No-Repos Project';
+await Project.updateOne(
+  { title: NO_REPOS_TITLE },
+  {
+    $set: {
+      title: NO_REPOS_TITLE,
+      description: 'A project with no linked repositories, seeded for evaluation E2E tests.',
+      status: 'planning',
+      owner: user._id,
+      technologies: ['JavaScript'],
+      tags: ['e2e'],
+      collaborators: [],
+      linkedRepos: [],
+    },
+  },
+  { upsert: true },
+);
+
 // Anything the server cached from GitHub on a previous run, so a fixture that
 // has since changed cannot be served out of a day-old cache entry.
 await collection('github_cache').deleteMany({});
 
 console.log(
   `seeded pre-migration E2E users ${EMAIL} + ${EMAIL2} + ${EMAIL_SUSPENDED} (suspended) ` +
-    `(${throwaway.length} throwaway account(s) removed) and project "${TITLE}"`,
+    `(${throwaway.length} throwaway account(s) removed) and projects "${TITLE}", "${NO_REPOS_TITLE}"`,
 );
 await mongoose.disconnect();

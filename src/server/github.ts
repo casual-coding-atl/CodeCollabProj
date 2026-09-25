@@ -73,6 +73,18 @@ export interface GitHubFailure {
 export type ParseResult = { ok: true; ref: RepoRef } | { ok: false; status: number; message: string };
 export type FetchRepoResult = { ok: true; repo: GitHubRepoSummary } | GitHubFailure;
 
+/**
+ * The decoded README text of a repository, or null when it is absent or
+ * unreadable. The caller is responsible for truncating to a budget.
+ */
+export type FetchReadmeResult = { ok: true; text: string } | { ok: false };
+
+/**
+ * A flat list of file paths in the repository's default-branch tree,
+ * already pruned of vendored/generated noise.
+ */
+export type FetchTreeResult = { ok: true; paths: string[] } | { ok: false };
+
 /** A project may link at most this many repositories (PRD #88). */
 export const MAX_LINKED_REPOS = 3;
 
@@ -546,4 +558,77 @@ export async function fetchPublicRepo(
   }
 
   return last;
+}
+
+/**
+ * The decoded text of a repository's default-branch README, fetched via the
+ * GitHub Contents API (`/repos/{owner}/{name}/readme`). Returns `{ ok: false }`
+ * for any non-200 response or a malformed body — callers treat that as "no
+ * README available" rather than an error.
+ */
+export async function fetchRepoReadme(
+  ref: RepoRef,
+  opts: { token?: string; request?: GitHubRequester } = {},
+): Promise<FetchReadmeResult> {
+  const request = opts.request ?? githubRequest;
+  const path = `/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}/readme`;
+  let response: Response;
+  try {
+    response = await request(path, { token: opts.token });
+  } catch {
+    return { ok: false };
+  }
+  if (!response.ok) return { ok: false };
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return { ok: false };
+  }
+  if (typeof body !== 'object' || body === null) return { ok: false };
+  const fields = body as Record<string, unknown>;
+  if (fields.encoding !== 'base64' || typeof fields.content !== 'string') return { ok: false };
+  try {
+    const text = Buffer.from(fields.content.replace(/\s/g, ''), 'base64').toString('utf8');
+    return { ok: true, text };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * The flat file-path list of a repository's default-branch tree, fetched via
+ * the GitHub Git Trees API (`/repos/{owner}/{name}/git/trees/HEAD?recursive=1`).
+ * Returns `{ ok: false }` for any non-200 response or a truncated/malformed
+ * tree — callers treat that as "tree unavailable" without failing the evaluation.
+ */
+export async function fetchRepoTree(
+  ref: RepoRef,
+  opts: { token?: string; request?: GitHubRequester } = {},
+): Promise<FetchTreeResult> {
+  const request = opts.request ?? githubRequest;
+  const path =
+    `/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}/git/trees/HEAD?recursive=1`;
+  let response: Response;
+  try {
+    response = await request(path, { token: opts.token });
+  } catch {
+    return { ok: false };
+  }
+  if (!response.ok) return { ok: false };
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return { ok: false };
+  }
+  if (typeof body !== 'object' || body === null) return { ok: false };
+  const fields = body as Record<string, unknown>;
+  // GitHub sets `truncated: true` when the tree exceeds 100 000 entries.
+  // We still use what we got rather than returning nothing.
+  if (!Array.isArray(fields.tree)) return { ok: false };
+  const paths = (fields.tree as Array<Record<string, unknown>>)
+    .filter((entry) => entry.type === 'blob' && typeof entry.path === 'string')
+    .map((entry) => entry.path as string);
+  return { ok: true, paths };
 }

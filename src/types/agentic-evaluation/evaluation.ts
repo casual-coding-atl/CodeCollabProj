@@ -25,6 +25,8 @@ export interface IdeationReadmeInput {
   coreFeatures: string;
   /** Tech stack or approach, if known. Optional. */
   techApproach?: string;
+  /** URL of the project's main repository, if known. Optional. */
+  repositoryUrl?: string;
   /** How will success be measured? */
   successMetrics: string;
   /** Timeline, resources, known constraints. */
@@ -33,10 +35,29 @@ export interface IdeationReadmeInput {
   risksAndQuestions: string;
 }
 
+// ── Evidence summary metadata ─────────────────────────────────────────────────
+
+/**
+ * Summary of the evidence gathered from one linked repository.
+ * Only metadata is stored (never the README text or file tree contents).
+ */
+export interface EvaluationEvidenceRepo {
+  owner: string;
+  name: string;
+  /** Whether the repo's README and/or tree were successfully fetched. */
+  readable: boolean;
+  /** Byte-length of the decoded README before truncation (0 if unavailable). */
+  readmeBytes: number;
+  /** Number of paths after pruning and capping (0 if unavailable). */
+  fileCount: number;
+}
+
 // ── Evaluation output ─────────────────────────────────────────────────────────
 
 /**
  * A single structured finding returned by the agent.
+ * The "Reality Check" finding is returned here (not in a separate field) when
+ * at least one linked repository was readable.
  */
 export interface EvaluationFinding {
   /** Short label, e.g. "Clarity of Intent" */
@@ -85,6 +106,11 @@ export interface Evaluation {
    * Null/undefined while pending or if the agent call failed.
    */
   findings?: IdeationEvaluationFindings;
+  /**
+   * Summary metadata for each linked repository that was checked.
+   * Present when at least one repository was linked; absent on older evaluations.
+   */
+  evidence?: EvaluationEvidenceRepo[];
   /** Free-form notes the owner can add after reading the evaluation. */
   userNotes?: string;
   requestedAt: string;

@@ -16,6 +16,11 @@ const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 const GITHUB_FIXTURE_PORT = Number(process.env.E2E_GITHUB_PORT) || 3199;
 export const GITHUB_FIXTURE_URL = `http://127.0.0.1:${GITHUB_FIXTURE_PORT}`;
 
+// Claude (Anthropic) is also stubbed: the evaluation route's single outbound
+// edge is pointed at a local fixture so no test spends real API credits.
+const CLAUDE_FIXTURE_PORT = Number(process.env.E2E_CLAUDE_PORT) || 3198;
+export const CLAUDE_FIXTURE_URL = `http://127.0.0.1:${CLAUDE_FIXTURE_PORT}`;
+
 /**
  * Swap the database name in a Mongo connection string, preserving creds/host/query.
  *
@@ -96,6 +101,11 @@ export default defineConfig({
         // Every GitHub read goes to the fixture server below, never to
         // api.github.com.
         GITHUB_API_BASE: GITHUB_FIXTURE_URL,
+        // Every Claude call goes to the fixture server below, never to
+        // api.anthropic.com. A fake key is required so the route doesn't
+        // short-circuit with 503 before reaching the (stubbed) network.
+        ANTHROPIC_API_BASE: CLAUDE_FIXTURE_URL,
+        ANTHROPIC_API_KEY: 'e2e-test-anthropic-key',
         // Blanked deliberately, and not just left unset: this env is merged
         // over the process's, so a developer with a real OAuth app in their
         // .env would otherwise run a *different* server from CI's. The OAuth
@@ -112,6 +122,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 30_000,
       env: { GITHUB_FIXTURE_PORT: String(GITHUB_FIXTURE_PORT) },
+    },
+    {
+      command: 'node e2e/fixtures/claude-api.mjs',
+      url: `${CLAUDE_FIXTURE_URL}/healthz`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      env: { CLAUDE_FIXTURE_PORT: String(CLAUDE_FIXTURE_PORT) },
     },
   ],
 });

@@ -231,6 +231,20 @@ export const GithubCache: Model<GithubCacheDoc> =
 // would exceed the cap (enforced in the route handler, not here).
 export const MAX_EVALUATIONS_PER_TYPE = 3;
 
+// Summary metadata for one repository's evidence (contents not stored).
+const evidenceRepoSchema = new Schema(
+  {
+    owner: { type: String, required: true },
+    name: { type: String, required: true },
+    readable: { type: Boolean, required: true },
+    /** Byte-length of the decoded README before truncation (0 when unavailable). */
+    readmeBytes: { type: Number, default: 0 },
+    /** Number of file paths after pruning and capping (0 when unavailable). */
+    fileCount: { type: Number, default: 0 },
+  },
+  { _id: false },
+);
+
 const evaluationFindingSchema = new Schema(
   {
     dimension: { type: String, required: true },
@@ -256,6 +270,7 @@ const ideationInputSchema = new Schema(
     targetAudience: { type: String, required: true },
     coreFeatures: { type: String, required: true },
     techApproach: { type: String },
+    repositoryUrl: { type: String },
     successMetrics: { type: String, required: true },
     timelineAndConstraints: { type: String, required: true },
     risksAndQuestions: { type: String, required: true },
@@ -274,6 +289,8 @@ const evaluationSchema = new Schema(
     status: { type: String, enum: EVALUATION_STATUSES, default: 'pending' },
     input: { type: ideationInputSchema, required: true },
     findings: { type: ideationFindingsSchema },
+    /** Summary metadata for each linked repo that was checked (contents not stored). */
+    evidence: { type: [evidenceRepoSchema], default: undefined },
     userNotes: { type: String },
     requestedAt: { type: Date, default: Date.now },
     completedAt: { type: Date },

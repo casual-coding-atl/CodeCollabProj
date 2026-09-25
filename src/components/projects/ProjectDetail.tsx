@@ -822,6 +822,7 @@ const ProjectDetail: React.FC = () => {
                   projectId={projectId as string}
                   onSubmit={handleRequestEvaluation}
                   isPending={requestEvaluationMutation.isPending}
+                  defaultValues={evaluations[0]?.input}
                   error={
                     requestEvaluationMutation.error
                       ? (requestEvaluationMutation.error as Error & {
