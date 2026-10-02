@@ -5,6 +5,7 @@ import { Evaluation, Project, MAX_EVALUATIONS_PER_TYPE } from '../server/models'
 import { claudeRequest, claudeApiKey } from '../server/claude';
 import { reposOf, resolveGitHubToken } from '../server/github';
 import { gatherEvidence, buildEvidenceBlock } from '../services/agentic-evaluation/evidence';
+import { isEvaluationAbandoned } from '../server/evaluation-staleness';
 import type { IdeationReadmeInput, IdeationEvaluationFindings } from '../types/agentic-evaluation/evaluation';
 
 /**
@@ -15,8 +16,12 @@ import type { IdeationReadmeInput, IdeationEvaluationFindings } from '../types/a
  * same agentType are kept per project. When the cap is reached the oldest is
  * deleted before the new document is inserted.
  *
- * 409 is returned if an evaluation is already pending (prevents double-submit
- * and runaway Claude spend).
+ * Abandonment rule (Issue #93): a pending document older than
+ * ABANDONED_THRESHOLD_MS is treated as abandoned — the request that created it
+ * never resolved (crash, restart, killed connection). The stale doc is marked
+ * `failed` and the new run proceeds instead of returning 409. A genuinely
+ * in-progress pending doc (younger than the threshold) still yields 409 to
+ * prevent double-submit and runaway Claude spend.
  *
  * 503 is returned if ANTHROPIC_API_KEY is not configured.
  */
@@ -59,14 +64,23 @@ export const Route = createFileRoute('/api/evaluations')({
           return error(403, 'Only the project owner can request an evaluation');
         }
 
-        // ── Block concurrent pending ──────────────────────────────────────────
-        const alreadyPending = await Evaluation.exists({
+        // ── Abandonment rule (Issue #93) ──────────────────────────────────────
+        // Find any pending doc for this project. If it is abandoned (older than
+        // ABANDONED_THRESHOLD_MS) mark it failed so it no longer blocks, then
+        // proceed. If it is genuinely in-progress (younger than the threshold)
+        // return 409 to prevent a double-submit.
+        const pendingDoc = await Evaluation.findOne({
           projectId: project._id,
           agentType: 'ideation',
           status: 'pending',
-        });
-        if (alreadyPending) {
-          return error(409, 'An evaluation is already in progress for this project');
+        }).exec();
+
+        if (pendingDoc) {
+          if (isEvaluationAbandoned(pendingDoc.requestedAt)) {
+            await Evaluation.findByIdAndUpdate(pendingDoc._id, { status: 'failed' });
+          } else {
+            return error(409, 'An evaluation is already in progress for this project');
+          }
         }
 
         // ── Rolling cap: trim oldest if at limit ──────────────────────────────
@@ -127,8 +141,10 @@ Evaluate the README across these six dimensions:
 5. Completeness of Vision — Are the success metrics, risks, and constraints well-considered?
 6. Differentiation — Does this have a clear angle or advantage over existing solutions?${realityCheckInstruction}
 
+Also produce a Mermaid flowchart depicting the project's core user journey or system flow as you understand it from the README. Use a "flowchart TD" diagram. Keep it concise — 5 to 10 nodes. Only include the raw Mermaid source (no fences, no label, just the diagram text starting with "flowchart TD"). If the README provides insufficient information to produce a meaningful diagram, omit the flowchart field entirely.
+
 Return ONLY valid JSON matching this exact schema with no prose, no markdown fences, and no commentary outside the JSON:
-{"summary":"string","findings":[{"dimension":"string","assessment":"string","suggestion":"string (optional)"}],"actionItems":["string (3-5 items)"],"readinessScore":1}${realityCheckSchemaNote}
+{"summary":"string","findings":[{"dimension":"string","assessment":"string","suggestion":"string (optional)"}],"actionItems":["string (3-5 items)"],"readinessScore":1,"flowchart":"string (optional — omit if not enough information)"}${realityCheckSchemaNote}
 
 readinessScore must be an integer 1-5: 1=very early/unclear, 2=some foundation but significant gaps, 3=decent foundation/several things to clarify, 4=well-defined/minor things to sharpen, 5=clear/well-scoped/ready to build.
 The readinessScore and the six original dimensions are based solely on the submitted README — do not let the repository evidence change the score.`;

@@ -40,5 +40,5 @@ export default function globalSetup(): void {
     stdio: 'inherit',
   });
 
-  execFileSync('npm', ['run', '--silent', 'migrate:auth'], { env, stdio: 'inherit' });
+  execFileSync('npm', ['run', '--silent', 'migrate:auth'], { env, stdio: 'inherit', shell: true });
 }

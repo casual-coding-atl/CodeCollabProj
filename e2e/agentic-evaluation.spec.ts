@@ -133,3 +133,35 @@ test.describe('agentic evaluation — Reality Check evidence', () => {
     expect(score).toBeLessThanOrEqual(5);
   });
 });
+
+test.describe('agentic evaluation — abandonment rule', () => {
+  test('a seeded stale pending evaluation does not block a new run, and the new result renders', async ({ request }) => {
+    await signIn(request);
+
+    // The seed script plants a pending evaluation on this project with
+    // requestedAt 10 minutes in the past — well beyond ABANDONED_THRESHOLD_MS
+    // (2 minutes). The route must mark it failed and proceed, not return 409.
+    const project = await projectByTitle(request, 'E2E No-Repos Project');
+
+    const res = await request.post('/api/evaluations', {
+      data: { projectId: project._id, input: EVAL_INPUT },
+    });
+    expect(
+      res.status(),
+      `expected 201 but got ${res.status()}: ${await res.text()}`,
+    ).toBe(201);
+
+    const body = await res.json();
+    const evaluation = body.evaluation;
+
+    // ── New evaluation completed successfully ──────────────────────────────
+    expect(evaluation.status).toBe('completed');
+    expect(evaluation.findings?.readinessScore).toBeGreaterThanOrEqual(1);
+    expect(evaluation.findings?.readinessScore).toBeLessThanOrEqual(5);
+
+    // ── No Reality Check finding (no repos linked) ─────────────────────────
+    const findings: Array<{ dimension: string }> = evaluation.findings?.findings ?? [];
+    const realityCheck = findings.find((f) => f.dimension === 'Reality Check');
+    expect(realityCheck, 'Reality Check must not appear when no repos are linked').toBeUndefined();
+  });
+});

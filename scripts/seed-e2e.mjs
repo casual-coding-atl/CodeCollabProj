@@ -37,6 +37,10 @@ const collection = (name) =>
 
 const User = mongoose.model('User', new mongoose.Schema({}, { collection: 'users', strict: false }));
 const Project = mongoose.model('Project', new mongoose.Schema({}, { collection: 'projects', strict: false }));
+const Evaluation = mongoose.model(
+  'Evaluation',
+  new mongoose.Schema({}, { collection: 'evaluations', strict: false }),
+);
 const Notification = mongoose.model(
   'Notification',
   new mongoose.Schema({}, { collection: 'notifications', strict: false }),
@@ -236,8 +240,36 @@ await Project.updateOne(
 // has since changed cannot be served out of a day-old cache entry.
 await collection('github_cache').deleteMany({});
 
+// Clear all evaluations from previous runs so the abandonment E2E test always
+// starts with a clean slate and is not affected by leftover completed docs.
+await Evaluation.deleteMany({});
+
+// Seed a stale pending evaluation on the no-repos project — used by the
+// abandonment E2E spec to prove that a stuck pending doc does not block a new
+// run. requestedAt is set 10 minutes in the past, well beyond the 2-minute
+// ABANDONED_THRESHOLD_MS, so the route marks it failed and proceeds.
+const noReposProject = await Project.findOne({ title: NO_REPOS_TITLE });
+if (noReposProject) {
+  await Evaluation.create({
+    projectId: noReposProject._id,
+    userId: user._id,
+    agentType: 'ideation',
+    status: 'pending',
+    input: {
+      problemStatement: 'Stale pending seeded by E2E setup.',
+      targetAudience: 'E2E tests.',
+      coreFeatures: 'None.',
+      successMetrics: 'Test passes.',
+      timelineAndConstraints: 'Immediate.',
+      risksAndQuestions: 'None.',
+    },
+    requestedAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago — stale
+  });
+}
+
 console.log(
   `seeded pre-migration E2E users ${EMAIL} + ${EMAIL2} + ${EMAIL_SUSPENDED} (suspended) ` +
-    `(${throwaway.length} throwaway account(s) removed) and projects "${TITLE}", "${NO_REPOS_TITLE}"`,
+    `(${throwaway.length} throwaway account(s) removed) and projects "${TITLE}", "${NO_REPOS_TITLE}" ` +
+    `(stale pending evaluation seeded on "${NO_REPOS_TITLE}")`,
 );
 await mongoose.disconnect();

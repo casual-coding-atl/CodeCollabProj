@@ -83,6 +83,13 @@ export interface IdeationEvaluationFindings {
    * 1 = very early / unclear  …  5 = well-defined, ready to build.
    */
   readinessScore: 1 | 2 | 3 | 4 | 5;
+  /**
+   * Optional Mermaid flowchart source string depicting the project's core user
+   * journey or architecture. Present when Claude was able to infer a meaningful
+   * flow from the submitted README; omitted otherwise.
+   * Render with a Mermaid-compatible library (e.g. react-mermaid2).
+   */
+  flowchart?: string;
 }
 
 // ── Main entity ───────────────────────────────────────────────────────────────

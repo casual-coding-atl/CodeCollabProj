@@ -260,6 +260,8 @@ const ideationFindingsSchema = new Schema(
     findings: [evaluationFindingSchema],
     actionItems: [String],
     readinessScore: { type: Number, min: 1, max: 5, required: true },
+    /** Mermaid flowchart source — present when Claude generated one. */
+    flowchart: { type: String },
   },
   { _id: false },
 );

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import mermaid from 'mermaid';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -109,6 +110,49 @@ const RealityCheckAssessment: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
+// ── Mermaid flowchart renderer ────────────────────────────────────────────────
+
+let mermaidInitialised = false;
+
+/**
+ * Renders a Mermaid diagram from a raw source string.
+ * Initialises Mermaid once (module-level flag) and re-renders on source change.
+ * Shows a muted error note if Mermaid rejects the source rather than crashing.
+ */
+const MermaidDiagram: React.FC<{ source: string }> = ({ source }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    if (!mermaidInitialised) {
+      mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+      mermaidInitialised = true;
+    }
+
+    const id = `mermaid-eval-${Math.random().toString(36).slice(2)}`;
+    setRenderError(null);
+
+    mermaid
+      .render(id, source)
+      .then(({ svg }) => {
+        if (containerRef.current) containerRef.current.innerHTML = svg;
+      })
+      .catch(() => {
+        setRenderError('Flowchart could not be rendered.');
+      });
+  }, [source]);
+
+  if (renderError) {
+    return (
+      <p className="text-xs text-muted-foreground italic">{renderError}</p>
+    );
+  }
+
+  return <div ref={containerRef} className="overflow-x-auto" />;
+};
+
 const FindingRow: React.FC<{ finding: EvaluationFinding }> = ({ finding }) => {
   const isRealityCheck = finding.dimension === REALITY_CHECK_DIMENSION;
   return (
@@ -205,6 +249,21 @@ const EvaluationResults: React.FC<EvaluationResultsProps> = ({ evaluation }) => 
                   </li>
                 ))}
               </ul>
+            </div>
+          </>
+        )}
+
+        {/* Flowchart */}
+        {findings.flowchart && (
+          <>
+            <Separator />
+            <div className="grid gap-2">
+              <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                Project Flow
+              </h4>
+              <div className="rounded-md border border-border bg-muted/40 p-4">
+                <MermaidDiagram source={findings.flowchart} />
+              </div>
             </div>
           </>
         )}
