@@ -133,7 +133,7 @@ export const Route = createFileRoute('/api/evaluations')({
 
         const systemPrompt = `You are an experienced product and startup advisor evaluating early-stage software project ideas. Your job is to give honest, constructive, encouraging feedback — not praise everything, but also not be harsh. You are reviewing a project README submitted by a developer at the ideation stage.
 
-Evaluate the README across these six dimensions:
+Evaluate the README across these six dimensions. Keep each assessment to 1-2 sentences maximum.
 1. Clarity of Intent — Is the problem and goal clearly articulated?
 2. Scope & Prioritisation Realism — Is the MVP scope sensible and achievable?
 3. User Need Validation — Is there evidence the target audience actually has this problem?
@@ -144,7 +144,7 @@ Evaluate the README across these six dimensions:
 Also produce a Mermaid flowchart depicting the project's core user journey or system flow as you understand it from the README. Use a "flowchart TD" diagram. Keep it concise — 5 to 10 nodes. Only include the raw Mermaid source (no fences, no label, just the diagram text starting with "flowchart TD"). If the README provides insufficient information to produce a meaningful diagram, omit the flowchart field entirely.
 
 Return ONLY valid JSON matching this exact schema with no prose, no markdown fences, and no commentary outside the JSON:
-{"summary":"string","findings":[{"dimension":"string","assessment":"string","suggestion":"string (optional)"}],"actionItems":["string (3-5 items)"],"readinessScore":1,"flowchart":"string (optional — omit if not enough information)"}${realityCheckSchemaNote}
+{"summary":"string (1-2 sentences)","findings":[{"dimension":"string","assessment":"string (1-2 sentences)","suggestion":"string (optional, 1 sentence)"}],"actionItems":["string (2-3 items, concise)"],"readinessScore":1,"flowchart":"string (optional — omit if not enough information)"}${realityCheckSchemaNote}
 
 readinessScore must be an integer 1-5: 1=very early/unclear, 2=some foundation but significant gaps, 3=decent foundation/several things to clarify, 4=well-defined/minor things to sharpen, 5=clear/well-scoped/ready to build.
 The readinessScore and the six original dimensions are based solely on the submitted README — do not let the repository evidence change the score.`;
@@ -184,7 +184,7 @@ Return only the JSON evaluation object.`;
         const result = await claudeRequest({
           systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
-          maxTokens: 3072,
+          maxTokens: 1800,
         });
 
         if (!result.ok) {
