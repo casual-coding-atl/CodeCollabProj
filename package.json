@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "description": "Casual Coding Meetup collaboration platform — TanStack Start (SSR + in-process API), MongoDB.",
+  "version": "1.1.0",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
