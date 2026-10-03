@@ -139,6 +139,14 @@ const ProjectDetail: React.FC = () => {
   const [comment, setComment] = useState<string>('');
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
+  // Tracks the last successfully submitted README input so the form re-fills with
+  // it after a successful run — the user can edit specific fields and resubmit
+  // without retyping everything.
+  const [lastSubmittedInput, setLastSubmittedInput] = useState<Partial<IdeationReadmeInput> | null>(null);
+  // Incremented on every successful run to force a clean form remount, which picks
+  // up the latest defaultValues (the just-submitted input) so the fields are
+  // pre-filled and ready for edits rather than blank.
+  const [evalFormResetKey, setEvalFormResetKey] = useState<number>(0);
 
   // Evaluation data & mutation (owner-only — server enforces access; UI tab
   // is only rendered when isOwner is true, so results only appear for the owner).
@@ -158,6 +166,11 @@ const ProjectDetail: React.FC = () => {
             const newId = (data.evaluation as { _id?: string; id?: string })._id
               ?? data.evaluation.id;
             if (newId) setExpandedEvalId(newId);
+            // Store the submitted input so the remounted form is pre-filled with
+            // it — the user can edit specific fields and re-run without retyping.
+            // Error leaves fields intact; only success triggers the remount.
+            setLastSubmittedInput(input);
+            setEvalFormResetKey((k) => k + 1);
           },
         }
       );
@@ -819,9 +832,14 @@ const ProjectDetail: React.FC = () => {
                   </div>
                 )}
                 <EvaluationRequestForm
+                  key={evalFormResetKey}
                   projectId={projectId as string}
                   onSubmit={handleRequestEvaluation}
                   isPending={requestEvaluationMutation.isPending}
+                  defaultValues={lastSubmittedInput ?? evaluations[0]?.input ?? {
+                    problemStatement: currentProject?.description || '',
+                    coreFeatures: currentProject?.technologies?.join(', ') || '',
+                  }}
                   error={
                     requestEvaluationMutation.error
                       ? (requestEvaluationMutation.error as Error & {

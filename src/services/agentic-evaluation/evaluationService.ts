@@ -12,11 +12,20 @@ import type {
  * and src/routes/api.projects.$id.evaluations.ts.
  */
 
-/** Create a new ideation evaluation for a project (owner only). */
+/** Create a new ideation evaluation for a project (owner only).
+ *
+ * Uses a 90 s timeout — the global axios default is 30 s, which is shorter
+ * than the Claude API timeout (60 s). A slow but successful Claude call would
+ * cause the browser to show an error even though the evaluation completed.
+ * Only this mutation gets the extended timeout; all other API calls keep the
+ * existing 30 s default (Issue #93).
+ */
 async function createEvaluation(
   payload: CreateEvaluationPayload
 ): Promise<CreateEvaluationResponse> {
-  const response = await api.post<CreateEvaluationResponse>('/evaluations', payload);
+  const response = await api.post<CreateEvaluationResponse>('/evaluations', payload, {
+    timeout: 90_000,
+  });
   return response.data;
 }
 

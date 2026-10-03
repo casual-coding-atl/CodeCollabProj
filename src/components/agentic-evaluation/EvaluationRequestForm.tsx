@@ -13,6 +13,8 @@ interface EvaluationRequestFormProps {
   onSubmit: (input: IdeationReadmeInput) => void;
   isPending: boolean;
   error?: string | null;
+  /** Pre-fill the form from a previous evaluation's input (e.g. the most recent). */
+  defaultValues?: Partial<IdeationReadmeInput>;
 }
 
 interface FormValues extends IdeationReadmeInput {}
@@ -48,6 +50,12 @@ const FIELDS: {
     required: false,
   },
   {
+    name: 'repositoryUrl',
+    label: 'Repository URL',
+    placeholder: 'https://github.com/your-username/your-repo (optional)',
+    required: false,
+  },
+  {
     name: 'successMetrics',
     label: 'Success Metrics',
     placeholder: 'How will you know if this project succeeded?',
@@ -71,12 +79,13 @@ const EvaluationRequestForm: React.FC<EvaluationRequestFormProps> = ({
   onSubmit,
   isPending,
   error,
+  defaultValues,
 }) => {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>();
+  } = useForm<FormValues>({ defaultValues });
 
   const onValid = (data: FormValues) => onSubmit(data);
 
@@ -92,7 +101,9 @@ const EvaluationRequestForm: React.FC<EvaluationRequestFormProps> = ({
           scope, feasibility, and more — and give you a readiness score.
         </p>
         <p className="text-xs text-muted-foreground">
-          Up to 3 evaluations are kept per project. Running a new one removes the oldest.
+          {defaultValues
+            ? 'Fields pre-filled from your last evaluation — edit and re-run to update.'
+            : 'Up to 3 evaluations are kept per project. Running a new one removes the oldest.'}
         </p>
       </CardHeader>
       <CardContent>

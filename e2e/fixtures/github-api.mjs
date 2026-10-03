@@ -55,6 +55,65 @@ const REPOS = {
   },
 };
 
+/**
+ * README responses for the fixture repositories, keyed by slug.
+ * The content field is a base64-encoded README — the server must return this
+ * shape for the app's fetchRepoReadme() to decode it.
+ */
+const README_CONTENT = `# CodeCollab Web
+
+A web application seeded for end-to-end tests of the CodeCollab platform.
+
+## Problem
+
+Developers need a place to find collaborators for side projects.
+
+## Features
+
+- Project listings with status and tech stack
+- Collaboration requests and notifications
+- GitHub repository linking
+- AI-powered ideation evaluation
+
+## Tech Stack
+
+TypeScript, React, TanStack Router, MongoDB, Anthropic Claude API.
+`;
+
+const READMES = {
+  'e2e-org/codecollab-web': {
+    encoding: 'base64',
+    content: Buffer.from(README_CONTENT).toString('base64'),
+    name: 'README.md',
+    path: 'README.md',
+  },
+};
+
+/**
+ * File tree responses for the fixture repositories.
+ * Includes a mix of clean paths and noisy ones (node_modules, dist) so the
+ * E2E suite exercises the pruning logic in production.
+ */
+const TREES = {
+  'e2e-org/codecollab-web': {
+    truncated: false,
+    tree: [
+      { type: 'blob', path: 'README.md' },
+      { type: 'blob', path: 'package.json' },
+      { type: 'blob', path: 'tsconfig.json' },
+      { type: 'blob', path: 'src/index.ts' },
+      { type: 'blob', path: 'src/routes/api.evaluations.ts' },
+      { type: 'blob', path: 'src/components/EvaluationResults.tsx' },
+      { type: 'blob', path: 'src/server/github.ts' },
+      { type: 'blob', path: 'src/server/models.ts' },
+      // Noisy paths that should be pruned by the evidence gatherer:
+      { type: 'blob', path: 'node_modules/react/index.js' },
+      { type: 'blob', path: 'dist/bundle.js' },
+      { type: 'blob', path: 'package-lock.json' },
+    ],
+  },
+};
+
 /** Every repository path this server has been asked for, and how often. */
 const hits = new Map();
 
@@ -77,6 +136,25 @@ const server = createServer((req, res) => {
 
   hits.set(pathname, (hits.get(pathname) ?? 0) + 1);
 
+  // ── /repos/{owner}/{name}/readme ────────────────────────────────────────────
+  const readmeMatch = /^\/repos\/([^/]+)\/([^/]+)\/readme$/.exec(pathname);
+  if (readmeMatch) {
+    const slug = `${decodeURIComponent(readmeMatch[1])}/${decodeURIComponent(readmeMatch[2])}`;
+    const readme = READMES[slug];
+    if (!readme) return send(res, 404, { message: 'Not Found' });
+    return send(res, 200, readme);
+  }
+
+  // ── /repos/{owner}/{name}/git/trees/HEAD ────────────────────────────────────
+  const treeMatch = /^\/repos\/([^/]+)\/([^/]+)\/git\/trees\/HEAD$/.exec(pathname);
+  if (treeMatch) {
+    const slug = `${decodeURIComponent(treeMatch[1])}/${decodeURIComponent(treeMatch[2])}`;
+    const tree = TREES[slug];
+    if (!tree) return send(res, 404, { message: 'Not Found' });
+    return send(res, 200, tree);
+  }
+
+  // ── /repos/{owner}/{name} ────────────────────────────────────────────────────
   const match = /^\/repos\/([^/]+)\/([^/]+)$/.exec(pathname);
   if (!match) return send(res, 404, { message: 'Not Found' });
 

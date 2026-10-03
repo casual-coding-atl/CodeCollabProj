@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import mermaid from 'mermaid';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -42,18 +43,144 @@ const ReadinessScore: React.FC<{ score: number }> = ({ score }) => (
   </div>
 );
 
-const FindingRow: React.FC<{ finding: EvaluationFinding }> = ({ finding }) => (
-  <div className="grid gap-1">
-    <p className="text-sm font-semibold text-foreground">{finding.dimension}</p>
-    <p className="text-sm text-muted-foreground">{finding.assessment}</p>
-    {finding.suggestion && (
-      <p className="text-sm text-primary">
-        <span className="font-medium">Suggestion: </span>
-        {finding.suggestion}
+const REALITY_CHECK_DIMENSION = 'Reality Check';
+
+/**
+ * Render inline **bold** markers within a text segment.
+ * e.g. "**30-day horizon**" → <strong>30-day horizon</strong>
+ */
+const InlineBold: React.FC<{ text: string }> = ({ text }) => {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
+      )}
+    </>
+  );
+};
+
+/**
+ * Structured renderer for the Reality Check assessment text.
+ * Claude returns it as a single string with:
+ *   - An optional intro sentence before the first " - "
+ *   - Bullet items separated by " - "
+ *   - A "Conclusion: …" sentence at the end
+ */
+const RealityCheckAssessment: React.FC<{ text: string }> = ({ text }) => {
+  // Split on " - " that starts a new point (not inside a word like "e.g. - ")
+  const rawParts = text.split(/ - (?=[A-Z*'])/);
+
+  // First segment is the intro paragraph if it doesn't look like a bullet
+  const hasIntro = rawParts.length > 1 && !rawParts[0].startsWith("'");
+  const intro = hasIntro ? rawParts[0] : null;
+  const bullets = hasIntro ? rawParts.slice(1) : rawParts;
+
+  // Separate out a trailing "Conclusion:" sentence if present
+  const lastBullet = bullets[bullets.length - 1] ?? '';
+  const conclusionMatch = lastBullet.match(/^(.*?)\s*Conclusion:\s*(.+)$/s);
+  const bulletList = conclusionMatch
+    ? [...bullets.slice(0, -1), conclusionMatch[1]].filter(Boolean)
+    : bullets;
+  const conclusion = conclusionMatch ? conclusionMatch[2] : null;
+
+  return (
+    <div className="grid gap-3">
+      {intro && (
+        <p className="text-sm text-muted-foreground">
+          <InlineBold text={intro} />
+        </p>
+      )}
+      {bulletList.length > 0 && (
+        <ul className="grid gap-2">
+          {bulletList.filter(Boolean).map((item, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+              <span className="mt-1 size-1.5 shrink-0 rounded-full bg-brand-amber" />
+              <span><InlineBold text={item.trim()} /></span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {conclusion && (
+        <p className="text-sm font-medium text-foreground border-t border-border pt-2">
+          <InlineBold text={conclusion} />
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ── Mermaid flowchart renderer ────────────────────────────────────────────────
+
+let mermaidInitialised = false;
+
+/**
+ * Renders a Mermaid diagram from a raw source string.
+ * Initialises Mermaid once (module-level flag) and re-renders on source change.
+ * Shows a muted error note if Mermaid rejects the source rather than crashing.
+ */
+const MermaidDiagram: React.FC<{ source: string }> = ({ source }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    if (!mermaidInitialised) {
+      mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+      mermaidInitialised = true;
+    }
+
+    const id = `mermaid-eval-${Math.random().toString(36).slice(2)}`;
+    setRenderError(null);
+
+    mermaid
+      .render(id, source)
+      .then(({ svg }) => {
+        if (containerRef.current) containerRef.current.innerHTML = svg;
+      })
+      .catch(() => {
+        setRenderError('Flowchart could not be rendered.');
+      });
+  }, [source]);
+
+  if (renderError) {
+    return (
+      <p className="text-xs text-muted-foreground italic">{renderError}</p>
+    );
+  }
+
+  return <div ref={containerRef} className="overflow-x-auto" />;
+};
+
+const FindingRow: React.FC<{ finding: EvaluationFinding }> = ({ finding }) => {
+  const isRealityCheck = finding.dimension === REALITY_CHECK_DIMENSION;
+  return (
+    <div
+      className={`grid gap-2${isRealityCheck ? ' rounded-md border border-border bg-muted/40 p-4' : ' gap-1'}`}
+      data-testid={isRealityCheck ? 'reality-check-finding' : undefined}
+    >
+      <p className="text-sm font-semibold text-foreground">
+        {isRealityCheck && (
+          <span className="mr-1.5 font-mono text-[10px] uppercase tracking-widest text-brand-amber">
+            //
+          </span>
+        )}
+        {finding.dimension}
       </p>
-    )}
-  </div>
-);
+      {isRealityCheck
+        ? <RealityCheckAssessment text={finding.assessment} />
+        : <p className="text-sm text-muted-foreground">{finding.assessment}</p>
+      }
+      {finding.suggestion && (
+        <p className="text-sm text-primary">
+          <span className="font-medium">Suggestion: </span>
+          {finding.suggestion}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const EvaluationResults: React.FC<EvaluationResultsProps> = ({ evaluation }) => {
   const { findings } = evaluation;
@@ -88,15 +215,18 @@ const EvaluationResults: React.FC<EvaluationResultsProps> = ({ evaluation }) => 
 
         <Separator />
 
-        {/* Per-dimension findings */}
+        {/* Per-dimension findings — Reality Check (if present) is always last */}
         <div className="grid gap-4">
           <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             Findings
           </h4>
-          {findings.findings.map((f, i) => (
+          {[
+            ...findings.findings.filter((f) => f.dimension !== REALITY_CHECK_DIMENSION),
+            ...findings.findings.filter((f) => f.dimension === REALITY_CHECK_DIMENSION),
+          ].map((f, i, arr) => (
             <React.Fragment key={f.dimension}>
               <FindingRow finding={f} />
-              {i < findings.findings.length - 1 && <Separator />}
+              {i < arr.length - 1 && <Separator />}
             </React.Fragment>
           ))}
         </div>
@@ -119,6 +249,21 @@ const EvaluationResults: React.FC<EvaluationResultsProps> = ({ evaluation }) => 
                   </li>
                 ))}
               </ul>
+            </div>
+          </>
+        )}
+
+        {/* Flowchart */}
+        {findings.flowchart && (
+          <>
+            <Separator />
+            <div className="grid gap-2">
+              <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                Project Flow
+              </h4>
+              <div className="rounded-md border border-border bg-muted/40 p-4">
+                <MermaidDiagram source={findings.flowchart} />
+              </div>
             </div>
           </>
         )}
