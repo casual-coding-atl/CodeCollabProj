@@ -230,6 +230,8 @@ export const GithubCache: Model<GithubCacheDoc> =
 // kept per (projectId, agentType) pair; the oldest is deleted when a new one
 // would exceed the cap (enforced in the route handler, not here).
 export const MAX_EVALUATIONS_PER_TYPE = 3;
+/** Maximum evaluations a single user may request within any rolling 24-hour window. */
+export const MAX_EVALUATIONS_PER_USER_PER_DAY = 5;
 
 // Summary metadata for one repository's evidence (contents not stored).
 const evidenceRepoSchema = new Schema(

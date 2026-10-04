@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { handler, json, error, requireUser } from '../server/http';
 import { connectDB } from '../server/db';
-import { Evaluation, Project, MAX_EVALUATIONS_PER_TYPE } from '../server/models';
+import { Evaluation, Project, MAX_EVALUATIONS_PER_TYPE, MAX_EVALUATIONS_PER_USER_PER_DAY } from '../server/models';
 import { claudeRequest, claudeApiKey } from '../server/claude';
 import { reposOf, resolveGitHubToken } from '../server/github';
 import { gatherEvidence, buildEvidenceBlock } from '../services/agentic-evaluation/evidence';
@@ -81,6 +81,16 @@ export const Route = createFileRoute('/api/evaluations')({
           } else {
             return error(409, 'An evaluation is already in progress for this project');
           }
+        }
+
+        // ── Per-user daily rate limit ─────────────────────────────────────────
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const userDailyCount = await Evaluation.countDocuments({
+          userId: user._id,
+          requestedAt: { $gte: since },
+        });
+        if (userDailyCount >= MAX_EVALUATIONS_PER_USER_PER_DAY) {
+          return error(429, 'Evaluation limit reached: you may run up to 5 evaluations per 24 hours');
         }
 
         // ── Rolling cap: trim oldest if at limit ──────────────────────────────
